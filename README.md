@@ -1,34 +1,42 @@
-# 🏎️ Turbo Tijdrit
+# 🌅 Turbo Tijdrit · Sunset Edition
 
-Een 3D-racegame in je browser waarin je alleen tegen de klok rijdt. Je kijkt vanaf achter je auto (third person). Rij 3 rondes over een baan met bochten, een haarspeld, schansen en obstakels, en probeer je eigen record te verbreken.
+Een 3D-racegame in je browser, geïnspireerd op PolyTrack, maar in een eigen stijl: een low-poly zonsondergang boven een zee vol eilandjes. Race tegen de klok over zwevende banen met schansen, boosts, hellingen en bruggen.
+
+**Spelen:** https://basjonker2009-lab.github.io/Game/
+
+## Levels
+
+| # | Level | Wat je krijgt |
+|---|---|---|
+| 1 | Eerste Rit | Rustig beginnen: bochten en een heuvel |
+| 2 | Springplank | Schansen over het water |
+| 3 | Hoogtevrees | Hoog, hoger, bulten |
+| 4 | Boostbaan | Boosts en grote sprongen |
+| 5 | Slingerweg | Bocht na bocht |
+| 6 | Meesterwerk | Alles tegelijk, met een brug over de start |
+
+Haal een level om het volgende vrij te spelen. Per level zijn er medailles te verdienen: 🥇 goud, 🥈 zilver en 🥉 brons.
 
 ## Besturing
 
-| Actie | Toetsenbord | Telefoon |
-|---|---|---|
-| Gas | ↑ of W | ▲ |
-| Remmen / achteruit | ↓ of S | ▼ |
-| Sturen | ← → of A D | ◀ ▶ |
-| Handrem (driften) | Spatie | – |
-| Opnieuw starten | R | – |
-| Pauze | P of Esc | Tik op het scherm |
-| Geluid aan/uit | M | – |
+| Actie | Toetsenbord |
+|---|---|
+| Gas / rem | ↑ ↓ of W S |
+| Sturen | ← → of A D |
+| Driften | Spatie |
+| Opnieuw beginnen | R |
+| Terug naar laatste checkpoint | Enter |
+| Pauze | Esc of P |
+| Geluid aan/uit | M |
 
-## Op de baan
+Op je telefoon verschijnen knoppen op het scherm.
 
-- 🟠 **Kegels** en 🔴 **tonnen**: daar bots je op
-- ⚫ **Olie**: je auto glijdt weg en stuurt slecht
-- 🟧 **Boost-pad**: even extra snelheid
-- 🟩 **Gras**: je rijdt een stuk langzamer
-- 🟨 **Schans**: spring! Bij twee schansen ligt water erachter. Te weinig snelheid (onder ±110 km/u) = plons, en je wordt teruggezet vóór de schans
+## Extra's
 
-De tijd start na het aftellen (3, 2, 1, GO!) en stopt als je na de laatste ronde over de finish komt. Je ziet per ronde of je sneller was dan je snelste ronde. Je record en je snelste ronde worden in je browser bewaard.
+- De tijd start pas als je gas geeft.
+- **Spookauto**: je racet tegen een doorzichtige auto van je beste rit.
+- Bij elk checkpoint zie je of je voor (groen) of achter (rood) ligt op je record.
+- Kies in het menu de kleur van je auto.
+- Je records en medailles worden in je browser bewaard.
 
-Afsnijden heeft geen zin: een ronde telt alleen als je langs alle checkpoints bent gereden.
-
-## Online zetten met GitHub Pages
-
-1. Maak een nieuwe repository op GitHub (bijv. `Race`).
-2. Upload `index.html` en `README.md`.
-3. Ga naar **Settings → Pages**, kies **Deploy from a branch**, **main**, **/ (root)** en klik **Save**.
-4. Na een minuutje staat de game op `https://<gebruikersnaam>.github.io/Race/`.
+Alles zit in één bestand (`index.html`), zonder extra libraries.
