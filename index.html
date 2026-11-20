@@ -4,6 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Turbo Tijdrit</title>
+  <meta name="description" content="3D-racegame in je browser: loopings, schansen, muurritten en 12 levels. Race tegen de klok!">
+  <meta name="theme-color" content="#111214">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Turbo Tijdrit">
+  <meta property="og:description" content="3D-racegame in je browser: loopings, schansen, muurritten en 12 levels. Race tegen de klok!">
+  <meta property="og:image" content="https://basjonker2009-lab.github.io/Game/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="https://basjonker2009-lab.github.io/Game/">
+  <meta name="twitter:card" content="summary_large_image">
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #e6eaee; }
     #gl, #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
@@ -13,9 +27,44 @@
     .touch button { pointer-events: auto; width: 76px; height: 76px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);
       background: rgba(14, 15, 18, 0.45); color: #fff; font-size: 26px; font-weight: bold; user-select: none; -webkit-user-select: none; touch-action: none; }
     .touch button.actief { background: rgba(255, 255, 255, 0.35); }
+    #loader { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 40%, #24272e 0%, #111214 70%); color: #fff;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif; transition: opacity 0.5s ease; }
+    #loader.weg { opacity: 0; pointer-events: none; }
+    #loader .box { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 20px; text-align: center; }
+    #loader .logo { width: 120px; height: 120px; border-radius: 26px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); animation: pulse 1.6s ease-in-out infinite; }
+    #loader h1 { margin: 0; font-size: clamp(30px, 7vw, 54px); font-style: italic; font-weight: 900; letter-spacing: 0.5px; }
+    #loader .bar { width: min(320px, 70vw); height: 8px; border-radius: 99px; background: rgba(255,255,255,0.12); overflow: hidden; }
+    #loader .bar i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, #ffffff, #e8282f); transition: width 0.35s ease; }
+    #loader .msg { font-size: 14px; opacity: 0.75; min-height: 18px; }
+    #loader .tip { font-size: 13px; opacity: 0.55; max-width: 320px; }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
   </style>
 </head>
 <body>
+  <div id="loader">
+    <div class="box">
+      <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#111214"/>
+  <g fill="#e8282f">
+    <rect x="22" y="196" width="72" height="18" rx="9"/>
+    <rect x="40" y="236" width="56" height="18" rx="9"/>
+    <rect x="28" y="276" width="64" height="18" rx="9"/>
+  </g>
+  <g transform="skewX(-14)">
+    <path fill="#ffffff" d="M136 112 H286 V164 H237 V340 H185 V164 H136 Z"/>
+    <path fill="#ffffff" d="M304 112 H454 V164 H405 V340 H353 V164 H304 Z"/>
+    <rect x="194" y="372" width="300" height="40" fill="#ffffff"/>
+    <g fill="#111214"><rect x="194" y="372" width="20" height="20"/><rect x="234" y="372" width="20" height="20"/><rect x="274" y="372" width="20" height="20"/><rect x="314" y="372" width="20" height="20"/><rect x="354" y="372" width="20" height="20"/><rect x="394" y="372" width="20" height="20"/><rect x="434" y="372" width="20" height="20"/><rect x="474" y="372" width="20" height="20"/><rect x="214" y="392" width="20" height="20"/><rect x="254" y="392" width="20" height="20"/><rect x="294" y="392" width="20" height="20"/><rect x="334" y="392" width="20" height="20"/><rect x="374" y="392" width="20" height="20"/><rect x="414" y="392" width="20" height="20"/><rect x="454" y="392" width="20" height="20"/></g>
+  </g>
+</svg>
+
+      <h1>TURBO TIJDRIT</h1>
+      <div class="bar"><i id="loaderBar"></i></div>
+      <div class="msg" id="loaderMsg">Laden…</div>
+      <div class="tip" id="loaderTip"></div>
+    </div>
+  </div>
   <canvas id="gl"></canvas>
   <canvas id="hud"></canvas>
   <div class="touch">
@@ -1459,9 +1508,25 @@ function drawFinish() {
   button('☰  Levels', x + 20, y + ph - 56, pw - 40, 40, toMenu);
 }
 
-// ================= Game loop =================
-loadLevel(0);
-state = 'menu';
+// ================= Laadscherm + game loop =================
+const loaderEl = document.getElementById('loader');
+const loaderBar = document.getElementById('loaderBar');
+const loaderMsg = document.getElementById('loaderMsg');
+const TIPS = [
+  'Tip: houd Spatie ingedrukt om te driften',
+  'Tip: Enter brengt je terug naar je laatste checkpoint',
+  'Tip: in een looping moet je vol gas blijven geven!',
+  'Tip: op een muur glij je eraf onder de 130 km/u',
+  'Tip: met R begin je meteen opnieuw',
+  'Tip: race tegen je spookauto en verbeter je record',
+];
+document.getElementById('loaderTip').textContent = TIPS[Math.floor(Math.random() * TIPS.length)];
+function setProgress(p, msg) {
+  loaderBar.style.width = Math.round(p * 100) + '%';
+  if (msg) loaderMsg.textContent = msg;
+}
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
 let last = performance.now();
 function loop(now) {
   let dt = Math.min(0.05, (now - last) / 1000);
@@ -1474,7 +1539,29 @@ function loop(now) {
   updateEngine();
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+
+async function boot() {
+  const t0 = performance.now();
+  setProgress(0.15, 'Motor starten…');
+  await nextFrame();
+  setProgress(0.4, 'Baan bouwen…');
+  await nextFrame();
+  loadLevel(0);
+  state = 'menu';
+  setProgress(0.7, 'Landschap neerzetten…');
+  await nextFrame();
+  render();
+  drawHud();
+  setProgress(0.85, 'Bijna klaar…');
+  while (performance.now() - t0 < 1400) await nextFrame();
+  setProgress(1, 'Klaar!');
+  await new Promise((r) => setTimeout(r, 250));
+  last = performance.now();
+  requestAnimationFrame(loop);
+  loaderEl.classList.add('weg');
+  setTimeout(() => loaderEl.remove(), 700);
+}
+boot();
 
   </script>
 </body>

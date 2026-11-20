@@ -1,5 +1,7 @@
 # 🏁 Turbo Tijdrit
 
+![Turbo Tijdrit](og-image.png)
+
 Een 3D-racegame in je browser, geïnspireerd op PolyTrack, in een strakke wit-zwart-grijze stijl. Race tegen de klok over zwevende banen met loopings, schuine bochten, muurritten, schansen, boosts en smalle stukken.
 
 **Spelen:** https://basjonker2009-lab.github.io/Game/
@@ -45,4 +47,4 @@ Op je telefoon verschijnen knoppen op het scherm.
 - Kies in het menu de kleur van je auto.
 - Je records en medailles worden in je browser bewaard.
 
-Alles zit in één bestand (`index.html`), zonder extra libraries.
+De hele game zit in `index.html`, zonder extra libraries. Daarnaast zijn er een icoontje (`icon.svg` en PNG's), een deelplaatje (`og-image.png`) en een `manifest.webmanifest`, zodat je de game op je telefoon aan je beginscherm kunt toevoegen.

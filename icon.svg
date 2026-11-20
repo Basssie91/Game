@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#111214"/>
+  <g fill="#e8282f">
+    <rect x="22" y="196" width="72" height="18" rx="9"/>
+    <rect x="40" y="236" width="56" height="18" rx="9"/>
+    <rect x="28" y="276" width="64" height="18" rx="9"/>
+  </g>
+  <g transform="skewX(-14)">
+    <path fill="#ffffff" d="M136 112 H286 V164 H237 V340 H185 V164 H136 Z"/>
+    <path fill="#ffffff" d="M304 112 H454 V164 H405 V340 H353 V164 H304 Z"/>
+    <rect x="194" y="372" width="300" height="40" fill="#ffffff"/>
+    <g fill="#111214"><rect x="194" y="372" width="20" height="20"/><rect x="234" y="372" width="20" height="20"/><rect x="274" y="372" width="20" height="20"/><rect x="314" y="372" width="20" height="20"/><rect x="354" y="372" width="20" height="20"/><rect x="394" y="372" width="20" height="20"/><rect x="434" y="372" width="20" height="20"/><rect x="474" y="372" width="20" height="20"/><rect x="214" y="392" width="20" height="20"/><rect x="254" y="392" width="20" height="20"/><rect x="294" y="392" width="20" height="20"/><rect x="334" y="392" width="20" height="20"/><rect x="374" y="392" width="20" height="20"/><rect x="414" y="392" width="20" height="20"/><rect x="454" y="392" width="20" height="20"/></g>
+  </g>
+</svg>
