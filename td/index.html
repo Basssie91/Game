@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Robo Defense · Bas Arcade</title>
+  <meta name="description" content="Bouw torens langs het pad en houd de golven robots tegen.">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Cpath%20d%3D%22M4%2046%20H20%20V22%20H44%20V46%20H60%22%20fill%3D%22none%22%20stroke%3D%22%233a3e47%22%20stroke-width%3D%229%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2246%22%20r%3D%224%22%20fill%3D%22%23ff4d55%22/%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2234%22%20r%3D%224%22%20fill%3D%22%23ff4d55%22/%3E%3Crect%20x%3D%2226%22%20y%3D%2230%22%20width%3D%2212%22%20height%3D%2212%22%20rx%3D%223%22%20fill%3D%22%23f2f2f2%22/%3E%3Crect%20x%3D%2230%22%20y%3D%2220%22%20width%3D%224%22%20height%3D%2212%22%20rx%3D%222%22%20fill%3D%22%23f2f2f2%22/%3E%3Crect%20x%3D%2248%22%20y%3D%2210%22%20width%3D%2210%22%20height%3D%2210%22%20rx%3D%222%22%20fill%3D%22%235ab8ff%22/%3E%3Crect%20x%3D%226%22%20y%3D%2210%22%20width%3D%2210%22%20height%3D%2210%22%20rx%3D%222%22%20fill%3D%22%23e8282f%22/%3E%3C/svg%3E">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #fff; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+.terug, .geluid { position: fixed; top: 12px; z-index: 5; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); padding: 8px 12px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.terug { left: 12px; } .geluid { right: 12px; }
+.terug:hover, .geluid:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <a class="terug" href="../">← Games</a>
+  <canvas id="c"></canvas>
+  
+  <script>
+'use strict';
+// ================= Bas Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
+const ArcadeCore = (() => {
+  const KEY = 'arcade_settings';
+  const DEF = { music: 0.5, sfx: 0.8, quality: 'normaal', muted: false };
+  let S = { ...DEF };
+  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* standaard */ }
+  const listeners = [];
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* */ }
+    listeners.forEach((f) => f(S));
+  };
+  const set = (k, v) => { S[k] = v; save(); };
+  const sfx = () => (S.muted ? 0 : S.sfx);
+  const musicVol = () => (S.muted ? 0 : S.music);
+  // Hoeveel pixels we tekenen: lager = soepeler op trage apparaten
+  const dprCap = () => ({ hoog: 2, normaal: 1.5, laag: 1 })[S.quality] || 1.5;
+
+  // ---------- Muziek: kleine sequencer met drums, bas, akkoorden en melodie ----------
+  const SCALE = [0, 2, 3, 5, 7, 8, 10]; // mineur
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // Elke game een eigen nummer
+  const SONGS = {
+    menu:     { bpm: 92,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x.....x.x.......', arp: true,  lead: 'triangle', seed: 3, density: 0.35, pad: 'triangle' },
+    race:     { bpm: 128, root: 52, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xo', bass: 'x.xox.xox.xox.xo', arp: true,  lead: 'sawtooth', seed: 11, density: 0.45, pad: 'sawtooth' },
+    meteoren: { bpm: 140, root: 50, prog: [[0, 3, 7], [1, 5, 8], [-2, 2, 5], [0, 3, 7]], kick: 'x..x..x.x..x..x.', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx', bass: 'xxoxxxoxxxoxxxox', arp: false, lead: 'square', seed: 21, density: 0.55, pad: 'sawtooth' },
+    runner:   { bpm: 124, root: 54, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..o...o...o...o.', bass: 'x.x.x.x.x.x.x.x.', arp: true,  lead: 'sawtooth', seed: 31, density: 0.4, pad: 'sawtooth' },
+    snake:    { bpm: 112, root: 60, prog: [[0, 3, 7], [5, 8, 12], [3, 7, 10], [-2, 2, 5]], kick: 'x.....x.x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...o...x...o...', arp: false, lead: 'square', seed: 41, density: 0.6, pad: null },
+    2048:     { bpm: 84,  root: 55, prog: [[0, 3, 7, 10], [-4, 0, 3, 7], [3, 7, 10, 14], [-2, 2, 5, 9]], kick: 'x.........x.....', snare: '....x.......x...', hat: '..x...x...x..xx.', bass: 'x.......x..x....', arp: false, lead: 'triangle', seed: 51, density: 0.25, pad: 'triangle' },
+    blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
+    overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
+    td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
+  };
+  // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
+  function makeMelody(song) {
+    const R = rng(song.seed);
+    const motif = [];
+    for (let i = 0; i < 32; i++) {
+      if (R() > song.density || i % 2 === 1 && R() < 0.5) { motif.push(null); continue; }
+      const deg = Math.floor(R() * 7) + (R() < 0.3 ? 7 : 0);
+      const len = R() < 0.25 ? 3 : R() < 0.5 ? 2 : 1;
+      motif.push({ deg, len });
+    }
+    const mel = [];
+    for (let bar = 0; bar < 8; bar++) {
+      for (let i = 0; i < 16; i++) {
+        let m = motif[(bar % 2) * 16 + i];
+        if (m && bar >= 4 && bar % 2 === 1 && i > 8) m = { deg: m.deg + 2, len: m.len }; // kleine variatie
+        mel.push(m);
+      }
+    }
+    return mel;
+  }
+  for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
+
+  let ac = null, master = null, delayIn = null, noise = null, timer = null;
+  let song = null, wanted = null, step = 0, nextT = 0;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  function initAudio() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = musicVol() * 0.5;
+      const comp = ac.createDynamicsCompressor();
+      master.connect(comp);
+      comp.connect(ac.destination);
+      // Echo voor melodie
+      delayIn = ac.createGain(); delayIn.gain.value = 0.22;
+      const d = ac.createDelay(); d.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.3;
+      delayIn.connect(d); d.connect(fb); fb.connect(d); d.connect(master);
+      noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    } catch (e) { ac = null; }
+  }
+  function env(g, t, a, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function kick(t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
+    env(g, t, 0.003, 0.9, 0.22);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.25);
+  }
+  function noiseHit(t, hp, peak, dur) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise;
+    f.type = 'highpass'; f.frequency.value = hp;
+    env(g, t, 0.002, peak, dur);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.02);
+  }
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006) {
+    const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = type;
+    o.frequency.value = mtof(midi);
+    f.type = 'lowpass'; f.frequency.value = cutoff;
+    env(g, t, attack, vol, dur);
+    o.connect(f); f.connect(g); g.connect(master);
+    if (echo) g.connect(delayIn);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  function playStep(s, t) {
+    const sp = 60 / song.bpm / 4;
+    const i = s % 16, bar = Math.floor(s / 16) % 4, chord = song.prog[bar];
+    const intro = Math.floor(s / 16) < 2 && song.introDone !== true;
+    if (!intro) {
+      if (song.kick[i] === 'x') kick(t);
+      if (song.snare[i] === 'x') { noiseHit(t, 1500, 0.3, 0.15); tone(t, 50, 0.08, 'triangle', 0.18, 2000, false, 0.002); }
+      if (song.hat[i] === 'x') noiseHit(t, 7000, 0.08, 0.035);
+      if (song.hat[i] === 'o') noiseHit(t, 6500, 0.09, 0.14);
+    }
+    const b = song.bass[i];
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.16, 650, false);
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.035, 1400, false, 0.25);
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length], sp * 0.8, 'square', 0.025, 2600, true);
+    const m = song.mel[s % song.mel.length];
+    if (m && !intro) {
+      const deg = m.deg;
+      const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.05, song.lead === 'sawtooth' ? 2200 : 3500, true);
+    }
+  }
+  function tick() {
+    if (!ac || !song) return;
+    const sp = 60 / song.bpm / 4;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
+    while (nextT < ac.currentTime + 0.15) {
+      playStep(step, nextT);
+      nextT += sp;
+      step++;
+      if (step >= 128) { step = 0; song.introDone = true; }
+    }
+  }
+  function startIfWanted() {
+    if (!wanted) return;
+    initAudio();
+    if (!ac) return;
+    if (song !== SONGS[wanted]) { song = SONGS[wanted]; step = 0; nextT = ac.currentTime + 0.1; }
+    if (!timer) timer = setInterval(tick, 25);
+  }
+  // Muziek mag pas starten na een klik of toetsaanslag (regel van browsers)
+  addEventListener('pointerdown', startIfWanted);
+  addEventListener('keydown', startIfWanted);
+  document.addEventListener('visibilitychange', () => {
+    if (!ac) return;
+    if (document.hidden) ac.suspend(); else ac.resume();
+  });
+  listeners.push(() => { if (master) master.gain.setTargetAtTime(musicVol() * 0.5, ac.currentTime, 0.1); });
+
+  const music = { play(name) { wanted = name; if (ac) startIfWanted(); }, status: () => ({ running: !!timer, song: wanted, step, audio: ac ? ac.state : 'geen' }) };
+
+  // ---------- Instellingenpaneel ----------
+  const CSS = `
+  .ac-gear { position: fixed; top: 12px; right: 12px; z-index: 50; width: 42px; height: 42px; border-radius: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ac-gear:hover { background: rgba(255,255,255,0.2); }
+  .ac-gear svg { width: 22px; height: 22px; transition: transform 0.4s ease; }
+  .ac-gear:hover svg { transform: rotate(60deg); }
+  .ac-ov { position: fixed; inset: 0; z-index: 60; background: rgba(5,6,9,0.6); display: none; align-items: center; justify-content: center; padding: 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; }
+  .ac-ov.open { display: flex; }
+  .ac-card { width: min(380px, 100%); background: #16181d; border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 20px 22px; color: #fff;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .ac-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .ac-head b { font-size: 20px; font-weight: 900; }
+  .ac-x { background: rgba(255,255,255,0.1); border: 0; color: #fff; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+  .ac-row { margin: 14px 0; }
+  .ac-lab { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #e6e9ee; }
+  .ac-lab span { color: #9aa1ab; font-family: ui-monospace, Consolas, monospace; }
+  .ac-card input[type=range] { width: 100%; accent-color: #e8282f; height: 22px; }
+  .ac-seg { display: flex; gap: 6px; background: #0e0f13; padding: 4px; border-radius: 12px; }
+  .ac-seg button { flex: 1; border: 0; background: transparent; color: #c9ced6; padding: 9px 0; border-radius: 9px; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .ac-seg button.on { background: #fff; color: #111214; }
+  .ac-hint { font-size: 12px; color: #7d848e; margin-top: 6px; }
+  .ac-check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #e6e9ee; cursor: pointer; }
+  .ac-check input { width: 18px; height: 18px; accent-color: #e8282f; }
+  .ac-danger { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; border: 1px solid rgba(232,40,47,0.6); background: rgba(232,40,47,0.12);
+    color: #ff6b72; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .ac-danger:hover { background: rgba(232,40,47,0.25); }`;
+  const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  let ov = null;
+  function buildPanel() {
+    const st = document.createElement('style');
+    st.textContent = CSS;
+    document.head.appendChild(st);
+    const gear = document.createElement('button');
+    gear.className = 'ac-gear';
+    gear.type = 'button';
+    gear.title = 'Instellingen';
+    gear.setAttribute('aria-label', 'Instellingen');
+    gear.innerHTML = GEAR;
+    document.body.appendChild(gear);
+    ov = document.createElement('div');
+    ov.className = 'ac-ov';
+    ov.innerHTML = `
+      <div class="ac-card" role="dialog" aria-label="Instellingen">
+        <div class="ac-head"><b>⚙ Instellingen</b><button class="ac-x" type="button" aria-label="Sluiten">✕</button></div>
+        <div class="ac-row"><div class="ac-lab">🎵 Muziek <span id="acMv"></span></div><input type="range" min="0" max="100" id="acM"></div>
+        <div class="ac-row"><div class="ac-lab">🔊 Geluidseffecten <span id="acSv"></span></div><input type="range" min="0" max="100" id="acS"></div>
+        <div class="ac-row"><label class="ac-check"><input type="checkbox" id="acMute"> Alles dempen (sneltoets M)</label></div>
+        <div class="ac-row"><div class="ac-lab">🖥 Beeldkwaliteit</div>
+          <div class="ac-seg"><button type="button" data-q="laag">Laag</button><button type="button" data-q="normaal">Normaal</button><button type="button" data-q="hoog">Hoog</button></div>
+          <div class="ac-hint">Laag = soepeler op oudere laptops en telefoons. Hoog = scherper beeld.</div></div>
+        <button class="ac-danger" type="button">🗑 Alle records wissen</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const $ = (id) => ov.querySelector('#' + id);
+    const refresh = () => {
+      $('acM').value = Math.round(S.music * 100); $('acMv').textContent = Math.round(S.music * 100) + '%';
+      $('acS').value = Math.round(S.sfx * 100); $('acSv').textContent = Math.round(S.sfx * 100) + '%';
+      $('acMute').checked = !!S.muted;
+      ov.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('on', b.dataset.q === S.quality));
+    };
+    refresh();
+    listeners.push(refresh);
+    $('acM').addEventListener('input', (e) => { set('music', e.target.value / 100); startIfWanted(); });
+    $('acS').addEventListener('input', (e) => set('sfx', e.target.value / 100));
+    $('acS').addEventListener('change', () => { if (window.Arcade) Arcade.beep(660, 0.08, 'triangle', 0.06); });
+    $('acMute').addEventListener('change', (e) => set('muted', e.target.checked));
+    ov.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => set('quality', b.dataset.q)));
+    ov.querySelector('.ac-danger').addEventListener('click', () => {
+      if (!confirm('Weet je zeker dat je ALLE records, medailles en spookauto\'s wilt wissen? Dit kan niet ongedaan worden.')) return;
+      const kill = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (/^arcade_(best_|2048_state)|^tt2_(bests|ghost)/.test(k)) kill.push(k);
+      }
+      kill.forEach((k) => localStorage.removeItem(k));
+      location.reload();
+    });
+    const close = () => ov.classList.remove('open');
+    ov.querySelector('.ac-x').addEventListener('click', close);
+    ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
+    // Toetsen in het paneel niet doorgeven aan de game
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); e.stopPropagation(); });
+    gear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ov.classList.add('open');
+      // Games pauzeren als het venster de focus verliest: dat doen we hier ook
+      window.dispatchEvent(new Event('blur'));
+      gear.blur();
+    });
+    gear.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM' && !(ov && ov.classList.contains('open'))) set('muted', !S.muted);
+  });
+  if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
+
+  return {
+    get settings() { return S; },
+    set, sfx, musicVol, dprCap, music,
+    onChange: (f) => listeners.push(f),
+    isOpen: () => !!(ov && ov.classList.contains('open')),
+  };
+})();
+
+// ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
+const Arcade = (() => {
+  const load = (k, d) => { try { const v = localStorage.getItem('arcade_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem('arcade_' + k, JSON.stringify(v)); } catch (e) { /* uit */ } };
+  let audio = null;
+
+  function initAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  addEventListener('pointerdown', initAudio);
+  addEventListener('keydown', initAudio);
+
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    vol *= level * 1.25;
+    try {
+      const t = audio.currentTime + delay;
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(audio.destination);
+      o.start(t);
+      o.stop(t + dur);
+    } catch (e) { /* negeren */ }
+  }
+
+  // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
+  function canvas(id, W, H) {
+    const c = document.getElementById(id);
+    const ctx = c.getContext('2d');
+    const view = { W, H, scale: 1 };
+    const fit = () => {
+      const s = Math.min(innerWidth / W, innerHeight / H);
+      const dpr = Math.min(ArcadeCore.dprCap(), devicePixelRatio || 1);
+      c.style.width = Math.floor(W * s) + 'px';
+      c.style.height = Math.floor(H * s) + 'px';
+      c.width = Math.floor(W * s * dpr);
+      c.height = Math.floor(H * s * dpr);
+      view.scale = s * dpr;
+      ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    };
+    fit();
+    addEventListener('resize', fit);
+    ArcadeCore.onChange(fit);
+    view.begin = () => ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    view.toGame = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    };
+    return { c, ctx, view };
+  }
+
+  // Vegen (swipe) op touchscreens: geeft 'links', 'rechts', 'op' of 'neer'
+  function onSwipe(el, fn, onTap) {
+    let sx = 0, sy = 0, st = 0, active = false;
+    el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; st = performance.now(); active = true; });
+    el.addEventListener('pointerup', (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (onTap) onTap(e); return; }
+      if (Math.abs(dx) > Math.abs(dy)) fn(dx > 0 ? 'rechts' : 'links');
+      else fn(dy > 0 ? 'neer' : 'op');
+    });
+  }
+
+  // Tekenhulpjes in dezelfde stijl
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function text(ctx, t, x, y, size, color = '#fff', align = 'center', weight = '700', mono = false) {
+    ctx.font = `${weight} ${size}px ${mono ? 'ui-monospace, Consolas, monospace' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, x, y);
+  }
+  // Standaard scherm voor start / pauze / game over
+  function overlay(ctx, W, H, title, lines = [], hint = '') {
+    ctx.fillStyle = 'rgba(10, 11, 14, 0.72)';
+    ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 40, 380), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const x = (W - pw) / 2, y = (H - ph) / 2;
+    ctx.fillStyle = 'rgba(24, 26, 31, 0.95)';
+    rr(ctx, x, y, pw, ph, 16);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    text(ctx, title, W / 2, y + 50, 32, '#fff', 'center', '900');
+    lines.forEach((l, i) => {
+      const s = typeof l === 'string' ? { t: l } : l;
+      text(ctx, s.t, W / 2, y + 100 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+    });
+    if (hint && Math.floor(performance.now() / 500) % 2 === 0) text(ctx, hint, W / 2, y + ph - 34, 15, '#ffffff', 'center', '700');
+  }
+
+  return {
+    load, save, beep,
+    get muted() { return !ArcadeCore.sfx(); },
+    best: (game) => load('best_' + game, 0),
+    // Slaat een nieuwe topscore op; geeft true terug als het een record is
+    record: (game, score, lowerIsBetter = false) => {
+      const b = load('best_' + game, 0);
+      if (!b || (lowerIsBetter ? score < b : score > b)) { save('best_' + game, score); return true; }
+      return false;
+    },
+    canvas, onSwipe, rr, text, overlay,
+    touch: matchMedia('(hover: none) and (pointer: coarse)').matches,
+  };
+})();
+
+ArcadeCore.music.play('td');
+
+// ================= ROBO DEFENSE (tower defense) =================
+const W = 960, H = 600;
+const { c, ctx, view } = Arcade.canvas('c', W, H);
+const GAME = 'td';
+const TS = 40, COLS = 22, ROWS = 13, OX = 0, OY = 60, PANEL = COLS * TS; // speelveld 880×520, paneel rechts
+const TAU = Math.PI * 2;
+const rand = (a, b) => a + Math.random() * (b - a);
+const WAVES = 20;
+
+// Kaarten: punten waar het pad langs loopt (in tegels)
+const MAPS = [
+  { naam: 'Fabriekshal', money: 220, path: [[-1, 2], [6, 2], [6, 9], [13, 9], [13, 3], [19, 3], [19, 10], [22, 10]] },
+  { naam: 'Kronkelweg', money: 200, path: [[-1, 1], [3, 1], [3, 11], [8, 11], [8, 1], [13, 1], [13, 11], [18, 11], [18, 4], [22, 4]] },
+  { naam: 'Snelweg', money: 180, path: [[-1, 6], [9, 6], [9, 2], [16, 2], [16, 10], [10, 10], [10, 8], [22, 8]] },
+];
+const TOWERS = {
+  blaster: { naam: 'Blaster', cost: 50, range: 115, dmg: 11, rate: 0.38, col: '#f2f2f2', info: 'Snel schieten op één robot' },
+  kanon: { naam: 'Kanon', cost: 100, range: 130, dmg: 34, rate: 1.3, splash: 48, col: '#7b828c', info: 'Ontploffing raakt groepen' },
+  vries: { naam: 'Vriezer', cost: 80, range: 100, dmg: 4, rate: 0.7, slow: 0.5, col: '#5ab8ff', info: 'Maakt robots langzamer' },
+  laser: { naam: 'Laser', cost: 160, range: 175, dmg: 48, rate: 0, col: '#e8282f', info: 'Straal op de sterkste robot' },
+};
+const ENEMIES = {
+  scout: { hp: 22, sp: 85, reward: 4, r: 9, col: '#b8bdc5' },
+  bot: { hp: 45, sp: 55, reward: 6, r: 12, col: '#8a919b' },
+  tank: { hp: 150, sp: 34, reward: 14, r: 16, col: '#5b616b', armor: 4 },
+  boss: { hp: 900, sp: 28, reward: 120, r: 22, col: '#2a2d33', armor: 6 },
+};
+
+let state = 'menu'; // menu | play | over | win
+let mi = 0, MAP, pathTiles, pathPts, pathLen, towers, enemies, shots, booms, parts;
+let money, lives, wave, waveOn, spawnList, spawnT, speed, selected, placing, hover, score, msg, kills, overT;
+let bests = Arcade.load('td_bests', {});
+let buttons = [];
+
+// ---------- Pad voorbereiden ----------
+function setupMap(i) {
+  mi = i; MAP = MAPS[i];
+  pathTiles = new Set();
+  pathPts = MAP.path.map(([x, y]) => ({ x: OX + x * TS + TS / 2, y: OY + y * TS + TS / 2 }));
+  for (let k = 0; k < MAP.path.length - 1; k++) {
+    let [x, y] = MAP.path[k];
+    const [x2, y2] = MAP.path[k + 1];
+    while (x !== x2 || y !== y2) { pathTiles.add(x + ',' + y); x += Math.sign(x2 - x); y += Math.sign(y2 - y); }
+    pathTiles.add(x2 + ',' + y2);
+  }
+  pathLen = 0;
+  for (let k = 0; k < pathPts.length - 1; k++) pathLen += Math.hypot(pathPts[k + 1].x - pathPts[k].x, pathPts[k + 1].y - pathPts[k].y);
+}
+function posAt(d) {
+  for (let k = 0; k < pathPts.length - 1; k++) {
+    const a = pathPts[k], b = pathPts[k + 1], l = Math.hypot(b.x - a.x, b.y - a.y);
+    if (d <= l) return { x: a.x + ((b.x - a.x) * d) / l, y: a.y + ((b.y - a.y) * d) / l, a: Math.atan2(b.y - a.y, b.x - a.x) };
+    d -= l;
+  }
+  const e = pathPts[pathPts.length - 1];
+  return { x: e.x, y: e.y, a: 0 };
+}
+function start(i) {
+  setupMap(i);
+  towers = []; enemies = []; shots = []; booms = []; parts = [];
+  money = MAP.money; lives = 20; wave = 0; waveOn = false; spawnList = []; spawnT = 0; speed = 1; selected = null; placing = null; score = 0; kills = 0; msg = null;
+  state = 'play';
+}
+
+// ---------- Golven ----------
+function makeWave(n) {
+  const list = [];
+  const add = (type, count, gap) => { for (let k = 0; k < count; k++) list.push({ type, gap }); };
+  add('bot', 6 + n * 2, 0.75);
+  if (n >= 2) add('scout', 3 + n * 2, 0.4);
+  if (n >= 4) add('tank', Math.floor(n / 2), 1.4);
+  if (n % 5 === 0) add('boss', n / 5, 3);
+  // Mengen zodat het minder voorspelbaar is
+  return list.sort(() => Math.random() - 0.5).sort((a, b) => (a.type === 'boss') - (b.type === 'boss'));
+}
+function startWave() {
+  if (waveOn || state !== 'play' || wave >= WAVES) return;
+  wave++;
+  spawnList = makeWave(wave);
+  spawnT = 0.5;
+  waveOn = true;
+  msg = { text: `Golf ${wave}${wave % 5 === 0 ? ' · BAAS!' : ''}`, t: 1.8 };
+  Arcade.beep(440, 0.15, 'square', 0.05); Arcade.beep(660, 0.2, 'square', 0.05, 0, 0.15);
+}
+function spawn(type) {
+  const base = ENEMIES[type];
+  const hp = base.hp * Math.pow(1.15, wave - 1);
+  enemies.push({ type, d: 0, hp, maxHp: hp, sp: base.sp, r: base.r, col: base.col, armor: base.armor || 0, reward: base.reward, slow: 0, hit: 0, x: -20, y: 0, a: 0 });
+}
+
+// ---------- Torens ----------
+const towerAt = (tx, ty) => towers.find((t) => t.tx === tx && t.ty === ty);
+const canBuild = (tx, ty) => tx >= 0 && ty >= 0 && tx < COLS && ty < ROWS && !pathTiles.has(tx + ',' + ty) && !towerAt(tx, ty);
+function stats(t) {
+  const b = TOWERS[t.type];
+  const m = 1 + (t.lvl - 1) * 0.45;
+  return { range: b.range * (1 + (t.lvl - 1) * 0.1), dmg: b.dmg * m, rate: b.rate, splash: b.splash, slow: b.slow };
+}
+const upgradeCost = (t) => Math.round(TOWERS[t.type].cost * 0.8 * t.lvl);
+function build(type, tx, ty) {
+  const cost = TOWERS[type].cost;
+  if (money < cost || !canBuild(tx, ty)) { Arcade.beep(150, 0.12, 'square', 0.04); return false; }
+  money -= cost;
+  const t = { type, tx, ty, x: OX + tx * TS + TS / 2, y: OY + ty * TS + TS / 2, lvl: 1, spent: cost, cool: 0, aim: 0, target: null };
+  towers.push(t);
+  Arcade.beep(520, 0.1, 'triangle', 0.05, 200);
+  return true;
+}
+function upgrade(t) {
+  if (t.lvl >= 3) return;
+  const cost = upgradeCost(t);
+  if (money < cost) { Arcade.beep(150, 0.12, 'square', 0.04); return; }
+  money -= cost; t.spent += cost; t.lvl++;
+  Arcade.beep(660, 0.15, 'triangle', 0.05, 400);
+}
+function sell(t) {
+  money += Math.round(t.spent * 0.7);
+  towers = towers.filter((x) => x !== t);
+  selected = null;
+  Arcade.beep(300, 0.12, 'triangle', 0.04, -100);
+}
+
+// ---------- Besturing ----------
+c.addEventListener('pointerdown', (e) => {
+  const q = view.toGame(e);
+  for (const b of buttons) if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return; }
+  if (state !== 'play') return;
+  const tx = Math.floor((q.x - OX) / TS), ty = Math.floor((q.y - OY) / TS);
+  if (q.x >= PANEL || ty < 0 || ty >= ROWS) return;
+  if (placing) {
+    if (build(placing, tx, ty) && !(money >= TOWERS[placing].cost)) placing = null;
+    return;
+  }
+  selected = towerAt(tx, ty) || null;
+});
+c.addEventListener('pointermove', (e) => { const q = view.toGame(e); hover = { tx: Math.floor((q.x - OX) / TS), ty: Math.floor((q.y - OY) / TS) }; });
+addEventListener('keydown', (e) => {
+  if (state === 'menu' && /^Digit[1-3]$/.test(e.code)) { const i = +e.code.slice(5) - 1; if (i === 0 || bests[i - 1] != null) start(i); return; }
+  if (state !== 'play') { if (e.code === 'Enter' && (state === 'over' || state === 'win')) state = 'menu'; return; }
+  const k = { Digit1: 'blaster', Digit2: 'kanon', Digit3: 'vries', Digit4: 'laser' }[e.code];
+  if (k) { placing = placing === k ? null : k; selected = null; }
+  if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); startWave(); }
+  if (e.code === 'Escape') { placing = null; selected = null; }
+  if (e.code === 'KeyF') speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
+  if (selected && e.code === 'KeyU') upgrade(selected);
+  if (selected && (e.code === 'KeyS' || e.code === 'Delete')) sell(selected);
+});
+
+// ---------- Update ----------
+function update(dt) {
+  for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+  parts = (parts || []).filter((p) => p.life > 0);
+  if (msg) { msg.t -= dt; if (msg.t <= 0) msg = null; }
+  if (state === 'over' || state === 'win') overT -= dt;
+  if (state !== 'play') return;
+  for (let s = 0; s < speed; s++) step(dt);
+}
+function step(dt) {
+  // Nieuwe robots
+  if (waveOn && spawnList.length) {
+    spawnT -= dt;
+    if (spawnT <= 0) { const e = spawnList.shift(); spawn(e.type); spawnT = e.gap * Math.max(0.55, 1 - wave * 0.02); }
+  }
+  // Robots lopen
+  for (const e of enemies) {
+    e.slow = Math.max(0, e.slow - dt);
+    e.hit = Math.max(0, e.hit - dt);
+    e.d += e.sp * (e.slow > 0 ? 0.5 : 1) * dt;
+    const p = posAt(e.d);
+    e.x = p.x; e.y = p.y; e.a = p.a;
+    if (e.d >= pathLen) {
+      e.done = true;
+      lives -= e.type === 'boss' ? 5 : 1;
+      Arcade.beep(120, 0.25, 'sawtooth', 0.06, -50);
+      if (lives <= 0) { lives = 0; gameOver(false); return; }
+    }
+  }
+  // Torens schieten
+  for (const t of towers) {
+    const s = stats(t);
+    const inRange = enemies.filter((e) => !e.done && e.hp > 0 && Math.hypot(e.x - t.x, e.y - t.y) <= s.range);
+    if (t.type === 'laser') {
+      const target = inRange.sort((a, b) => b.hp - a.hp)[0];
+      t.target = target || null;
+      if (target) { t.aim = Math.atan2(target.y - t.y, target.x - t.x); damage(target, s.dmg * dt, true); }
+      continue;
+    }
+    t.cool -= dt;
+    if (!inRange.length) continue;
+    const target = inRange.sort((a, b) => b.d - a.d)[0]; // de voorste
+    t.aim = Math.atan2(target.y - t.y, target.x - t.x);
+    if (t.cool > 0) continue;
+    t.cool = s.rate;
+    if (t.type === 'blaster') { shots.push({ x: t.x, y: t.y, target, sp: 600, dmg: s.dmg, kind: 'kogel' }); Arcade.beep(900, 0.03, 'square', 0.012, -300); }
+    if (t.type === 'kanon') { shots.push({ x: t.x, y: t.y, target, tx: target.x, ty: target.y, sp: 380, dmg: s.dmg, splash: s.splash, kind: 'bom' }); Arcade.beep(140, 0.1, 'square', 0.03, -60); }
+    if (t.type === 'vries') {
+      for (const e of inRange) { e.slow = 1.2; damage(e, s.dmg); }
+      booms.push({ x: t.x, y: t.y, r: s.range, life: 0.3, max: 0.3, col: '90,184,255' });
+      Arcade.beep(1200, 0.06, 'sine', 0.015, -600);
+    }
+  }
+  // Schoten
+  for (const sh of shots) {
+    const tx = sh.kind === 'bom' ? sh.tx : sh.target.x, ty = sh.kind === 'bom' ? sh.ty : sh.target.y;
+    const dx = tx - sh.x, dy = ty - sh.y, d = Math.hypot(dx, dy);
+    if (sh.kind === 'bom' && !sh.target.done && sh.target.hp > 0) { sh.tx = sh.target.x; sh.ty = sh.target.y; }
+    if (d < sh.sp * dt + 4) {
+      sh.done = true;
+      if (sh.kind === 'bom') {
+        booms.push({ x: tx, y: ty, r: sh.splash, life: 0.35, max: 0.35, col: '255,140,60' });
+        for (const e of enemies) if (Math.hypot(e.x - tx, e.y - ty) <= sh.splash) damage(e, sh.dmg);
+        Arcade.beep(90, 0.18, 'sawtooth', 0.04, -40);
+      } else if (sh.target.hp > 0) damage(sh.target, sh.dmg);
+    } else { sh.x += (dx / d) * sh.sp * dt; sh.y += (dy / d) * sh.sp * dt; }
+  }
+  shots = shots.filter((s) => !s.done && (s.kind === 'bom' || (!s.target.done && s.target.hp > 0)));
+  for (const b of booms) b.life -= dt;
+  booms = booms.filter((b) => b.life > 0);
+  enemies = enemies.filter((e) => !e.done && e.hp > 0);
+  // Golf klaar?
+  if (waveOn && !spawnList.length && !enemies.length) {
+    waveOn = false;
+    const bonus = 20 + wave * 5;
+    money += bonus;
+    msg = { text: `Golf ${wave} gehaald! +€${bonus}`, t: 2 };
+    if (wave >= WAVES) gameOver(true);
+  }
+}
+function damage(e, amount, continuous) {
+  const real = continuous ? amount : Math.max(1, amount - e.armor);
+  e.hp -= real;
+  if (!continuous) e.hit = 0.06;
+  if (e.hp <= 0 && !e.dead) {
+    e.dead = true;
+    money += e.reward; score += e.reward * 10; kills++;
+    for (let k = 0; k < (e.type === 'boss' ? 40 : 10); k++) parts.push({ x: e.x, y: e.y, vx: rand(-160, 160), vy: rand(-160, 160), life: 0.4, col: k % 3 ? '#8a919b' : '#ff4d55' });
+    if (e.type === 'boss') Arcade.beep(80, 0.5, 'sawtooth', 0.06, -30);
+  }
+}
+function gameOver(won) {
+  state = won ? 'win' : 'over';
+  overT = 0.8;
+  const total = score + lives * 100 + (won ? 2000 : 0);
+  score = total;
+  if (won && (bests[mi] == null || total > bests[mi])) { bests[mi] = total; Arcade.save('td_bests', bests); }
+  else if (!won && bests['g' + mi] == null) { /* niets */ }
+  Arcade.record(GAME, total);
+  if (won) { Arcade.beep(523, 0.15, 'triangle', 0.07); Arcade.beep(659, 0.15, 'triangle', 0.07, 0, 0.15); Arcade.beep(784, 0.4, 'triangle', 0.07, 0, 0.3); }
+  else Arcade.beep(200, 0.6, 'sawtooth', 0.06, -150);
+}
+
+// ---------- Tekenen ----------
+function button(label, x, y, w, h, fn, opts = {}) {
+  ctx.fillStyle = opts.on ? '#ffffff' : opts.primary ? '#e8282f' : opts.dim ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)';
+  Arcade.rr(ctx, x, y, w, h, 10); ctx.fill();
+  Arcade.text(ctx, label, x + w / 2, y + h / 2 + 1, opts.size || 14, opts.on ? '#111214' : opts.dim ? '#5b616b' : '#ffffff', 'center', '800');
+  buttons.push({ x, y, w, h, fn });
+}
+function drawTower(t, x, y, alpha = 1) {
+  const b = TOWERS[t.type];
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#1b1d22'; Arcade.rr(ctx, x - 16, y - 16, 32, 32, 7); ctx.fill();
+  ctx.fillStyle = '#2f333b'; Arcade.rr(ctx, x - 13, y - 13, 26, 26, 6); ctx.fill();
+  ctx.save(); ctx.translate(x, y); ctx.rotate(t.aim || -Math.PI / 2);
+  ctx.fillStyle = b.col;
+  if (t.type === 'blaster') { ctx.fillRect(0, -3, 17, 6); ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill(); }
+  if (t.type === 'kanon') { ctx.fillRect(0, -5, 16, 10); ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill(); ctx.fillStyle = '#1b1d22'; ctx.beginPath(); ctx.arc(16, 0, 3.5, 0, TAU); ctx.fill(); }
+  if (t.type === 'vries') { for (let k = 0; k < 6; k++) { ctx.rotate(TAU / 6); ctx.fillRect(0, -1.5, 11, 3); } ctx.beginPath(); ctx.arc(0, 0, 5, 0, TAU); ctx.fill(); }
+  if (t.type === 'laser') { ctx.fillRect(0, -2, 15, 4); ctx.beginPath(); ctx.moveTo(-9, -9); ctx.lineTo(9, 0); ctx.lineTo(-9, 9); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+  // Niveau-streepjes
+  for (let k = 0; k < (t.lvl || 1); k++) { ctx.fillStyle = '#ffd23f'; ctx.fillRect(x - 12 + k * 9, y + 12, 6, 3); }
+  ctx.globalAlpha = 1;
+}
+function draw() {
+  view.begin();
+  buttons = [];
+  ctx.fillStyle = '#0b0c10'; ctx.fillRect(0, 0, W, H);
+  if (state === 'menu') return drawMenu();
+
+  // Speelveld
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+    const onPath = pathTiles.has(x + ',' + y);
+    ctx.fillStyle = onPath ? ((x + y) % 2 ? '#4a4f58' : '#474c55') : (x + y) % 2 ? '#1c1e23' : '#1e2025';
+    ctx.fillRect(OX + x * TS, OY + y * TS, TS, TS);
+  }
+  // Rand van het pad en richting
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 2; ctx.setLineDash([6, 10]);
+  ctx.beginPath(); pathPts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.stroke(); ctx.setLineDash([]);
+  const endP = pathPts[pathPts.length - 1];
+  ctx.fillStyle = '#e8282f'; ctx.fillRect(endP.x - 22, endP.y - 18, 12, 36);
+  Arcade.text(ctx, 'BASIS', endP.x - 40, endP.y - 28, 11, '#ff4d55', 'center', '900');
+
+  // Bouwvoorbeeld
+  if (placing && hover && hover.tx >= 0 && hover.tx < COLS && hover.ty >= 0 && hover.ty < ROWS) {
+    const ok = canBuild(hover.tx, hover.ty) && money >= TOWERS[placing].cost;
+    const x = OX + hover.tx * TS + TS / 2, y = OY + hover.ty * TS + TS / 2;
+    ctx.fillStyle = ok ? 'rgba(255,255,255,0.08)' : 'rgba(232,40,47,0.15)';
+    ctx.beginPath(); ctx.arc(x, y, TOWERS[placing].range, 0, TAU); ctx.fill();
+    ctx.strokeStyle = ok ? 'rgba(255,255,255,0.4)' : 'rgba(232,40,47,0.6)'; ctx.stroke();
+    drawTower({ type: placing, lvl: 1 }, x, y, ok ? 0.7 : 0.35);
+  }
+  if (selected) {
+    const s = stats(selected);
+    ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.beginPath(); ctx.arc(selected.x, selected.y, s.range, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  for (const t of towers) {
+    if (t.type === 'laser' && t.target) {
+      ctx.strokeStyle = `rgba(255,60,70,${0.6 + Math.random() * 0.4})`; ctx.lineWidth = 2 + t.lvl;
+      ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(t.target.x, t.target.y); ctx.stroke();
+    }
+    drawTower(t, t.x, t.y);
+  }
+  for (const e of enemies) {
+    ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.a);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(2, 4, e.r, e.r * 0.8, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = e.hit > 0 ? '#ffffff' : e.slow > 0 ? '#9fd4ff' : e.col;
+    Arcade.rr(ctx, -e.r, -e.r, e.r * 2, e.r * 2, e.r * 0.4); ctx.fill();
+    ctx.fillStyle = '#16181d'; ctx.fillRect(-e.r + 3, -e.r * 0.45, e.r * 2 - 6, e.r * 0.9);
+    ctx.fillStyle = '#ff3b45'; ctx.beginPath(); ctx.arc(e.r * 0.4, 0, Math.max(2.5, e.r * 0.22), 0, TAU); ctx.fill();
+    ctx.restore();
+    if (e.hp < e.maxHp) {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - e.r, e.y - e.r - 8, e.r * 2, 4);
+      ctx.fillStyle = e.type === 'boss' ? '#ffd23f' : '#ff4d55'; ctx.fillRect(e.x - e.r, e.y - e.r - 8, (e.r * 2 * e.hp) / e.maxHp, 4);
+    }
+  }
+  for (const s of shots) {
+    ctx.fillStyle = s.kind === 'bom' ? '#ffb347' : '#fff6c4';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.kind === 'bom' ? 5 : 3, 0, TAU); ctx.fill();
+  }
+  for (const b of booms) {
+    const k = 1 - b.life / b.max;
+    ctx.strokeStyle = `rgba(${b.col},${1 - k})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (0.4 + k * 0.6), 0, TAU); ctx.stroke();
+  }
+  for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life * 2.5); ctx.fillStyle = p.col; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); }
+  ctx.globalAlpha = 1;
+
+  // Bovenbalk
+  ctx.fillStyle = '#121317'; ctx.fillRect(0, 0, W, OY);
+  Arcade.text(ctx, `€${money}`, 130, 32, 24, '#ffd23f', 'left', '900', true);
+  Arcade.text(ctx, `❤ ${lives}`, 270, 32, 22, '#ff4d55', 'left', '900');
+  Arcade.text(ctx, `Golf ${wave}/${WAVES}`, 380, 32, 18, '#ffffff', 'left', '800');
+  Arcade.text(ctx, MAP.naam, 540, 32, 14, '#9aa1ab', 'left', '700');
+  button(`${speed}×`, 690, 12, 50, 36, () => { speed = speed === 1 ? 2 : speed === 2 ? 3 : 1; }, { on: speed > 1 });
+  if (!waveOn && wave < WAVES) button(wave === 0 ? '▶ Start golf 1' : `▶ Golf ${wave + 1}`, 750, 12, 140, 36, startWave, { primary: true });
+  else if (waveOn) Arcade.text(ctx, `nog ${spawnList.length + enemies.length} robots`, 820, 30, 13, '#9aa1ab', 'center', '700');
+
+  // Zijpaneel: torens
+  ctx.fillStyle = '#121317'; ctx.fillRect(PANEL, OY, W - PANEL, H - OY);
+  const keysT = Object.keys(TOWERS);
+  keysT.forEach((k, i) => {
+    const x = PANEL + 8, y = OY + 8 + i * 88, w = W - PANEL - 16, h = 80;
+    const can = money >= TOWERS[k].cost;
+    ctx.fillStyle = placing === k ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.06)';
+    Arcade.rr(ctx, x, y, w, h, 10); ctx.fill();
+    if (placing === k) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke(); }
+    drawTower({ type: k, lvl: 1, aim: -Math.PI / 4 }, x + w / 2, y + 26, can ? 1 : 0.35);
+    Arcade.text(ctx, TOWERS[k].naam, x + w / 2, y + 54, 11, can ? '#ffffff' : '#5b616b', 'center', '800');
+    Arcade.text(ctx, `€${TOWERS[k].cost}`, x + w / 2, y + 69, 11, can ? '#ffd23f' : '#5b616b', 'center', '800', true);
+    buttons.push({ x, y, w, h, fn: () => { placing = placing === k ? null : k; selected = null; } });
+  });
+  // Geselecteerde toren
+  if (selected) {
+    const t = selected, s = stats(t);
+    const x = PANEL - 220, y = H - 118;
+    ctx.fillStyle = 'rgba(14,15,18,0.92)'; Arcade.rr(ctx, x, y, 212, 110, 12); ctx.fill();
+    Arcade.text(ctx, `${TOWERS[t.type].naam} · niveau ${t.lvl}`, x + 12, y + 18, 13, '#ffffff', 'left', '800');
+    Arcade.text(ctx, `Bereik ${Math.round(s.range)} · Schade ${Math.round(s.dmg)}${t.type === 'laser' ? '/s' : ''}`, x + 12, y + 38, 11, '#9aa1ab', 'left', '600');
+    if (t.lvl < 3) button(`⬆ Upgrade €${upgradeCost(t)}`, x + 10, y + 56, 120, 42, () => upgrade(t), { dim: money < upgradeCost(t) });
+    else Arcade.text(ctx, 'MAX', x + 70, y + 77, 14, '#ffd23f', 'center', '900');
+    button(`Verkoop €${Math.round(t.spent * 0.7)}`, x + 136, y + 56, 66, 42, () => sell(t), { size: 10 });
+  } else if (placing) {
+    Arcade.text(ctx, `${TOWERS[placing].naam}: ${TOWERS[placing].info} · klik op een vrije tegel`, PANEL / 2, H - 16, 13, '#ffffff', 'center', '700');
+  } else if (wave === 0) {
+    Arcade.text(ctx, 'Kies rechts een toren en zet hem naast het pad. Start dan de eerste golf!', PANEL / 2, H - 16, 13, '#ffffff', 'center', '700');
+  }
+  if (msg) { ctx.globalAlpha = Math.min(1, msg.t * 2); Arcade.text(ctx, msg.text, PANEL / 2, OY + 60, 26, '#ffffff', 'center', '900'); ctx.globalAlpha = 1; }
+
+  if (state === 'over' || state === 'win') {
+    Arcade.overlay(ctx, W, H, state === 'win' ? 'GEWONNEN! 🏆' : 'DE BASIS IS GEVALLEN', [
+      { t: String(score), size: 34, color: '#ffd23f', weight: '900', mono: true },
+      state === 'win' ? `Alle ${WAVES} golven tegengehouden!` : `Je haalde golf ${wave}`,
+      `${kills} robots uitgeschakeld`,
+    ], '');
+    button('↻ Opnieuw', W / 2 - 150, H / 2 + 70, 140, 44, () => start(mi), { on: true });
+    button('☰ Kaarten', W / 2 + 10, H / 2 + 70, 140, 44, () => { state = 'menu'; });
+  }
+}
+function drawMenu() {
+  Arcade.text(ctx, 'ROBO', W / 2 - 12, 92, 62, '#ffffff', 'right', '900');
+  Arcade.text(ctx, 'DEFENSE', W / 2 + 6, 92, 62, '#e8282f', 'left', '900');
+  Arcade.text(ctx, `Bouw torens langs het pad en houd ${WAVES} golven robots tegen voordat ze je basis bereiken.`, W / 2, 140, 15, '#c9ced6', 'center', '600');
+  MAPS.forEach((m, i) => {
+    const w = 270, h = 250, x = W / 2 - (3 * w + 40) / 2 + i * (w + 20), y = 180;
+    const open = i === 0 || bests[i - 1] != null;
+    ctx.fillStyle = open ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)';
+    Arcade.rr(ctx, x, y, w, h, 14); ctx.fill();
+    // Minikaart van het pad
+    const s = 10, mx = x + (w - COLS * s) / 2, my = y + 20;
+    ctx.fillStyle = '#1c1e23'; ctx.fillRect(mx, my, COLS * s, ROWS * s);
+    ctx.strokeStyle = open ? '#9aa1ab' : '#3a3e47'; ctx.lineWidth = 5; ctx.lineJoin = 'round';
+    ctx.beginPath(); m.path.forEach(([px, py], k) => { const X = mx + Math.max(0, Math.min(COLS, px + 0.5)) * s, Y = my + (py + 0.5) * s; if (k) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); }); ctx.stroke();
+    Arcade.text(ctx, `${i + 1}. ${m.naam}`, x + 20, y + 175, 18, open ? '#ffffff' : '#4a4f58', 'left', '900');
+    Arcade.text(ctx, open ? `Startgeld €${m.money}` : `🔒 win eerst kaart ${i}`, x + 20, y + 200, 12, '#9aa1ab', 'left', '600');
+    if (bests[i] != null) Arcade.text(ctx, `Record ${bests[i]}`, x + 20, y + 224, 13, '#ffd23f', 'left', '800', true);
+    if (open) buttons.push({ x, y, w, h, fn: () => start(i) });
+  });
+  Arcade.text(ctx, Arcade.touch ? 'Tik op een kaart om te beginnen' : '1-4 = toren kiezen · Spatie = golf starten · U = upgrade · S = verkopen · F = sneller', W / 2, H - 30, 13, '#6f7680', 'center', '600');
+}
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+parts = [];
+requestAnimationFrame(loop);
+
+  </script>
+</body>
+</html>
