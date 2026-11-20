@@ -80,9 +80,15 @@ const ArcadeCore = (() => {
   }
   for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
 
-  let ac = null, master = null, delayIn = null, noise = null, timer = null;
+  let ac = null, master = null, delayIn = null, reverbIn = null, duck = null, noise = null, timer = null;
   let song = null, wanted = null, step = 0, nextT = 0;
   const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Galm: zelf gemaakte impulsrespons (geen bestanden nodig)
+  function makeReverb(sec = 2.2) {
+    const len = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
   function initAudio() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     try {
@@ -90,13 +96,19 @@ const ArcadeCore = (() => {
       master = ac.createGain();
       master.gain.value = musicVol() * 0.5;
       const comp = ac.createDynamicsCompressor();
-      master.connect(comp);
-      comp.connect(ac.destination);
+      comp.threshold.value = -16; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      const warm = ac.createBiquadFilter(); warm.type = 'highshelf'; warm.frequency.value = 6000; warm.gain.value = -4;
+      master.connect(warm); warm.connect(comp); comp.connect(ac.destination);
+      // 'duck' zakt even weg op elke kick (pompend effect zoals in echte dance-muziek)
+      duck = ac.createGain(); duck.connect(master);
       // Echo voor melodie
-      delayIn = ac.createGain(); delayIn.gain.value = 0.22;
+      delayIn = ac.createGain(); delayIn.gain.value = 0.2;
       const d = ac.createDelay(); d.delayTime.value = 0.3;
-      const fb = ac.createGain(); fb.gain.value = 0.3;
-      delayIn.connect(d); d.connect(fb); fb.connect(d); d.connect(master);
+      const fb = ac.createGain(); fb.gain.value = 0.32;
+      const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2400;
+      delayIn.connect(d); d.connect(dlp); dlp.connect(fb); fb.connect(d); dlp.connect(duck);
+      reverbIn = ac.createGain(); reverbIn.gain.value = 0.28;
+      const rv = makeReverb(); reverbIn.connect(rv); rv.connect(duck);
       noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
       const data = noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -107,50 +119,78 @@ const ArcadeCore = (() => {
     g.gain.exponentialRampToValueAtTime(peak, t + a);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   }
+  function out(node, pan = 0) {
+    if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; node.connect(p); return p; }
+    return node;
+  }
   function kick(t) {
     const o = ac.createOscillator(), g = ac.createGain();
     o.type = 'sine';
-    o.frequency.setValueAtTime(150, t);
-    o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
-    env(g, t, 0.003, 0.9, 0.22);
-    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.25);
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.002, 0.95, 0.28);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    noiseHit(t, 3000, 0.12, 0.012, 0, master);            // tikje voor de aanslag
+    duck.gain.cancelScheduledValues(t);
+    duck.gain.setValueAtTime(0.45, t); duck.gain.linearRampToValueAtTime(1, t + 0.22);
   }
-  function noiseHit(t, hp, peak, dur) {
+  function noiseHit(t, hp, peak, dur, pan = 0, dest = null, type = 'highpass', q = 0.7) {
     const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
     s.buffer = noise;
-    f.type = 'highpass'; f.frequency.value = hp;
+    f.type = type; f.frequency.value = hp; f.Q.value = q;
     env(g, t, 0.002, peak, dur);
-    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.02);
+    s.connect(f); f.connect(g); out(g, pan).connect(dest || master);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
+    return g;
   }
-  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006) {
-    const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
-    o.type = type;
-    o.frequency.value = mtof(midi);
-    f.type = 'lowpass'; f.frequency.value = cutoff;
-    env(g, t, attack, vol, dur);
-    o.connect(f); f.connect(g); g.connect(master);
-    if (echo) g.connect(delayIn);
-    o.start(t); o.stop(t + dur + 0.05);
+  function snare(t) {
+    const g = noiseHit(t, 1800, 0.32, 0.18, 0, master, 'bandpass', 0.6);
+    g.connect(reverbIn);
+    const o = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    env(g2, t, 0.002, 0.22, 0.1); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.12);
+  }
+  // Toon met twee licht ontstemde oscillatoren en een filter dat 'opengaat'
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006, opt = {}) {
+    const f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.Q.value = opt.q || 0.8;
+    f.frequency.setValueAtTime(cutoff * (opt.sweep ? 0.25 : 1), t);
+    if (opt.sweep) f.frequency.exponentialRampToValueAtTime(cutoff, t + Math.min(dur, 0.08)), f.frequency.exponentialRampToValueAtTime(cutoff * 0.35, t + dur);
+    const n = opt.unison ? 2 : 1;
+    for (let k = 0; k < n; k++) {
+      const o = ac.createOscillator();
+      o.type = type; o.frequency.value = mtof(midi); o.detune.value = n > 1 ? (k ? 9 : -9) : 0;
+      if (opt.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = 7; l.connect(lg); lg.connect(o.detune); l.start(t + 0.12); l.stop(t + dur + 0.05); }
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    env(g, t, attack, vol / n, dur);
+    f.connect(g);
+    const dst = out(g, opt.pan || 0);
+    dst.connect(opt.dry ? master : duck);
+    if (echo) dst.connect(delayIn);
+    if (opt.verb) dst.connect(reverbIn);
   }
   function playStep(s, t) {
     const sp = 60 / song.bpm / 4;
-    const i = s % 16, bar = Math.floor(s / 16) % 4, chord = song.prog[bar];
-    const intro = Math.floor(s / 16) < 2 && song.introDone !== true;
+    const i = s % 16, barN = Math.floor(s / 16), bar = barN % 4, chord = song.prog[bar];
+    const intro = barN < 2 && song.introDone !== true;
+    const fill = barN % 8 === 7 && i >= 12;                       // drumroffel aan het eind van elke 8 maten
     if (!intro) {
       if (song.kick[i] === 'x') kick(t);
-      if (song.snare[i] === 'x') { noiseHit(t, 1500, 0.3, 0.15); tone(t, 50, 0.08, 'triangle', 0.18, 2000, false, 0.002); }
-      if (song.hat[i] === 'x') noiseHit(t, 7000, 0.08, 0.035);
-      if (song.hat[i] === 'o') noiseHit(t, 6500, 0.09, 0.14);
+      if (song.snare[i] === 'x' || (fill && i % 2 === 0)) snare(t);
+      if (song.hat[i] === 'x') noiseHit(t, 8000, 0.06 + (i % 4 === 2 ? 0.03 : 0), 0.03, i % 2 ? 0.25 : -0.25);
+      if (song.hat[i] === 'o') noiseHit(t, 7000, 0.08, 0.16, 0.2);
+      if (barN % 8 === 0 && i === 0 && song.introDone) noiseHit(t, 5000, 0.12, 1.4, 0, reverbIn);  // bekken
     }
     const b = song.bass[i];
-    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.16, 650, false);
-    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.035, 1400, false, 0.25);
-    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length], sp * 0.8, 'square', 0.025, 2600, true);
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.2, 900, false, 0.004, { sweep: true, unison: true, q: 4 });
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.045, intro ? 700 : 1500, false, 0.35, { unison: true, verb: true, pan: (n % 3 - 1) * 0.3 });
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length] + (barN % 2 && i >= 8 ? 12 : 0), sp * 0.7, 'square', 0.022, 2400, true, 0.003, { pan: ((i / 2) % 2 ? 0.35 : -0.35) });
     const m = song.mel[s % song.mel.length];
     if (m && !intro) {
       const deg = m.deg;
       const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
-      tone(t, note, sp * m.len * 0.95, song.lead, 0.05, song.lead === 'sawtooth' ? 2200 : 3500, true);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.055, song.lead === 'sawtooth' ? 2600 : 3800, true, 0.008, { vib: m.len > 1, verb: true, unison: song.lead === 'sawtooth' });
     }
   }
   function tick() {
@@ -301,23 +341,93 @@ const Arcade = (() => {
   addEventListener('pointerdown', initAudio);
   addEventListener('keydown', initAudio);
 
+  let sfxBus = null, noiseBuf = null;
+  function bus() {
+    if (sfxBus || !audio) return sfxBus;
+    // zachte filter + compressor: effecten klinken voller en minder schel
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const comp = audio.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    lp.connect(comp); comp.connect(audio.destination);
+    sfxBus = lp;
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return sfxBus;
+  }
   function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
     const level = ArcadeCore.sfx();
     if (!level || !audio) return;
-    vol *= level * 1.25;
+    vol *= level * 1.25 * (type === 'square' || type === 'sawtooth' ? 0.8 : 1.1);
     try {
       const t = audio.currentTime + delay;
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(freq, t);
-      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
-      g.gain.setValueAtTime(vol, t);
+      const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+      o.type = o2.type = type;
+      o.frequency.setValueAtTime(freq, t); o2.frequency.setValueAtTime(freq, t); o2.detune.value = 7;
+      if (slide) { o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); o2.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g);
-      g.connect(audio.destination);
-      o.start(t);
-      o.stop(t + dur);
+      const g2 = audio.createGain(); g2.gain.value = 0.5;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.connect(bus());
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
     } catch (e) { /* negeren */ }
+  }
+  // Ruisgeluid: knal, plof, zoef, explosie
+  function noise(dur = 0.2, vol = 0.1, f0 = 3000, f1 = 300, type = 'lowpass', delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      bus();
+      const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+      s.buffer = noiseBuf; f.type = type;
+      f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      g.gain.setValueAtTime(vol * level * 1.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(sfxBus);
+      s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Effecten: deeltjes, schudden, zwevende tekst (zelfde stijl in elke game)
+  function makeFx() {
+    const parts = [], texts = [], rings = [];
+    let shakeT = 0, shakeA = 0, flashA = 0, flashC = '#fff';
+    return {
+      burst(x, y, n = 14, color = '#fff', speed = 180, life = 0.6, size = 3, grav = 200) {
+        const max = ArcadeCore.settings.quality === 'laag' ? 0.5 : 1;
+        for (let i = 0; i < n * max; i++) {
+          const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+          parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.6 + Math.random() * 0.4), max: life, color: Array.isArray(color) ? color[i % color.length] : color, size: size * (0.6 + Math.random() * 0.8), grav });
+        }
+        if (parts.length > 600) parts.splice(0, parts.length - 600);
+      },
+      ring(x, y, color = '#fff', r = 40, life = 0.4) { rings.push({ x, y, color, r, life, max: life }); },
+      text(x, y, t, color = '#fff', size = 18) { texts.push({ x, y, t, color, size, life: 0.9 }); },
+      shake(a = 6, t = 0.25) { shakeA = Math.max(shakeA, a); shakeT = Math.max(shakeT, t); },
+      flash(c = '#fff', a = 0.35) { flashC = c; flashA = Math.max(flashA, a); },
+      update(dt) {
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.grav * dt; p.vx *= 1 - dt * 1.5; p.x += p.vx * dt; p.y += p.vy * dt; }
+        for (let i = texts.length - 1; i >= 0; i--) { const q = texts[i]; q.life -= dt; q.y -= 40 * dt; if (q.life <= 0) texts.splice(i, 1); }
+        for (let i = rings.length - 1; i >= 0; i--) { const q = rings[i]; q.life -= dt; if (q.life <= 0) rings.splice(i, 1); }
+        shakeT = Math.max(0, shakeT - dt); if (!shakeT) shakeA = 0;
+        flashA = Math.max(0, flashA - dt * 2.5);
+      },
+      // roep aan vóór het tekenen van de wereld (ctx.save gebeurt hier)
+      begin(ctx) { ctx.save(); if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeA * 2, (Math.random() - 0.5) * shakeA * 2); },
+      end(ctx) { ctx.restore(); },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const q of rings) { const k = 1 - q.life / q.max; ctx.globalAlpha = 1 - k; ctx.strokeStyle = q.color; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.3 + k), 0, Math.PI * 2); ctx.stroke(); }
+        for (const q of texts) { ctx.globalAlpha = Math.min(1, q.life * 2); text(ctx, q.t, q.x, q.y, q.size, q.color, 'center', '900'); }
+        ctx.restore();
+      },
+      drawFlash(ctx, W, H) { if (flashA > 0) { ctx.save(); ctx.globalAlpha = flashA; ctx.fillStyle = flashC; ctx.fillRect(0, 0, W, H); ctx.restore(); } },
+      clear() { parts.length = 0; texts.length = 0; rings.length = 0; shakeT = 0; },
+      get count() { return parts.length; },
+    };
   }
 
   // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
@@ -379,26 +489,45 @@ const Arcade = (() => {
   }
   // Standaard scherm voor start / pauze / game over
   function overlay(ctx, W, H, title, lines = [], hint = '') {
-    ctx.fillStyle = 'rgba(10, 11, 14, 0.72)';
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(10, 11, 14, 0.55)'); g.addColorStop(1, 'rgba(4, 5, 7, 0.85)');
+    ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
-    const pw = Math.min(W - 40, 380), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const pw = Math.min(W - 40, 400), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
     const x = (W - pw) / 2, y = (H - ph) / 2;
-    ctx.fillStyle = 'rgba(24, 26, 31, 0.95)';
-    rr(ctx, x, y, pw, ph, 16);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    const cg = ctx.createLinearGradient(0, y, 0, y + ph);
+    cg.addColorStop(0, 'rgba(32, 35, 42, 0.97)'); cg.addColorStop(1, 'rgba(18, 20, 24, 0.97)');
+    ctx.fillStyle = cg;
+    rr(ctx, x, y, pw, ph, 18);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
     ctx.lineWidth = 1.5;
+    rr(ctx, x, y, pw, ph, 18);
     ctx.stroke();
-    text(ctx, title, W / 2, y + 50, 32, '#fff', 'center', '900');
+    ctx.fillStyle = '#e8282f';
+    rr(ctx, W / 2 - 24, y + 78, 48, 3, 1.5); ctx.fill();
+    text(ctx, title, W / 2, y + 48, 32, '#fff', 'center', '900');
     lines.forEach((l, i) => {
       const s = typeof l === 'string' ? { t: l } : l;
-      text(ctx, s.t, W / 2, y + 100 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+      text(ctx, s.t, W / 2, y + 108 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
     });
-    if (hint && Math.floor(performance.now() / 500) % 2 === 0) text(ctx, hint, W / 2, y + ph - 34, 15, '#ffffff', 'center', '700');
+    if (hint) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 450)); text(ctx, hint, W / 2, y + ph - 30, 15, '#ffffff', 'center', '700'); ctx.globalAlpha = 1; }
+  }
+  // Achtergrond met diepte: zacht licht in het midden + vignet
+  function backdrop(ctx, W, H, top = '#15171c', bottom = '#0a0b0e') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.035)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
   }
 
   return {
-    load, save, beep,
+    load, save, beep, noise, makeFx, backdrop,
     get muted() { return !ArcadeCore.sfx(); },
     best: (game) => load('best_' + game, 0),
     // Slaat een nieuwe topscore op; geeft true terug als het een record is
@@ -488,6 +617,7 @@ function move(dirName) {
   history.push(before);
   if (history.length > 20) history.shift();
   score += gained;
+  if (gained) setTimeout(() => { for (const t of tiles) if (t.pop > 0.9 && !t.gone) { const q = cellXY(t.r, t.c); fx.burst(q.x + TS / 2, q.y + TS / 2, t.v >= 128 ? 22 : 10, t.v >= 512 ? ['#ff4d5a', '#ffffff'] : ['#ffffff', '#c9ced6'], 160, 0.45, 3, 0); if (t.v >= 128) fx.ring(q.x + TS / 2, q.y + TS / 2, t.v >= 512 ? '#ff4d5a' : '#ffffff', TS * 0.8, 0.4); } }, ANIM * 1000);
   if (gained) {
     popups.push({ text: '+' + gained, t: 0.8 });
     Arcade.beep(300 + Math.log2(gained) * 60, 0.08, 'triangle', 0.05);
@@ -542,6 +672,12 @@ const COLORS = {
   32: ['#7b828c', '#ffffff'], 64: ['#5b616b', '#ffffff'], 128: ['#41454d', '#ffffff'], 256: ['#2f3238', '#ffffff'],
   512: ['#1f2126', '#ffffff'], 1024: ['#a8222a', '#ffffff'], 2048: ['#e8282f', '#ffffff'],
 };
+const fx = Arcade.makeFx();
+function shade(hex, k) {   // kleur lichter (k>0) of donkerder (k<0)
+  const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  const f = (v) => Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
 function button(label, x, y, w, h, fn, primary) {
   ctx.fillStyle = primary ? '#ffffff' : 'rgba(255,255,255,0.12)';
   Arcade.rr(ctx, x, y, w, h, 10); ctx.fill();
@@ -551,12 +687,13 @@ function button(label, x, y, w, h, fn, primary) {
 function draw(dt) {
   view.begin();
   buttons = [];
-  ctx.fillStyle = '#0b0c10';
-  ctx.fillRect(0, 0, W, H);
+  Arcade.backdrop(ctx, W, H);
+  fx.update(dt);
   Arcade.text(ctx, '2048', BX, 84, 64, '#ffffff', 'left', '900');
   // Scorevakjes
   const box = (label, val, x) => {
-    ctx.fillStyle = '#1c1e24'; Arcade.rr(ctx, x, 54, 100, 58, 10); ctx.fill();
+    const bg2 = ctx.createLinearGradient(0, 54, 0, 112); bg2.addColorStop(0, '#24272e'); bg2.addColorStop(1, '#181a1f');
+    ctx.fillStyle = bg2; Arcade.rr(ctx, x, 54, 100, 58, 10); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.stroke();
     Arcade.text(ctx, label, x + 50, 72, 11, '#9aa1ab', 'center', '800');
     Arcade.text(ctx, String(val), x + 50, 95, 22, '#ffffff', 'center', '900', true);
   };
@@ -569,9 +706,11 @@ function draw(dt) {
   button('↶ Terug', W - BX - 240, 158, 100, 34, undo);
 
   // Bord
-  ctx.fillStyle = '#1c1e24';
-  Arcade.rr(ctx, BX, BY, BS, BS, 14); ctx.fill();
-  for (let r = 0; r < SIZE; r++) for (let cc = 0; cc < SIZE; cc++) { const p = cellXY(r, cc); ctx.fillStyle = '#262930'; Arcade.rr(ctx, p.x, p.y, TS, TS, 9); ctx.fill(); }
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 12;
+  ctx.fillStyle = '#1a1c21';
+  Arcade.rr(ctx, BX, BY, BS, BS, 14); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1.5; Arcade.rr(ctx, BX, BY, BS, BS, 14); ctx.stroke();
+  for (let r = 0; r < SIZE; r++) for (let cc = 0; cc < SIZE; cc++) { const p = cellXY(r, cc); ctx.fillStyle = '#121418'; Arcade.rr(ctx, p.x, p.y, TS, TS, 9); ctx.fill(); ctx.fillStyle = '#23262c'; Arcade.rr(ctx, p.x, p.y + 2, TS, TS - 2, 9); ctx.fill(); }
 
   anim = Math.max(0, anim - dt);
   const k = 1 - anim / ANIM;
@@ -587,11 +726,23 @@ function draw(dt) {
     const showV = t.gone || anim <= 0 ? t.v : (t.pop ? t.v / 2 : t.v);
     const [bg, fg] = COLORS[showV] || ['#e8282f', '#ffffff'];
     const sz = TS * s;
-    ctx.fillStyle = bg;
-    Arcade.rr(ctx, x + (TS - sz) / 2, y + (TS - sz) / 2, sz, sz, 9); ctx.fill();
+    const tx0 = x + (TS - sz) / 2, ty0 = y + (TS - sz) / 2;
+    // 3D-tegel: schaduw, donkere onderrand, verloop en glans
+    ctx.save();
+    if (showV >= 128) { ctx.shadowColor = showV >= 1024 ? 'rgba(232,40,47,0.7)' : 'rgba(255,255,255,0.25)'; ctx.shadowBlur = 18 + Math.sin(performance.now() / 300) * 4; }
+    else { ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 4; }
+    ctx.fillStyle = shade(bg, -0.28);
+    Arcade.rr(ctx, tx0, ty0, sz, sz, 9); ctx.fill();
+    ctx.restore();
+    const tg = ctx.createLinearGradient(0, ty0, 0, ty0 + sz);
+    tg.addColorStop(0, shade(bg, 0.12)); tg.addColorStop(1, bg);
+    ctx.fillStyle = tg;
+    Arcade.rr(ctx, tx0, ty0, sz, sz - 5 * s, 9); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; Arcade.rr(ctx, tx0 + 6 * s, ty0 + 4 * s, sz - 12 * s, 6 * s, 3); ctx.fill();
     const digits = String(showV).length;
-    Arcade.text(ctx, String(showV), x + TS / 2, y + TS / 2 + 2, (digits < 3 ? 44 : digits < 4 ? 36 : 28) * s, fg, 'center', '900');
+    Arcade.text(ctx, String(showV), x + TS / 2, y + TS / 2 - 1, (digits < 3 ? 44 : digits < 4 ? 36 : 28) * s, fg, 'center', '900');
   }
+  fx.draw(ctx);
   Arcade.text(ctx, Arcade.touch ? 'Veeg om te schuiven' : 'Pijltjes = schuiven · Z = terug · N = nieuw spel', W / 2, BY + BS + 32, 13, '#6f7680', 'center', '600');
 
   if (over) {

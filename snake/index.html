@@ -80,9 +80,15 @@ const ArcadeCore = (() => {
   }
   for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
 
-  let ac = null, master = null, delayIn = null, noise = null, timer = null;
+  let ac = null, master = null, delayIn = null, reverbIn = null, duck = null, noise = null, timer = null;
   let song = null, wanted = null, step = 0, nextT = 0;
   const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Galm: zelf gemaakte impulsrespons (geen bestanden nodig)
+  function makeReverb(sec = 2.2) {
+    const len = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
   function initAudio() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     try {
@@ -90,13 +96,19 @@ const ArcadeCore = (() => {
       master = ac.createGain();
       master.gain.value = musicVol() * 0.5;
       const comp = ac.createDynamicsCompressor();
-      master.connect(comp);
-      comp.connect(ac.destination);
+      comp.threshold.value = -16; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      const warm = ac.createBiquadFilter(); warm.type = 'highshelf'; warm.frequency.value = 6000; warm.gain.value = -4;
+      master.connect(warm); warm.connect(comp); comp.connect(ac.destination);
+      // 'duck' zakt even weg op elke kick (pompend effect zoals in echte dance-muziek)
+      duck = ac.createGain(); duck.connect(master);
       // Echo voor melodie
-      delayIn = ac.createGain(); delayIn.gain.value = 0.22;
+      delayIn = ac.createGain(); delayIn.gain.value = 0.2;
       const d = ac.createDelay(); d.delayTime.value = 0.3;
-      const fb = ac.createGain(); fb.gain.value = 0.3;
-      delayIn.connect(d); d.connect(fb); fb.connect(d); d.connect(master);
+      const fb = ac.createGain(); fb.gain.value = 0.32;
+      const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2400;
+      delayIn.connect(d); d.connect(dlp); dlp.connect(fb); fb.connect(d); dlp.connect(duck);
+      reverbIn = ac.createGain(); reverbIn.gain.value = 0.28;
+      const rv = makeReverb(); reverbIn.connect(rv); rv.connect(duck);
       noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
       const data = noise.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -107,50 +119,78 @@ const ArcadeCore = (() => {
     g.gain.exponentialRampToValueAtTime(peak, t + a);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   }
+  function out(node, pan = 0) {
+    if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; node.connect(p); return p; }
+    return node;
+  }
   function kick(t) {
     const o = ac.createOscillator(), g = ac.createGain();
     o.type = 'sine';
-    o.frequency.setValueAtTime(150, t);
-    o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
-    env(g, t, 0.003, 0.9, 0.22);
-    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.25);
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.002, 0.95, 0.28);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    noiseHit(t, 3000, 0.12, 0.012, 0, master);            // tikje voor de aanslag
+    duck.gain.cancelScheduledValues(t);
+    duck.gain.setValueAtTime(0.45, t); duck.gain.linearRampToValueAtTime(1, t + 0.22);
   }
-  function noiseHit(t, hp, peak, dur) {
+  function noiseHit(t, hp, peak, dur, pan = 0, dest = null, type = 'highpass', q = 0.7) {
     const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
     s.buffer = noise;
-    f.type = 'highpass'; f.frequency.value = hp;
+    f.type = type; f.frequency.value = hp; f.Q.value = q;
     env(g, t, 0.002, peak, dur);
-    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.02);
+    s.connect(f); f.connect(g); out(g, pan).connect(dest || master);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
+    return g;
   }
-  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006) {
-    const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
-    o.type = type;
-    o.frequency.value = mtof(midi);
-    f.type = 'lowpass'; f.frequency.value = cutoff;
-    env(g, t, attack, vol, dur);
-    o.connect(f); f.connect(g); g.connect(master);
-    if (echo) g.connect(delayIn);
-    o.start(t); o.stop(t + dur + 0.05);
+  function snare(t) {
+    const g = noiseHit(t, 1800, 0.32, 0.18, 0, master, 'bandpass', 0.6);
+    g.connect(reverbIn);
+    const o = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    env(g2, t, 0.002, 0.22, 0.1); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.12);
+  }
+  // Toon met twee licht ontstemde oscillatoren en een filter dat 'opengaat'
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006, opt = {}) {
+    const f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.Q.value = opt.q || 0.8;
+    f.frequency.setValueAtTime(cutoff * (opt.sweep ? 0.25 : 1), t);
+    if (opt.sweep) f.frequency.exponentialRampToValueAtTime(cutoff, t + Math.min(dur, 0.08)), f.frequency.exponentialRampToValueAtTime(cutoff * 0.35, t + dur);
+    const n = opt.unison ? 2 : 1;
+    for (let k = 0; k < n; k++) {
+      const o = ac.createOscillator();
+      o.type = type; o.frequency.value = mtof(midi); o.detune.value = n > 1 ? (k ? 9 : -9) : 0;
+      if (opt.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = 7; l.connect(lg); lg.connect(o.detune); l.start(t + 0.12); l.stop(t + dur + 0.05); }
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    env(g, t, attack, vol / n, dur);
+    f.connect(g);
+    const dst = out(g, opt.pan || 0);
+    dst.connect(opt.dry ? master : duck);
+    if (echo) dst.connect(delayIn);
+    if (opt.verb) dst.connect(reverbIn);
   }
   function playStep(s, t) {
     const sp = 60 / song.bpm / 4;
-    const i = s % 16, bar = Math.floor(s / 16) % 4, chord = song.prog[bar];
-    const intro = Math.floor(s / 16) < 2 && song.introDone !== true;
+    const i = s % 16, barN = Math.floor(s / 16), bar = barN % 4, chord = song.prog[bar];
+    const intro = barN < 2 && song.introDone !== true;
+    const fill = barN % 8 === 7 && i >= 12;                       // drumroffel aan het eind van elke 8 maten
     if (!intro) {
       if (song.kick[i] === 'x') kick(t);
-      if (song.snare[i] === 'x') { noiseHit(t, 1500, 0.3, 0.15); tone(t, 50, 0.08, 'triangle', 0.18, 2000, false, 0.002); }
-      if (song.hat[i] === 'x') noiseHit(t, 7000, 0.08, 0.035);
-      if (song.hat[i] === 'o') noiseHit(t, 6500, 0.09, 0.14);
+      if (song.snare[i] === 'x' || (fill && i % 2 === 0)) snare(t);
+      if (song.hat[i] === 'x') noiseHit(t, 8000, 0.06 + (i % 4 === 2 ? 0.03 : 0), 0.03, i % 2 ? 0.25 : -0.25);
+      if (song.hat[i] === 'o') noiseHit(t, 7000, 0.08, 0.16, 0.2);
+      if (barN % 8 === 0 && i === 0 && song.introDone) noiseHit(t, 5000, 0.12, 1.4, 0, reverbIn);  // bekken
     }
     const b = song.bass[i];
-    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.16, 650, false);
-    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.035, 1400, false, 0.25);
-    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length], sp * 0.8, 'square', 0.025, 2600, true);
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.2, 900, false, 0.004, { sweep: true, unison: true, q: 4 });
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.045, intro ? 700 : 1500, false, 0.35, { unison: true, verb: true, pan: (n % 3 - 1) * 0.3 });
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length] + (barN % 2 && i >= 8 ? 12 : 0), sp * 0.7, 'square', 0.022, 2400, true, 0.003, { pan: ((i / 2) % 2 ? 0.35 : -0.35) });
     const m = song.mel[s % song.mel.length];
     if (m && !intro) {
       const deg = m.deg;
       const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
-      tone(t, note, sp * m.len * 0.95, song.lead, 0.05, song.lead === 'sawtooth' ? 2200 : 3500, true);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.055, song.lead === 'sawtooth' ? 2600 : 3800, true, 0.008, { vib: m.len > 1, verb: true, unison: song.lead === 'sawtooth' });
     }
   }
   function tick() {
@@ -301,23 +341,93 @@ const Arcade = (() => {
   addEventListener('pointerdown', initAudio);
   addEventListener('keydown', initAudio);
 
+  let sfxBus = null, noiseBuf = null;
+  function bus() {
+    if (sfxBus || !audio) return sfxBus;
+    // zachte filter + compressor: effecten klinken voller en minder schel
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const comp = audio.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    lp.connect(comp); comp.connect(audio.destination);
+    sfxBus = lp;
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return sfxBus;
+  }
   function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
     const level = ArcadeCore.sfx();
     if (!level || !audio) return;
-    vol *= level * 1.25;
+    vol *= level * 1.25 * (type === 'square' || type === 'sawtooth' ? 0.8 : 1.1);
     try {
       const t = audio.currentTime + delay;
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(freq, t);
-      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
-      g.gain.setValueAtTime(vol, t);
+      const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+      o.type = o2.type = type;
+      o.frequency.setValueAtTime(freq, t); o2.frequency.setValueAtTime(freq, t); o2.detune.value = 7;
+      if (slide) { o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); o2.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g);
-      g.connect(audio.destination);
-      o.start(t);
-      o.stop(t + dur);
+      const g2 = audio.createGain(); g2.gain.value = 0.5;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.connect(bus());
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
     } catch (e) { /* negeren */ }
+  }
+  // Ruisgeluid: knal, plof, zoef, explosie
+  function noise(dur = 0.2, vol = 0.1, f0 = 3000, f1 = 300, type = 'lowpass', delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      bus();
+      const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+      s.buffer = noiseBuf; f.type = type;
+      f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      g.gain.setValueAtTime(vol * level * 1.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(sfxBus);
+      s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Effecten: deeltjes, schudden, zwevende tekst (zelfde stijl in elke game)
+  function makeFx() {
+    const parts = [], texts = [], rings = [];
+    let shakeT = 0, shakeA = 0, flashA = 0, flashC = '#fff';
+    return {
+      burst(x, y, n = 14, color = '#fff', speed = 180, life = 0.6, size = 3, grav = 200) {
+        const max = ArcadeCore.settings.quality === 'laag' ? 0.5 : 1;
+        for (let i = 0; i < n * max; i++) {
+          const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+          parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.6 + Math.random() * 0.4), max: life, color: Array.isArray(color) ? color[i % color.length] : color, size: size * (0.6 + Math.random() * 0.8), grav });
+        }
+        if (parts.length > 600) parts.splice(0, parts.length - 600);
+      },
+      ring(x, y, color = '#fff', r = 40, life = 0.4) { rings.push({ x, y, color, r, life, max: life }); },
+      text(x, y, t, color = '#fff', size = 18) { texts.push({ x, y, t, color, size, life: 0.9 }); },
+      shake(a = 6, t = 0.25) { shakeA = Math.max(shakeA, a); shakeT = Math.max(shakeT, t); },
+      flash(c = '#fff', a = 0.35) { flashC = c; flashA = Math.max(flashA, a); },
+      update(dt) {
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.grav * dt; p.vx *= 1 - dt * 1.5; p.x += p.vx * dt; p.y += p.vy * dt; }
+        for (let i = texts.length - 1; i >= 0; i--) { const q = texts[i]; q.life -= dt; q.y -= 40 * dt; if (q.life <= 0) texts.splice(i, 1); }
+        for (let i = rings.length - 1; i >= 0; i--) { const q = rings[i]; q.life -= dt; if (q.life <= 0) rings.splice(i, 1); }
+        shakeT = Math.max(0, shakeT - dt); if (!shakeT) shakeA = 0;
+        flashA = Math.max(0, flashA - dt * 2.5);
+      },
+      // roep aan vóór het tekenen van de wereld (ctx.save gebeurt hier)
+      begin(ctx) { ctx.save(); if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeA * 2, (Math.random() - 0.5) * shakeA * 2); },
+      end(ctx) { ctx.restore(); },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const q of rings) { const k = 1 - q.life / q.max; ctx.globalAlpha = 1 - k; ctx.strokeStyle = q.color; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.3 + k), 0, Math.PI * 2); ctx.stroke(); }
+        for (const q of texts) { ctx.globalAlpha = Math.min(1, q.life * 2); text(ctx, q.t, q.x, q.y, q.size, q.color, 'center', '900'); }
+        ctx.restore();
+      },
+      drawFlash(ctx, W, H) { if (flashA > 0) { ctx.save(); ctx.globalAlpha = flashA; ctx.fillStyle = flashC; ctx.fillRect(0, 0, W, H); ctx.restore(); } },
+      clear() { parts.length = 0; texts.length = 0; rings.length = 0; shakeT = 0; },
+      get count() { return parts.length; },
+    };
   }
 
   // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
@@ -379,26 +489,45 @@ const Arcade = (() => {
   }
   // Standaard scherm voor start / pauze / game over
   function overlay(ctx, W, H, title, lines = [], hint = '') {
-    ctx.fillStyle = 'rgba(10, 11, 14, 0.72)';
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(10, 11, 14, 0.55)'); g.addColorStop(1, 'rgba(4, 5, 7, 0.85)');
+    ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
-    const pw = Math.min(W - 40, 380), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const pw = Math.min(W - 40, 400), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
     const x = (W - pw) / 2, y = (H - ph) / 2;
-    ctx.fillStyle = 'rgba(24, 26, 31, 0.95)';
-    rr(ctx, x, y, pw, ph, 16);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    const cg = ctx.createLinearGradient(0, y, 0, y + ph);
+    cg.addColorStop(0, 'rgba(32, 35, 42, 0.97)'); cg.addColorStop(1, 'rgba(18, 20, 24, 0.97)');
+    ctx.fillStyle = cg;
+    rr(ctx, x, y, pw, ph, 18);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
     ctx.lineWidth = 1.5;
+    rr(ctx, x, y, pw, ph, 18);
     ctx.stroke();
-    text(ctx, title, W / 2, y + 50, 32, '#fff', 'center', '900');
+    ctx.fillStyle = '#e8282f';
+    rr(ctx, W / 2 - 24, y + 78, 48, 3, 1.5); ctx.fill();
+    text(ctx, title, W / 2, y + 48, 32, '#fff', 'center', '900');
     lines.forEach((l, i) => {
       const s = typeof l === 'string' ? { t: l } : l;
-      text(ctx, s.t, W / 2, y + 100 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+      text(ctx, s.t, W / 2, y + 108 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
     });
-    if (hint && Math.floor(performance.now() / 500) % 2 === 0) text(ctx, hint, W / 2, y + ph - 34, 15, '#ffffff', 'center', '700');
+    if (hint) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 450)); text(ctx, hint, W / 2, y + ph - 30, 15, '#ffffff', 'center', '700'); ctx.globalAlpha = 1; }
+  }
+  // Achtergrond met diepte: zacht licht in het midden + vignet
+  function backdrop(ctx, W, H, top = '#15171c', bottom = '#0a0b0e') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.035)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
   }
 
   return {
-    load, save, beep,
+    load, save, beep, noise, makeFx, backdrop,
     get muted() { return !ArcadeCore.sfx(); },
     best: (game) => load('best_' + game, 0),
     // Slaat een nieuwe topscore op; geeft true terug als het een record is
@@ -422,7 +551,9 @@ const N = 20, CELL = 22, BX = (W - N * CELL) / 2, BY = 110;
 const APPLES_PER_LEVEL = 8;
 
 let state = 'menu'; // menu | play | pause | over
-let snake, dir, queue, apple, gold, power, walls, score, apples, level, tick, acc, grow, slowT, ghostT, banner, overT, newRecord, parts, shake;
+let snake, prev, dir, queue, apple, gold, power, walls, score, apples, level, tick, acc, grow, slowT, ghostT, banner, overT, newRecord, parts, shake, combo, comboT;
+const fx = Arcade.makeFx();
+let clock = 0;
 let best = Arcade.best(GAME);
 parts = []; shake = 0;
 
@@ -465,6 +596,7 @@ function setupLevel(lv) {
   walls = wallsFor(lv);
   const len = snake ? Math.min(snake.length, 6) : 4;
   snake = Array.from({ length: len }, (_, i) => ({ x: 6 - i, y: 10 }));
+  prev = snake.map((q) => ({ ...q }));
   dir = { x: 1, y: 0 };
   queue = [];
   apple = null; gold = null; power = null;
@@ -475,7 +607,7 @@ function setupLevel(lv) {
 
 function start() {
   snake = null;
-  score = 0; apples = 0; grow = 0; slowT = 0; ghostT = 0; newRecord = false;
+  score = 0; apples = 0; grow = 0; slowT = 0; ghostT = 0; newRecord = false; combo = 0; comboT = 0; fx.clear();
   setupLevel(1);
   state = 'play';
   Arcade.beep(440, 0.15, 'triangle', 0.05, 300);
@@ -517,12 +649,14 @@ function die() {
   shake = 10;
   newRecord = Arcade.record(GAME, score);
   best = Arcade.best(GAME);
-  for (const s of snake) for (let i = 0; i < 3; i++) parts.push({ x: BX + s.x * CELL + CELL / 2, y: BY + s.y * CELL + CELL / 2, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.5) * 300, life: 0.4 + Math.random() * 0.5, color: i ? '#ffffff' : '#9aa1ab' });
-  Arcade.beep(150, 0.5, 'sawtooth', 0.07, -80);
+  snake.forEach((q, i) => setTimeout(() => fx.burst(BX + q.x * CELL + CELL / 2, BY + q.y * CELL + CELL / 2, 8, ['#ffffff', '#9aa1ab'], 160, 0.6, 3, 300), i * 18));
+  fx.shake(9, 0.35); fx.flash('#e8282f', 0.25);
+  Arcade.beep(150, 0.5, 'sawtooth', 0.07, -80); Arcade.noise(0.4, 0.12, 1200, 100);
 }
 
 function step() {
   if (queue.length) dir = queue.shift();
+  prev = snake.map((q) => ({ ...q }));
   const head = snake[0];
   const nx = (head.x + dir.x + N) % N, ny = (head.y + dir.y + N) % N;
   const key = nx + ',' + ny;
@@ -533,9 +667,11 @@ function step() {
   if (grow > 0) grow--; else snake.pop();
 
   if (apple && nx === apple.x && ny === apple.y) {
-    score += 1; apples += 1; grow += 1;
+    combo = comboT > 0 ? Math.min(combo + 1, 4) : 1; comboT = 3.2;
+    score += combo; apples += 1; grow += 1;
     Arcade.beep(660 + (apples % 8) * 60, 0.08, 'square', 0.04);
     burst(nx, ny, '#e8282f');
+    fx.text(BX + nx * CELL + CELL / 2, BY + ny * CELL - 4, combo > 1 ? `+${combo} combo!` : '+1', combo > 1 ? '#ffd23f' : '#ffffff', combo > 1 ? 16 : 14);
     if (apples % APPLES_PER_LEVEL === 0) {
       Arcade.beep(523, 0.12, 'triangle', 0.06); Arcade.beep(784, 0.25, 'triangle', 0.06, 0, 0.12);
       setupLevel(level + 1);
@@ -547,7 +683,8 @@ function step() {
   }
   if (gold && nx === gold.x && ny === gold.y) {
     score += 5; grow += 3; gold = null;
-    burst(nx, ny, '#ffd23f');
+    burst(nx, ny, '#ffd23f'); fx.ring(BX + nx * CELL + CELL / 2, BY + ny * CELL + CELL / 2, '#ffd23f', 50);
+    fx.text(BX + nx * CELL + CELL / 2, BY + ny * CELL - 4, '+5', '#ffd23f', 18);
     Arcade.beep(990, 0.1, 'triangle', 0.06); Arcade.beep(1320, 0.18, 'triangle', 0.06, 0, 0.08);
   }
   if (power && nx === power.x && ny === power.y) {
@@ -558,18 +695,18 @@ function step() {
   }
 }
 function burst(x, y, color) {
-  for (let i = 0; i < 12; i++) parts.push({ x: BX + x * CELL + CELL / 2, y: BY + y * CELL + CELL / 2, vx: (Math.random() - 0.5) * 220, vy: (Math.random() - 0.5) * 220, life: 0.3 + Math.random() * 0.3, color });
+  fx.burst(BX + x * CELL + CELL / 2, BY + y * CELL + CELL / 2, 16, [color, '#ffffff'], 200, 0.5, 3.5, 0);
+  fx.ring(BX + x * CELL + CELL / 2, BY + y * CELL + CELL / 2, color, 34, 0.35);
 }
 
 function update(dt) {
-  for (const q of parts) { q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; }
-  parts = parts.filter((q) => q.life > 0);
-  shake = Math.max(0, shake - dt * 30);
+  fx.update(dt); clock += dt;
   if (state === 'over') overT -= dt;
   if (state !== 'play') return;
   if (banner) { banner.t -= dt; if (banner.t <= 0) banner = null; }
   slowT = Math.max(0, slowT - dt);
   ghostT = Math.max(0, ghostT - dt);
+  comboT = Math.max(0, comboT - dt); if (!comboT) combo = 0;
   if (gold) { gold.t -= dt; if (gold.t <= 0) gold = null; }
   if (power) { power.t -= dt; if (power.t <= 0) power = null; }
   acc += dt;
@@ -583,50 +720,110 @@ function cellRect(x, y, pad, r, color) {
   Arcade.rr(ctx, BX + x * CELL + pad, BY + y * CELL + pad, CELL - pad * 2, CELL - pad * 2, r);
   ctx.fill();
 }
+const P = (x, y) => [BX + x * CELL + CELL / 2, BY + y * CELL + CELL / 2];
+function drawApple(x, y, col, hi, glow) {
+  const [cx, cy0] = P(x, y), cy = cy0 + Math.sin(clock * 4 + x) * 1.2, r = CELL * 0.46;
+  ctx.save();
+  if (glow) { ctx.shadowColor = col; ctx.shadowBlur = 16; }
+  const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r * 1.1);
+  g.addColorStop(0, hi); g.addColorStop(0.45, col); g.addColorStop(1, '#3a0a0c');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy + 1, r, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = '#5a3a20'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx, cy - r + 2); ctx.lineTo(cx + 1, cy - r - 3); ctx.stroke();
+  ctx.fillStyle = '#6fbf5f'; ctx.beginPath(); ctx.ellipse(cx + 4, cy - r - 1, 4, 2, -0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.ellipse(cx - r * 0.38, cy - r * 0.3, 2.2, 3.2, -0.6, 0, Math.PI * 2); ctx.fill();
+}
+function drawSnake(k) {
+  // vloeiend: tussen vorige en huidige positie in tekenen
+  const pts = snake.map((q, i) => {
+    const pq = prev[i] || prev[prev.length - 1] || q;
+    let x = q.x, y = q.y;
+    if (Math.abs(q.x - pq.x) <= 1 && Math.abs(q.y - pq.y) <= 1) { x = pq.x + (q.x - pq.x) * k; y = pq.y + (q.y - pq.y) * k; }
+    return P(x, y);
+  });
+  const n = pts.length;
+  ctx.save();
+  ctx.globalAlpha = ghostT > 0 ? 0.5 + Math.sin(clock * 12) * 0.1 : 1;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // schaduw
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = CELL - 3;
+  for (let i = 1; i < n; i++) { if (Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) > CELL * 1.5) continue; ctx.beginPath(); ctx.moveTo(pts[i - 1][0] + 2, pts[i - 1][1] + 3); ctx.lineTo(pts[i][0] + 2, pts[i][1] + 3); ctx.stroke(); }
+  for (let i = n - 1; i >= 1; i--) {
+    const t = i / Math.max(1, n - 1), v = Math.round(240 - t * 120);
+    if (Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) > CELL * 1.5) continue;
+    ctx.strokeStyle = `rgb(${v},${v},${v + 6})`; ctx.lineWidth = (CELL - 2) * (1 - t * 0.3);
+    ctx.beginPath(); ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke();
+  }
+  // glans op de rug
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) { if (i && Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) > CELL * 1.5) { ctx.stroke(); ctx.beginPath(); ctx.moveTo(pts[i][0] - 3, pts[i][1] - 3); continue; } i ? ctx.lineTo(pts[i][0] - 3, pts[i][1] - 3) : ctx.moveTo(pts[i][0] - 3, pts[i][1] - 3); }
+  ctx.stroke();
+  // kop
+  const [hx, hy] = pts[0];
+  const hg = ctx.createRadialGradient(hx - 4, hy - 4, 2, hx, hy, CELL * 0.6);
+  hg.addColorStop(0, '#ffffff'); hg.addColorStop(1, '#c9ced6');
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(hx, hy, CELL / 2 - 0.5, 0, Math.PI * 2); ctx.fill();
+  // tong
+  if (Math.sin(clock * 9) > 0.2) {
+    ctx.strokeStyle = '#e8282f'; ctx.lineWidth = 2;
+    const tx = hx + dir.x * (CELL / 2 + 5), ty = hy + dir.y * (CELL / 2 + 5);
+    ctx.beginPath(); ctx.moveTo(hx + dir.x * CELL / 2, hy + dir.y * CELL / 2); ctx.lineTo(tx, ty);
+    ctx.lineTo(tx + dir.x * 3 + dir.y * 3, ty + dir.y * 3 + dir.x * 3); ctx.moveTo(tx, ty); ctx.lineTo(tx + dir.x * 3 - dir.y * 3, ty + dir.y * 3 - dir.x * 3); ctx.stroke();
+  }
+  for (const side of [-1, 1]) {
+    const ex = hx + dir.x * 3 + (dir.y ? side * 5 : 0), ey = hy + dir.y * 3 + (dir.x ? side * 5 : 0);
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(ex, ey, 3.4, 0, 6.28); ctx.fill();
+    ctx.fillStyle = '#0b0c10'; ctx.beginPath(); ctx.arc(ex + dir.x * 1.2, ey + dir.y * 1.2, 2, 0, 6.28); ctx.fill();
+  }
+  ctx.restore();
+}
 function draw() {
   view.begin();
-  ctx.fillStyle = '#0b0c10';
-  ctx.fillRect(0, 0, W, H);
-  ctx.save();
-  if (shake) ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
-  // Bord
-  ctx.fillStyle = '#14161b';
-  Arcade.rr(ctx, BX - 6, BY - 6, N * CELL + 12, N * CELL + 12, 14); ctx.fill();
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if ((x + y) % 2) { ctx.fillStyle = '#181a20'; ctx.fillRect(BX + x * CELL, BY + y * CELL, CELL, CELL); }
+  Arcade.backdrop(ctx, W, H);
+  fx.begin(ctx);
+  // Bord met diepte
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10;
+  ctx.fillStyle = '#16181d'; Arcade.rr(ctx, BX - 8, BY - 8, N * CELL + 16, N * CELL + 16, 16); ctx.fill(); ctx.restore();
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1.5; Arcade.rr(ctx, BX - 8, BY - 8, N * CELL + 16, N * CELL + 16, 16); ctx.stroke();
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { ctx.fillStyle = (x + y) % 2 ? '#1b1e24' : '#181a20'; ctx.fillRect(BX + x * CELL, BY + y * CELL, CELL, CELL); }
+  const bl = ctx.createRadialGradient(W / 2, BY + N * CELL / 2, 40, W / 2, BY + N * CELL / 2, N * CELL * 0.75);
+  bl.addColorStop(0, 'rgba(255,255,255,0.04)'); bl.addColorStop(1, 'rgba(0,0,0,0.3)');
+  ctx.fillStyle = bl; ctx.fillRect(BX, BY, N * CELL, N * CELL);
 
   if (state !== 'menu') {
-    for (const k of walls) { const [x, y] = k.split(',').map(Number); cellRect(x, y, 1, 4, '#4a4f58'); cellRect(x, y, 5, 2, '#5b616b'); }
-    if (apple) { cellRect(apple.x, apple.y, 3, 10, '#e8282f'); ctx.fillStyle = '#5fae5a'; ctx.fillRect(BX + apple.x * CELL + 10, BY + apple.y * CELL + 1, 3, 5); }
-    if (gold && (gold.t > 2 || Math.floor(gold.t * 8) % 2)) { ctx.save(); ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 12; cellRect(gold.x, gold.y, 3, 10, '#ffd23f'); ctx.restore(); }
+    for (const k of walls) {
+      const [x, y] = k.split(',').map(Number);
+      cellRect(x, y, 0.5, 4, '#2c3036');
+      const g = ctx.createLinearGradient(0, BY + y * CELL, 0, BY + y * CELL + CELL);
+      g.addColorStop(0, '#6a717b'); g.addColorStop(1, '#474c55');
+      ctx.fillStyle = g; Arcade.rr(ctx, BX + x * CELL + 1.5, BY + y * CELL + 1, CELL - 3, CELL - 4, 3); ctx.fill();
+    }
+    if (apple) drawApple(apple.x, apple.y, '#e8282f', '#ff8a8f', false);
+    if (gold && (gold.t > 2 || Math.floor(gold.t * 8) % 2)) drawApple(gold.x, gold.y, '#f2b632', '#fff3b0', true);
     if (power && (power.t > 2 || Math.floor(power.t * 8) % 2)) {
-      cellRect(power.x, power.y, 2, 6, power.type === 'traag' ? '#5ab8ff' : '#ffffff');
-      Arcade.text(ctx, power.type === 'traag' ? '⏱' : '👻', BX + power.x * CELL + CELL / 2, BY + power.y * CELL + CELL / 2 + 1, 13, '#000', 'center');
+      const [px, py] = P(power.x, power.y);
+      ctx.save(); ctx.shadowColor = power.type === 'traag' ? '#5ab8ff' : '#ffffff'; ctx.shadowBlur = 14;
+      ctx.fillStyle = power.type === 'traag' ? '#5ab8ff' : '#e6e9ee'; ctx.beginPath(); ctx.arc(px, py, CELL * 0.42 + Math.sin(clock * 6) * 1.5, 0, 6.29); ctx.fill(); ctx.restore();
+      Arcade.text(ctx, power.type === 'traag' ? '⏱' : '👻', px, py + 1, 13, '#000', 'center');
     }
-    // Slang
-    ctx.globalAlpha = ghostT > 0 ? 0.55 : 1;
-    snake.forEach((s, i) => {
-      const t = i / Math.max(1, snake.length - 1);
-      const v = Math.round(245 - t * 110);
-      cellRect(s.x, s.y, i === 0 ? 1 : 2, i === 0 ? 7 : 5, `rgb(${v},${v},${v + 4})`);
-    });
-    ctx.globalAlpha = 1;
-    const h = snake[0];
-    const cx = BX + h.x * CELL + CELL / 2, cy = BY + h.y * CELL + CELL / 2;
-    ctx.fillStyle = '#0b0c10';
-    for (const side of [-1, 1]) {
-      const ex = cx + dir.x * 4 + (dir.y ? side * 5 : 0), ey = cy + dir.y * 4 + (dir.x ? side * 5 : 0);
-      ctx.beginPath(); ctx.arc(ex, ey, 2.4, 0, 6.28); ctx.fill();
-    }
+    const k = state === 'play' ? Math.max(0, Math.min(1, acc / stepTime())) : 1;
+    if (state !== 'over' || overT > 0.6) drawSnake(k);
+  } else {
+    // demo-slang in het menu
+    const t2 = clock * 3;
+    ctx.lineCap = 'round'; ctx.lineWidth = CELL - 4;
+    for (let i = 14; i >= 0; i--) { const v = Math.round(240 - i * 8); ctx.strokeStyle = `rgb(${v},${v},${v + 6})`; const a = t2 - i * 0.18, b = t2 - (i + 1) * 0.18; ctx.beginPath(); ctx.moveTo(W / 2 + Math.cos(a) * 150, BY + 380 + Math.sin(a * 2) * 30); ctx.lineTo(W / 2 + Math.cos(b) * 150, BY + 380 + Math.sin(b * 2) * 30); ctx.stroke(); }
   }
-  for (const q of parts) { ctx.globalAlpha = Math.max(0, q.life * 2); ctx.fillStyle = q.color; ctx.fillRect(q.x - 2, q.y - 2, 4, 4); }
-  ctx.globalAlpha = 1;
-  ctx.restore();
+  fx.draw(ctx);
+  fx.end(ctx);
+  fx.drawFlash(ctx, W, H);
 
   // Bovenbalk
   if (state === 'menu') {
     Arcade.text(ctx, 'SNAKE', W / 2, 50, 46, '#ffffff', 'center', '900');
     Arcade.text(ctx, '2.0', W / 2 + 112, 56, 22, '#e8282f', 'center', '900');
-    ctx.fillStyle = 'rgba(11,12,16,0.82)'; Arcade.rr(ctx, BX + 20, BY + 60, N * CELL - 40, 300, 16); ctx.fill();
+    ctx.fillStyle = 'rgba(16,18,22,0.9)'; Arcade.rr(ctx, BX + 20, BY + 40, N * CELL - 40, 260, 16); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.stroke();
     const lines = [
       ['🍎', 'Appel: +1 en je wordt langer'],
       ['⭐', 'Gouden appel: +5 (verdwijnt snel!)'],
@@ -634,8 +831,9 @@ function draw() {
       ['👻', 'Spook: 6 sec door jezelf heen'],
       ['🧱', `Na ${APPLES_PER_LEVEL} appels: nieuw level met muren`],
     ];
-    lines.forEach(([ic, tx], i) => { Arcade.text(ctx, ic, BX + 54, BY + 105 + i * 40, 18, '#fff', 'center'); Arcade.text(ctx, tx, BX + 78, BY + 105 + i * 40, 15, '#e6e9ee', 'left', '600'); });
-    if (best) Arcade.text(ctx, `Record: ${best}`, W / 2, BY + 320, 16, '#ffffff', 'center', '800');
+    lines.push(['🔥', 'Snel achter elkaar eten = combo (tot ×4)']);
+    lines.forEach(([ic, tx], i) => { Arcade.text(ctx, ic, BX + 54, BY + 75 + i * 38, 18, '#fff', 'center'); Arcade.text(ctx, tx, BX + 78, BY + 75 + i * 38, 15, '#e6e9ee', 'left', '600'); });
+    if (best) Arcade.text(ctx, `Record: ${best}`, W / 2, BY + 330, 16, '#ffffff', 'center', '800');
     if (Math.floor(performance.now() / 500) % 2 === 0) Arcade.text(ctx, Arcade.touch ? 'Tik om te starten · veeg om te sturen' : 'Druk op Enter · sturen met pijltjes', W / 2, H - 30, 17, '#ffffff', 'center', '800');
     return;
   }
@@ -647,6 +845,7 @@ function draw() {
   ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(BX + N * CELL - 120, 84, 120, 6);
   ctx.fillStyle = '#e8282f'; ctx.fillRect(BX + N * CELL - 120, 84, 120 * prog, 6);
   let y = BY + N * CELL + 34;
+  if (combo > 1) { ctx.globalAlpha = Math.min(1, comboT); Arcade.text(ctx, `🔥 ×${combo}`, W / 2, 72, 22, '#ffd23f', 'center', '900'); ctx.globalAlpha = 1; }
   if (slowT > 0) { Arcade.text(ctx, `⏱ Trager ${Math.ceil(slowT)}s`, BX, y, 14, '#5ab8ff', 'left', '800'); }
   if (ghostT > 0) { Arcade.text(ctx, `👻 Spook ${Math.ceil(ghostT)}s`, BX + N * CELL, y, 14, '#ffffff', 'right', '800'); }
   if (banner) { ctx.globalAlpha = Math.min(1, banner.t * 2); Arcade.text(ctx, banner.text, W / 2, BY + N * CELL / 2, 44, '#ffffff', 'center', '900'); ctx.globalAlpha = 1; }
