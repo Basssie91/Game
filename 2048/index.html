@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>2048 · Bas Arcade</title>
+  <meta name="description" content="Schuif de tegels en maak 2048.">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%2222%22%20height%3D%2222%22%20rx%3D%224%22%20fill%3D%22%23f2f2f2%22/%3E%3Crect%20x%3D%2234%22%20y%3D%228%22%20width%3D%2222%22%20height%3D%2222%22%20rx%3D%224%22%20fill%3D%22%233a3d45%22/%3E%3Crect%20x%3D%228%22%20y%3D%2234%22%20width%3D%2222%22%20height%3D%2222%22%20rx%3D%224%22%20fill%3D%22%233a3d45%22/%3E%3Crect%20x%3D%2234%22%20y%3D%2234%22%20width%3D%2222%22%20height%3D%2222%22%20rx%3D%224%22%20fill%3D%22%23e8282f%22/%3E%3Ctext%20x%3D%2219%22%20y%3D%2223.5%22%20font-family%3D%22system-ui%2Csans-serif%22%20font-weight%3D%22900%22%20font-size%3D%2212%22%20text-anchor%3D%22middle%22%20fill%3D%22%2316181d%22%3E2%3C/text%3E%3Ctext%20x%3D%2245%22%20y%3D%2249.5%22%20font-family%3D%22system-ui%2Csans-serif%22%20font-weight%3D%22900%22%20font-size%3D%229%22%20text-anchor%3D%22middle%22%20fill%3D%22%23fff%22%3E2048%3C/text%3E%3C/svg%3E">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #fff; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+.terug, .geluid { position: fixed; top: 12px; z-index: 5; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); padding: 8px 12px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.terug { left: 12px; } .geluid { right: 12px; }
+.terug:hover, .geluid:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <a class="terug" href="../">← Games</a>
+  <button class="geluid" type="button" aria-label="Geluid aan/uit">🔊</button>
+  <canvas id="c"></canvas>
+  
+  <script>
+'use strict';
+// ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
+const Arcade = (() => {
+  const load = (k, d) => { try { const v = localStorage.getItem('arcade_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem('arcade_' + k, JSON.stringify(v)); } catch (e) { /* uit */ } };
+  let audio = null;
+  let muted = load('muted', false);
+
+  function initAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  addEventListener('pointerdown', initAudio);
+  addEventListener('keydown', initAudio);
+
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+    if (muted || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g);
+      g.connect(audio.destination);
+      o.start(t);
+      o.stop(t + dur);
+    } catch (e) { /* negeren */ }
+  }
+
+  // Geluidsknop
+  const sndBtn = document.querySelector('.geluid');
+  const showSnd = () => { if (sndBtn) sndBtn.textContent = muted ? '🔇' : '🔊'; };
+  showSnd();
+  if (sndBtn) sndBtn.addEventListener('click', (e) => { e.stopPropagation(); muted = !muted; save('muted', muted); showSnd(); sndBtn.blur(); });
+  addEventListener('keydown', (e) => { if (e.code === 'KeyM') { muted = !muted; save('muted', muted); showSnd(); } });
+
+  // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
+  function canvas(id, W, H) {
+    const c = document.getElementById(id);
+    const ctx = c.getContext('2d');
+    const view = { W, H, scale: 1 };
+    const fit = () => {
+      const s = Math.min(innerWidth / W, innerHeight / H);
+      const dpr = Math.min(2, devicePixelRatio || 1);
+      c.style.width = Math.floor(W * s) + 'px';
+      c.style.height = Math.floor(H * s) + 'px';
+      c.width = Math.floor(W * s * dpr);
+      c.height = Math.floor(H * s * dpr);
+      view.scale = s * dpr;
+      ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    };
+    fit();
+    addEventListener('resize', fit);
+    view.begin = () => ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    view.toGame = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    };
+    return { c, ctx, view };
+  }
+
+  // Vegen (swipe) op touchscreens: geeft 'links', 'rechts', 'op' of 'neer'
+  function onSwipe(el, fn, onTap) {
+    let sx = 0, sy = 0, st = 0, active = false;
+    el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; st = performance.now(); active = true; });
+    el.addEventListener('pointerup', (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (onTap) onTap(e); return; }
+      if (Math.abs(dx) > Math.abs(dy)) fn(dx > 0 ? 'rechts' : 'links');
+      else fn(dy > 0 ? 'neer' : 'op');
+    });
+  }
+
+  // Tekenhulpjes in dezelfde stijl
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function text(ctx, t, x, y, size, color = '#fff', align = 'center', weight = '700', mono = false) {
+    ctx.font = `${weight} ${size}px ${mono ? 'ui-monospace, Consolas, monospace' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, x, y);
+  }
+  // Standaard scherm voor start / pauze / game over
+  function overlay(ctx, W, H, title, lines = [], hint = '') {
+    ctx.fillStyle = 'rgba(10, 11, 14, 0.72)';
+    ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 40, 380), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const x = (W - pw) / 2, y = (H - ph) / 2;
+    ctx.fillStyle = 'rgba(24, 26, 31, 0.95)';
+    rr(ctx, x, y, pw, ph, 16);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    text(ctx, title, W / 2, y + 50, 32, '#fff', 'center', '900');
+    lines.forEach((l, i) => {
+      const s = typeof l === 'string' ? { t: l } : l;
+      text(ctx, s.t, W / 2, y + 100 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+    });
+    if (hint && Math.floor(performance.now() / 500) % 2 === 0) text(ctx, hint, W / 2, y + ph - 34, 15, '#ffffff', 'center', '700');
+  }
+
+  return {
+    load, save, beep,
+    get muted() { return muted; },
+    best: (game) => load('best_' + game, 0),
+    // Slaat een nieuwe topscore op; geeft true terug als het een record is
+    record: (game, score, lowerIsBetter = false) => {
+      const b = load('best_' + game, 0);
+      if (!b || (lowerIsBetter ? score < b : score > b)) { save('best_' + game, score); return true; }
+      return false;
+    },
+    canvas, onSwipe, rr, text, overlay,
+    touch: matchMedia('(hover: none) and (pointer: coarse)').matches,
+  };
+})();
+
+// ================= 2048 =================
+const W = 480, H = 680;
+const { c, ctx, view } = Arcade.canvas('c', W, H);
+const GAME = '2048';
+const SIZE = 4, BX = 30, BY = 200, BS = 420, GAP = 12, TS = (BS - GAP * (SIZE + 1)) / SIZE;
+const ANIM = 0.11;
+
+let tiles, score, best, over, won, keepGoing, anim, history, nextId, popups;
+best = Arcade.best(GAME);
+let buttons = [];
+
+function newGame() {
+  tiles = []; score = 0; over = false; won = false; keepGoing = false; anim = 0; history = []; nextId = 1; popups = [];
+  addRandom(); addRandom();
+  save();
+}
+function cellXY(r, cc) { return { x: BX + GAP + cc * (TS + GAP), y: BY + GAP + r * (TS + GAP) }; }
+function at(r, cc) { return tiles.find((t) => !t.gone && t.r === r && t.c === cc); }
+function addRandom() {
+  const free = [];
+  for (let r = 0; r < SIZE; r++) for (let cc = 0; cc < SIZE; cc++) if (!at(r, cc)) free.push([r, cc]);
+  if (!free.length) return;
+  const [r, cc] = free[Math.floor(Math.random() * free.length)];
+  tiles.push({ id: nextId++, v: Math.random() < 0.9 ? 2 : 4, r, c: cc, pr: r, pc: cc, born: 1, pop: 0 });
+}
+function snapshot() { return { tiles: tiles.filter((t) => !t.gone).map((t) => ({ ...t })), score }; }
+function save() { Arcade.save('2048_state', { tiles: tiles.filter((t) => !t.gone).map((t) => ({ v: t.v, r: t.r, c: t.c })), score, won, keepGoing }); }
+function restore() {
+  const s = Arcade.load('2048_state', null);
+  if (!s || !s.tiles || !s.tiles.length) return false;
+  tiles = s.tiles.map((t) => ({ id: nextId++, v: t.v, r: t.r, c: t.c, pr: t.r, pc: t.c, born: 0, pop: 0 }));
+  score = s.score; won = s.won; keepGoing = s.keepGoing; over = !canMove();
+  return true;
+}
+
+function move(dirName) {
+  if (over || anim > 0 || (won && !keepGoing)) return;
+  const d = { links: [0, -1], rechts: [0, 1], op: [-1, 0], neer: [1, 0] }[dirName];
+  if (!d) return;
+  const before = snapshot();
+  tiles = tiles.filter((t) => !t.gone);
+  for (const t of tiles) { t.pr = t.r; t.pc = t.c; t.born = 0; t.pop = 0; }
+  let moved = false, gained = 0;
+  const range = [...Array(SIZE).keys()];
+  for (let line = 0; line < SIZE; line++) {
+    // Haal de tegels in deze rij/kolom op, in de schuifrichting
+    const order = (d[0] + d[1] > 0) ? [...range].reverse() : range;
+    const cells = order.map((k) => (d[0] === 0 ? [line, k] : [k, line]));
+    const lineTiles = cells.map(([r, cc]) => at(r, cc)).filter(Boolean);
+    let target = 0, lastMergeable = null;
+    for (const t of lineTiles) {
+      if (lastMergeable && lastMergeable.v === t.v && !lastMergeable.merged) {
+        // Samenvoegen
+        const [r, cc] = cells[target - 1];
+        t.r = r; t.c = cc; t.gone = true; t.mergeInto = lastMergeable;
+        lastMergeable.merged = true;
+        lastMergeable.v *= 2;
+        lastMergeable.pop = 1;
+        gained += lastMergeable.v;
+        moved = true;
+        continue;
+      }
+      const [r, cc] = cells[target];
+      if (t.r !== r || t.c !== cc) moved = true;
+      t.r = r; t.c = cc;
+      lastMergeable = t;
+      target++;
+    }
+  }
+  for (const t of tiles) t.merged = false;
+  if (!moved) { tiles = tiles.filter((t) => !t.gone); return; }
+  history.push(before);
+  if (history.length > 20) history.shift();
+  score += gained;
+  if (gained) {
+    popups.push({ text: '+' + gained, t: 0.8 });
+    Arcade.beep(300 + Math.log2(gained) * 60, 0.08, 'triangle', 0.05);
+  } else Arcade.beep(220, 0.04, 'triangle', 0.02);
+  anim = ANIM;
+  setTimeout(() => {
+    tiles = tiles.filter((t) => !t.gone);
+    addRandom();
+    if (!won && tiles.some((t) => t.v >= 2048)) { won = true; Arcade.beep(523, 0.15, 'triangle', 0.07); Arcade.beep(784, 0.3, 'triangle', 0.07, 0, 0.15); }
+    if (!canMove()) { over = true; Arcade.beep(200, 0.5, 'sawtooth', 0.05, -100); }
+    if (Arcade.record(GAME, score)) best = score;
+    save();
+  }, ANIM * 1000);
+}
+function canMove() {
+  if (tiles.filter((t) => !t.gone).length < SIZE * SIZE) return true;
+  for (let r = 0; r < SIZE; r++) for (let cc = 0; cc < SIZE; cc++) {
+    const t = at(r, cc);
+    const right = at(r, cc + 1), down = at(r + 1, cc);
+    if ((right && right.v === t.v) || (down && down.v === t.v)) return true;
+  }
+  return false;
+}
+function undo() {
+  if (!history.length || anim > 0) return;
+  const s = history.pop();
+  tiles = s.tiles.map((t) => ({ ...t, pr: t.r, pc: t.c, born: 0, pop: 0, gone: false }));
+  score = s.score;
+  over = false;
+  if (!tiles.some((t) => t.v >= 2048)) { won = false; keepGoing = false; }
+  save();
+  Arcade.beep(400, 0.06, 'triangle', 0.03, -100);
+}
+
+// ----- Besturing -----
+addEventListener('keydown', (e) => {
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
+  const map = { ArrowLeft: 'links', KeyA: 'links', ArrowRight: 'rechts', KeyD: 'rechts', ArrowUp: 'op', KeyW: 'op', ArrowDown: 'neer', KeyS: 'neer' };
+  if (map[e.code]) move(map[e.code]);
+  if (e.code === 'KeyZ' || e.code === 'Backspace') undo();
+  if (e.code === 'KeyN') newGame();
+  if (e.code === 'Enter' && won && !keepGoing) keepGoing = true;
+});
+Arcade.onSwipe(c, move, (e) => {
+  const q = view.toGame(e);
+  for (const b of buttons) if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return; }
+});
+
+// ----- Tekenen -----
+const COLORS = {
+  2: ['#e9ebee', '#2a2d33'], 4: ['#d6d9de', '#2a2d33'], 8: ['#b8bdc5', '#1a1c21'], 16: ['#9aa1ab', '#ffffff'],
+  32: ['#7b828c', '#ffffff'], 64: ['#5b616b', '#ffffff'], 128: ['#41454d', '#ffffff'], 256: ['#2f3238', '#ffffff'],
+  512: ['#1f2126', '#ffffff'], 1024: ['#a8222a', '#ffffff'], 2048: ['#e8282f', '#ffffff'],
+};
+function button(label, x, y, w, h, fn, primary) {
+  ctx.fillStyle = primary ? '#ffffff' : 'rgba(255,255,255,0.12)';
+  Arcade.rr(ctx, x, y, w, h, 10); ctx.fill();
+  Arcade.text(ctx, label, x + w / 2, y + h / 2 + 1, 15, primary ? '#111214' : '#ffffff', 'center', '800');
+  buttons.push({ x, y, w, h, fn });
+}
+function draw(dt) {
+  view.begin();
+  buttons = [];
+  ctx.fillStyle = '#0b0c10';
+  ctx.fillRect(0, 0, W, H);
+  Arcade.text(ctx, '2048', BX, 84, 64, '#ffffff', 'left', '900');
+  // Scorevakjes
+  const box = (label, val, x) => {
+    ctx.fillStyle = '#1c1e24'; Arcade.rr(ctx, x, 54, 100, 58, 10); ctx.fill();
+    Arcade.text(ctx, label, x + 50, 72, 11, '#9aa1ab', 'center', '800');
+    Arcade.text(ctx, String(val), x + 50, 95, 22, '#ffffff', 'center', '900', true);
+  };
+  box('SCORE', score, W - BX - 210);
+  box('RECORD', Math.max(best, score), W - BX - 100);
+  for (const p of popups) { p.t -= dt; Arcade.text(ctx, p.text, W - BX - 160, 50 - (0.8 - p.t) * 40, 16, `rgba(255,255,255,${Math.max(0, p.t)})`, 'center', '900'); }
+  popups = popups.filter((p) => p.t > 0);
+  Arcade.text(ctx, 'Combineer gelijke tegels tot je 2048 hebt!', BX, 140, 14, '#9aa1ab', 'left', '500');
+  button('Nieuw spel', W - BX - 130, 158, 130, 34, newGame, true);
+  button('↶ Terug', W - BX - 240, 158, 100, 34, undo);
+
+  // Bord
+  ctx.fillStyle = '#1c1e24';
+  Arcade.rr(ctx, BX, BY, BS, BS, 14); ctx.fill();
+  for (let r = 0; r < SIZE; r++) for (let cc = 0; cc < SIZE; cc++) { const p = cellXY(r, cc); ctx.fillStyle = '#262930'; Arcade.rr(ctx, p.x, p.y, TS, TS, 9); ctx.fill(); }
+
+  anim = Math.max(0, anim - dt);
+  const k = 1 - anim / ANIM;
+  const e = k * (2 - k);
+  const list = [...tiles].sort((a, b) => (a.gone ? 0 : 1) - (b.gone ? 0 : 1));
+  for (const t of list) {
+    const a = cellXY(t.pr, t.pc), b = cellXY(t.r, t.c);
+    const x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e;
+    t.born = Math.max(0, t.born - dt * 7);
+    t.pop = anim > 0 ? t.pop : Math.max(0, t.pop - dt * 6);
+    let s = 1 - t.born;
+    if (anim <= 0 && t.pop > 0) s = 1 + Math.sin(t.pop * Math.PI) * 0.12;
+    const showV = t.gone || anim <= 0 ? t.v : (t.pop ? t.v / 2 : t.v);
+    const [bg, fg] = COLORS[showV] || ['#e8282f', '#ffffff'];
+    const sz = TS * s;
+    ctx.fillStyle = bg;
+    Arcade.rr(ctx, x + (TS - sz) / 2, y + (TS - sz) / 2, sz, sz, 9); ctx.fill();
+    const digits = String(showV).length;
+    Arcade.text(ctx, String(showV), x + TS / 2, y + TS / 2 + 2, (digits < 3 ? 44 : digits < 4 ? 36 : 28) * s, fg, 'center', '900');
+  }
+  Arcade.text(ctx, Arcade.touch ? 'Veeg om te schuiven' : 'Pijltjes = schuiven · Z = terug · N = nieuw spel', W / 2, BY + BS + 32, 13, '#6f7680', 'center', '600');
+
+  if (over) {
+    ctx.fillStyle = 'rgba(11,12,16,0.75)'; Arcade.rr(ctx, BX, BY, BS, BS, 14); ctx.fill();
+    Arcade.text(ctx, 'Geen zetten meer!', W / 2, BY + BS / 2 - 50, 30, '#ffffff', 'center', '900');
+    Arcade.text(ctx, `Score: ${score}`, W / 2, BY + BS / 2 - 10, 18, '#c9ced6', 'center', '700');
+    button('Opnieuw', W / 2 - 120, BY + BS / 2 + 20, 110, 42, newGame, true);
+    button('↶ Terug', W / 2 + 10, BY + BS / 2 + 20, 110, 42, undo);
+  } else if (won && !keepGoing) {
+    ctx.fillStyle = 'rgba(232,40,47,0.85)'; Arcade.rr(ctx, BX, BY, BS, BS, 14); ctx.fill();
+    Arcade.text(ctx, 'Je hebt 2048! 🎉', W / 2, BY + BS / 2 - 40, 32, '#ffffff', 'center', '900');
+    button('Doorgaan', W / 2 - 120, BY + BS / 2 + 10, 110, 42, () => { keepGoing = true; save(); }, true);
+    button('Nieuw spel', W / 2 + 10, BY + BS / 2 + 10, 110, 42, newGame);
+  }
+}
+
+if (!restore()) newGame();
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  draw(dt);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+  </script>
+</body>
+</html>
