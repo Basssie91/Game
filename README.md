@@ -1,6 +1,6 @@
 # 🏎️ Turbo Tijdrit
 
-Een racegame in je browser waarin je alleen tegen de klok rijdt. Rij 3 rondes over een baan met bochten, een haarspeld, een chicane en obstakels, en probeer je eigen record te verbreken.
+Een 3D-racegame in je browser waarin je alleen tegen de klok rijdt. Je kijkt vanaf achter je auto (third person). Rij 3 rondes over een baan met bochten, een haarspeld, een chicane en obstakels, en probeer je eigen record te verbreken.
 
 ## Besturing
 

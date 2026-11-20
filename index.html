@@ -308,12 +308,11 @@ let state = 'menu'; // menu | countdown | racing | paused | finish
 let pausedFrom = null;
 let car, countdown, goTimer, raceTime, lapTime, lap, lapTimes, nextCp, toast, skids, shake, finishTimer;
 let newBestTotal = false, newBestLap = false;
-const cam = { x: 0, y: 0, zoom: 1 };
 
 function startRace() {
   const t = track[N - 8];
   car = { x: t.x, y: t.y, a: Math.atan2(t.ty, t.tx), vx: 0, vy: 0, boost: 0, offTrack: false, onOil: false, braking: false };
-  cam.x = car.x; cam.y = car.y; cam.zoom = 1;
+  updateCamera(0, true);
   countdown = 3;
   goTimer = 0;
   raceTime = 0;
@@ -501,51 +500,371 @@ function update(dt) {
     updateCar(dt, NO_INPUT);
   }
 
-  if (car && state !== 'paused') {
-    const spd = Math.hypot(car.vx, car.vy);
-    const k = Math.min(1, 5 * dt);
-    cam.x += (car.x + car.vx * 0.35 - cam.x) * k;
-    cam.y += (car.y + car.vy * 0.35 - cam.y) * k;
-    const targetZoom = 1.05 - Math.min(0.35, spd / 2000);
-    cam.zoom += (targetZoom - cam.zoom) * Math.min(1, 2 * dt);
+  if (car && state !== 'paused') updateCamera(dt, false);
+}
+
+// ================= 3D-weergave (camera achter de auto) =================
+const NEAR = 4;          // dichterbij dan dit wordt afgeknipt
+const FAR = 2600;        // verder dan dit tekenen we niet
+const HORIZON = H * 0.4; // hoogte van de horizon op het scherm
+const WALL_H = 16;       // hoogte van de muur
+
+const cam3 = { x: 0, y: 0, h: 34, yaw: 0, cos: 1, sin: 0, focal: 430, shakeX: 0, shakeY: 0 };
+
+function angleDiff(a, b) {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
+function updateCamera(dt, snap) {
+  const c = car;
+  if (snap) cam3.yaw = c.a;
+  else cam3.yaw += angleDiff(c.a, cam3.yaw) * Math.min(1, 5 * dt);
+  const dist = 78;
+  const tx = c.x - Math.cos(cam3.yaw) * dist;
+  const ty = c.y - Math.sin(cam3.yaw) * dist;
+  if (snap) { cam3.x = tx; cam3.y = ty; }
+  else {
+    const k = Math.min(1, 30 * dt);
+    cam3.x += (tx - cam3.x) * k;
+    cam3.y += (ty - cam3.y) * k;
+  }
+  cam3.cos = Math.cos(cam3.yaw);
+  cam3.sin = Math.sin(cam3.yaw);
+  // Bij hoge snelheid wordt het beeld iets breder (snelheidsgevoel)
+  cam3.focal = 430 - Math.min(120, Math.hypot(c.vx, c.vy) * 0.15);
+}
+
+// Wereldpunt (x, y op de grond, h = hoogte) naar camera-ruimte
+function toCam(x, y, h) {
+  const dx = x - cam3.x, dy = y - cam3.y;
+  return { f: dx * cam3.cos + dy * cam3.sin, s: -dx * cam3.sin + dy * cam3.cos, v: h - cam3.h };
+}
+
+function proj(p) {
+  const k = cam3.focal / p.f;
+  return { x: W / 2 + p.s * k + cam3.shakeX, y: HORIZON - p.v * k + cam3.shakeY };
+}
+
+function clipNear(pts) {
+  const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const ina = a.f >= NEAR, inb = b.f >= NEAR;
+    if (ina) out.push(a);
+    if (ina !== inb) {
+      const t = (NEAR - a.f) / (b.f - a.f);
+      out.push({ f: NEAR, s: a.s + (b.s - a.s) * t, v: a.v + (b.v - a.v) * t });
+    }
+  }
+  return out;
+}
+
+function fillPoly(pts, color) {
+  const c = clipNear(pts);
+  if (c.length < 3) return;
+  ctx.beginPath();
+  for (let i = 0; i < c.length; i++) {
+    const p = proj(c[i]);
+    if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
+// Punt op de baan: sample i, zijwaarts verschoven met off
+function edge(i, off, h = 0) {
+  const t = track[i];
+  return toCam(t.x + t.nx * off, t.y + t.ny * off, h);
+}
+
+// Punt rond een middelpunt met lokale assen (u = vooruit, w = opzij)
+function local(ox, oy, a, u, w, h = 0) {
+  const ca = Math.cos(a), sa = Math.sin(a);
+  return toCam(ox + ca * u - sa * w, oy + sa * u + ca * w, h);
+}
+
+function rgb(c, shade = 1) {
+  return `rgb(${Math.min(255, c[0] * shade) | 0}, ${Math.min(255, c[1] * shade) | 0}, ${Math.min(255, c[2] * shade) | 0})`;
+}
+
+// Bergen aan de horizon (draaien mee als je stuurt)
+const MOUNTAINS = Array.from({ length: 72 }, (_, i) => 28 + 38 * Math.abs(Math.sin(i * 1.7)) + 22 * Math.abs(Math.sin(i * 0.53 + 1)));
+const HILLS = Array.from({ length: 72 }, (_, i) => 10 + 14 * Math.abs(Math.sin(i * 2.3 + 0.4)));
+
+function drawRidge(profile, color, hz, scale) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(0, hz + 2);
+  for (let x = 0; x <= W + 8; x += 8) {
+    const ang = cam3.yaw + Math.atan((x - W / 2) / cam3.focal);
+    const t = ((((ang / (Math.PI * 2)) * profile.length) % profile.length) + profile.length) % profile.length;
+    const i0 = Math.floor(t), fr = t - i0;
+    const hgt = profile[i0] * (1 - fr) + profile[(i0 + 1) % profile.length] * fr;
+    ctx.lineTo(x, hz - hgt * scale);
+  }
+  ctx.lineTo(W, hz + 2);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Een blok (voor de auto) als zichtbare vlakken toevoegen
+function addBox(faces, cx, cy, a, u0, w0, len, wid, h0, h1, color) {
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const P = (u, w, h) => ({ x: cx + ca * (u0 + u) - sa * (w0 + w), y: cy + sa * (u0 + u) + ca * (w0 + w), h });
+  const hl = len / 2, hw = wid / 2;
+  const pts = [
+    P(-hl, -hw, h0), P(hl, -hw, h0), P(hl, hw, h0), P(-hl, hw, h0),
+    P(-hl, -hw, h1), P(hl, -hw, h1), P(hl, hw, h1), P(-hl, hw, h1),
+  ];
+  const defs = [
+    [[4, 5, 6, 7], [0, 0, 1], 1.15],     // boven
+    [[1, 2, 6, 5], [ca, sa, 0], 0.95],   // voor
+    [[3, 0, 4, 7], [-ca, -sa, 0], 0.75], // achter
+    [[0, 1, 5, 4], [sa, -ca, 0], 0.85],  // links
+    [[2, 3, 7, 6], [-sa, ca, 0], 0.85],  // rechts
+  ];
+  for (const [idx, n, shade] of defs) {
+    const q = idx.map((i) => pts[i]);
+    const mx = (q[0].x + q[1].x + q[2].x + q[3].x) / 4;
+    const my = (q[0].y + q[1].y + q[2].y + q[3].y) / 4;
+    const mh = (q[0].h + q[1].h + q[2].h + q[3].h) / 4;
+    if ((mx - cam3.x) * n[0] + (my - cam3.y) * n[1] + (mh - cam3.h) * n[2] >= 0) continue;
+    faces.push({ depth: toCam(mx, my, mh).f, pts: q.map((p) => toCam(p.x, p.y, p.h)), color: rgb(color, shade) });
   }
 }
 
-// ================= Tekenen =================
-const grassPattern = (() => {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const g = c.getContext('2d');
-  g.fillStyle = '#2f7a36';
-  g.fillRect(0, 0, 64, 64);
-  for (let i = 0; i < 40; i++) {
-    g.fillStyle = Math.random() < 0.5 ? '#2a6e30' : '#358640';
-    g.fillRect(Math.random() * 64, Math.random() * 64, 3, 3);
+function drawCar3D() {
+  const c = car;
+  const faces = [];
+  const RED = [232, 40, 47], DARK = [22, 22, 26], GLASS = [40, 52, 90];
+  // Wielen
+  for (const u of [-12, 12]) for (const w of [-11.5, 11.5]) addBox(faces, c.x, c.y, c.a, u, w, 9, 5, 0, 8, DARK);
+  // Carrosserie, cabine, dak, spoiler
+  addBox(faces, c.x, c.y, c.a, 0, 0, 40, 22, 3, 11, RED);
+  addBox(faces, c.x, c.y, c.a, -3, 0, 18, 17, 11, 18, GLASS);
+  addBox(faces, c.x, c.y, c.a, -4, 0, 13, 15, 18, 19.5, RED);
+  addBox(faces, c.x, c.y, c.a, -19, 0, 3, 22, 13, 15.5, DARK);
+  // Achterlichten
+  const light = c.braking ? [255, 40, 50] : [110, 18, 22];
+  addBox(faces, c.x, c.y, c.a, -20.2, -7, 0.6, 5, 7, 10, light);
+  addBox(faces, c.x, c.y, c.a, -20.2, 7, 0.6, 5, 7, 10, light);
+  // Boost-vlam
+  if (c.boost > 0) addBox(faces, c.x, c.y, c.a, -24 - rand(0, 4), 0, rand(6, 12), 6, 4, 8, [255, 170, 40]);
+
+  faces.sort((a, b) => b.depth - a.depth);
+  for (const f of faces) fillPoly(f.pts, f.color);
+}
+
+function drawWorld() {
+  const hz = HORIZON + cam3.shakeY;
+
+  // Lucht en bergen
+  const sky = ctx.createLinearGradient(0, 0, 0, hz);
+  sky.addColorStop(0, '#3d7fd6');
+  sky.addColorStop(1, '#cbe6ff');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, hz + 2);
+  drawRidge(MOUNTAINS, '#8aa6cc', hz, 1);
+  drawRidge(HILLS, '#3f8a46', hz, 1);
+
+  // Gras
+  const ground = ctx.createLinearGradient(0, hz, 0, H);
+  ground.addColorStop(0, '#4c8f4e');
+  ground.addColorStop(0.2, '#2f7a36');
+  ground.addColorStop(1, '#286a2e');
+  ctx.fillStyle = ground;
+  ctx.fillRect(0, hz, W, H - hz);
+
+  if (!car) return;
+
+  // Welke stukken baan zijn in beeld?
+  const cf = new Array(N);
+  for (let i = 0; i < N; i++) cf[i] = (track[i].x - cam3.x) * cam3.cos + (track[i].y - cam3.y) * cam3.sin;
+  const vis = [];
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    if (Math.max(cf[i], cf[j]) > -(HW + RUNOFF + 20) && Math.min(cf[i], cf[j]) < FAR) vis.push(i);
   }
-  return ctx.createPattern(c, 'repeat');
-})();
+
+  const quad = (i, o1, o2, color) => {
+    const j = (i + 1) % N;
+    fillPoly([edge(i, o1), edge(j, o1), edge(j, o2), edge(i, o2)], color);
+  };
+
+  // Laag 1: grasstroken naast de baan (geven snelheidsgevoel)
+  for (const i of vis) {
+    const col = Math.floor(i / 4) % 2 ? '#2f7a36' : '#38873f';
+    quad(i, -(HW + RUNOFF), -(HW + 10), col);
+    quad(i, HW + 10, HW + RUNOFF, col);
+  }
+  // Laag 2: rood-witte randen
+  for (const i of vis) {
+    const col = Math.floor(i / 2) % 2 ? '#e0333a' : '#f4f4f4';
+    quad(i, -(HW + 10), -HW + 1, col);
+    quad(i, HW - 1, HW + 10, col);
+  }
+  // Laag 3: asfalt
+  for (const i of vis) quad(i, -HW, HW, Math.floor(i / 4) % 2 ? '#3a3c44' : '#40424b');
+  // Laag 4: middenstreep
+  for (const i of vis) if (Math.floor(i / 3) % 2 === 0) quad(i, -1.6, 1.6, 'rgba(255,255,255,0.55)');
+
+  // Start/finish-lijn
+  const t0 = track[0], a0 = Math.atan2(t0.ty, t0.tx);
+  if (cf[0] > -40 && cf[0] < FAR) {
+    for (let row = 0; row < 2; row++) {
+      let k = 0;
+      for (let w = -HW; w < HW; w += 10, k++) {
+        const u = row * 10 - 10;
+        fillPoly([local(t0.x, t0.y, a0, u, w), local(t0.x, t0.y, a0, u + 10, w), local(t0.x, t0.y, a0, u + 10, w + 10), local(t0.x, t0.y, a0, u, w + 10)],
+          (k + row) % 2 === 0 ? '#ffffff' : '#111111');
+      }
+    }
+  }
+
+  // Remsporen
+  if (skids) {
+    ctx.fillStyle = 'rgba(15, 15, 18, 0.4)';
+    for (const s of skids) {
+      const p = toCam(s.x, s.y, 0);
+      if (p.f < NEAR + 2 || p.f > 900) continue;
+      const q = proj(p), sz = Math.max(1, 4 * cam3.focal / p.f);
+      ctx.fillRect(q.x - sz / 2, q.y - sz / 6, sz, sz / 3);
+    }
+  }
+
+  // Platte obstakels: olie en boost
+  for (const o of obstacles) {
+    const p = toCam(o.x, o.y, 0);
+    if (p.f < -60 || p.f > FAR) continue;
+    if (o.type === 'olie') {
+      const pts = [];
+      for (let k = 0; k < 14; k++) {
+        const t = (k / 14) * Math.PI * 2;
+        pts.push(local(o.x, o.y, o.angle, Math.cos(t) * o.r, Math.sin(t) * o.r * 0.75));
+      }
+      fillPoly(pts, 'rgba(12, 10, 22, 0.9)');
+      const sheen = [];
+      for (let k = 0; k < 10; k++) {
+        const t = (k / 10) * Math.PI * 2;
+        sheen.push(local(o.x, o.y, o.angle, -5 + Math.cos(t) * o.r * 0.4, -4 + Math.sin(t) * o.r * 0.2));
+      }
+      fillPoly(sheen, 'rgba(140, 90, 220, 0.45)');
+    } else if (o.type === 'boost') {
+      const r = o.r;
+      fillPoly([local(o.x, o.y, o.angle, -r, -r), local(o.x, o.y, o.angle, r, -r), local(o.x, o.y, o.angle, r, r), local(o.x, o.y, o.angle, -r, r)], '#ff8a1f');
+      const pulse = (performance.now() / 300) % 1;
+      for (let n = 0; n < 2; n++) {
+        const u = -10 + n * 12;
+        const alpha = 0.55 + 0.45 * Math.sin((pulse + n * 0.5) * Math.PI * 2);
+        fillPoly([
+          local(o.x, o.y, o.angle, u - 6, -14), local(o.x, o.y, o.angle, u + 6, 0), local(o.x, o.y, o.angle, u - 6, 14),
+          local(o.x, o.y, o.angle, u - 1, 14), local(o.x, o.y, o.angle, u + 11, 0), local(o.x, o.y, o.angle, u - 1, -14),
+        ], `rgba(255, 230, 80, ${alpha})`);
+      }
+    }
+  }
+
+  // Schaduw onder de auto
+  fillPoly([
+    local(car.x, car.y, car.a, -22, -13), local(car.x, car.y, car.a, 22, -13),
+    local(car.x, car.y, car.a, 22, 13), local(car.x, car.y, car.a, -22, 13),
+  ], 'rgba(0, 0, 0, 0.35)');
+
+  // Waas bij de horizon
+  const fog = ctx.createLinearGradient(0, hz, 0, hz + 45);
+  fog.addColorStop(0, 'rgba(203, 230, 255, 0.85)');
+  fog.addColorStop(1, 'rgba(203, 230, 255, 0)');
+  ctx.fillStyle = fog;
+  ctx.fillRect(0, hz - 1, W, 46);
+
+  // Rechtopstaande dingen: van ver naar dichtbij tekenen
+  const items = [];
+
+  // Muren
+  for (const i of vis) {
+    const j = (i + 1) % N;
+    if (Math.min(cf[i], cf[j]) > FAR * 0.8) continue;
+    const col = Math.floor(i / 3) % 2 ? '#e0333a' : '#e8eaf0';
+    for (const side of [-1, 1]) {
+      const off = side * (HW + RUNOFF);
+      const pts = [edge(i, off, 0), edge(j, off, 0), edge(j, off, WALL_H), edge(i, off, WALL_H)];
+      const depth = (pts[0].f + pts[1].f) / 2;
+      items.push({ depth, draw: () => fillPoly(pts, col) });
+    }
+  }
+
+  // Kegels en tonnen
+  for (const o of obstacles) {
+    if (o.type !== 'kegel' && o.type !== 'ton') continue;
+    const p = toCam(o.x, o.y, 0);
+    if (p.f < NEAR + 2 || p.f > FAR) continue;
+    items.push({ depth: p.f, draw: () => drawPost(o, p) });
+  }
+
+  // Auto
+  const cp = toCam(car.x, car.y, 0);
+  items.push({ depth: cp.f, draw: drawCar3D });
+
+  items.sort((a, b) => b.depth - a.depth);
+  for (const it of items) it.draw();
+}
+
+// Kegel of ton als staand plaatje
+function drawPost(o, p) {
+  const k = cam3.focal / p.f;
+  const base = proj(p);
+  const w = o.r * k;
+  if (o.type === 'kegel') {
+    const hgt = 26 * k;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(base.x, base.y, w * 1.2, w * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ff7a1a';
+    ctx.beginPath();
+    ctx.moveTo(base.x - w, base.y);
+    ctx.lineTo(base.x + w, base.y);
+    ctx.lineTo(base.x, base.y - hgt);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(base.x - w * 0.62, base.y - hgt * 0.38);
+    ctx.lineTo(base.x + w * 0.62, base.y - hgt * 0.38);
+    ctx.lineTo(base.x + w * 0.42, base.y - hgt * 0.58);
+    ctx.lineTo(base.x - w * 0.42, base.y - hgt * 0.58);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    const hgt = 30 * k;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(base.x, base.y, w * 1.15, w * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c0392b';
+    ctx.fillRect(base.x - w, base.y - hgt, w * 2, hgt);
+    ctx.fillStyle = '#8e2a20';
+    ctx.fillRect(base.x - w, base.y - hgt * 0.35, w * 2, hgt * 0.08);
+    ctx.fillRect(base.x - w, base.y - hgt * 0.72, w * 2, hgt * 0.08);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(base.x - w * 0.6, base.y - hgt, w * 0.3, hgt);
+    ctx.fillStyle = '#d9574a';
+    ctx.beginPath();
+    ctx.ellipse(base.x, base.y - hgt, w, w * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
 
 function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#2f7a36';
-  ctx.fillRect(0, 0, W, H);
+  cam3.shakeX = shake ? rand(-shake, shake) : 0;
+  cam3.shakeY = shake ? rand(-shake, shake) : 0;
+  drawWorld();
 
-  // Camera
-  const z = cam.zoom;
-  const sx = shake ? rand(-shake, shake) : 0;
-  const sy = shake ? rand(-shake, shake) : 0;
-  ctx.setTransform(z, 0, 0, z, W / 2 - cam.x * z + sx, H / 2 - cam.y * z + sy);
-
-  const vw = W / z, vh = H / z;
-  ctx.fillStyle = grassPattern;
-  ctx.fillRect(cam.x - vw / 2 - 60, cam.y - vh / 2 - 60, vw + 120, vh + 120);
-
-  drawTrack();
-  drawObstacles();
-  if (car) drawCar();
-
-  // Scherm-HUD
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (state === 'menu') { drawMenu(); return; }
   drawHud();
   drawMinimap();
@@ -553,119 +872,6 @@ function draw() {
   if (goTimer > 0) drawBigText('GO!', '#5dff8a');
   if (state === 'paused') drawPanel('PAUZE', ['Druk op P of tik om verder te gaan']);
   if (state === 'finish') drawFinish();
-}
-
-function drawTrack() {
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  // Muur (vangrail)
-  ctx.strokeStyle = '#c9ccd6';
-  ctx.lineWidth = 2 * (HW + RUNOFF) + 12;
-  ctx.stroke(trackPath);
-  ctx.strokeStyle = grassPattern;
-  ctx.lineWidth = 2 * (HW + RUNOFF);
-  ctx.stroke(trackPath);
-
-  // Rood-witte randen
-  ctx.lineCap = 'butt';
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2 * HW + 16;
-  ctx.stroke(trackPath);
-  ctx.strokeStyle = '#e0333a';
-  ctx.setLineDash([24, 24]);
-  ctx.stroke(trackPath);
-  ctx.setLineDash([]);
-  ctx.lineCap = 'round';
-
-  // Asfalt
-  ctx.strokeStyle = '#3a3c44';
-  ctx.lineWidth = 2 * HW;
-  ctx.stroke(trackPath);
-
-  // Middenstreep
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'butt';
-  ctx.setLineDash([20, 26]);
-  ctx.stroke(trackPath);
-  ctx.setLineDash([]);
-
-  // Remsporen
-  if (skids) {
-    ctx.fillStyle = 'rgba(15, 15, 18, 0.35)';
-    for (const s of skids) ctx.fillRect(s.x - 2, s.y - 2, 4, 4);
-  }
-
-  // Start/finish-lijn (geblokt)
-  const t = track[0];
-  ctx.save();
-  ctx.translate(t.x, t.y);
-  ctx.rotate(Math.atan2(t.ty, t.tx));
-  const size = 10;
-  for (let row = 0; row < 2; row++) {
-    let k = 0;
-    for (let y = -HW; y < HW; y += size, k++) {
-      ctx.fillStyle = (k + row) % 2 === 0 ? '#ffffff' : '#111111';
-      ctx.fillRect(row * size - size, y, size, size);
-    }
-  }
-  ctx.restore();
-}
-
-function drawObstacles() {
-  for (const o of obstacles) {
-    ctx.save();
-    ctx.translate(o.x, o.y);
-    if (o.type === 'olie') {
-      ctx.fillStyle = 'rgba(10, 10, 20, 0.85)';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, o.r, o.r * 0.75, o.angle, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(120, 80, 200, 0.35)';
-      ctx.beginPath();
-      ctx.ellipse(-6, -4, o.r * 0.45, o.r * 0.25, o.angle + 0.5, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (o.type === 'boost') {
-      ctx.rotate(o.angle);
-      ctx.fillStyle = '#ff8a1f';
-      ctx.fillRect(-o.r, -o.r, o.r * 2, o.r * 2);
-      ctx.strokeStyle = '#ffe14a';
-      ctx.lineWidth = 5;
-      const pulse = (performance.now() / 300) % 1;
-      for (let i = 0; i < 2; i++) {
-        const x = -10 + i * 12;
-        ctx.globalAlpha = 0.6 + 0.4 * Math.sin((pulse + i * 0.5) * Math.PI * 2);
-        ctx.beginPath();
-        ctx.moveTo(x - 4, -12);
-        ctx.lineTo(x + 6, 0);
-        ctx.lineTo(x - 4, 12);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-    } else if (o.type === 'kegel') {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.beginPath(); ctx.arc(3, 3, o.r, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#ff7a1a';
-      ctx.beginPath(); ctx.arc(0, 0, o.r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(0, 0, o.r * 0.55, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = '#ff7a1a';
-      ctx.beginPath(); ctx.arc(0, 0, o.r * 0.25, 0, Math.PI * 2); ctx.fill();
-    } else if (o.type === 'ton') {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.beginPath(); ctx.arc(4, 4, o.r, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#c0392b';
-      ctx.beginPath(); ctx.arc(0, 0, o.r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#7d1f16';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(0, 0, o.r * 0.65, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = '#e8e8e8';
-      ctx.beginPath(); ctx.arc(0, 0, o.r * 0.25, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
-  }
 }
 
 function roundRect(x, y, w, h, r) {
@@ -676,60 +882,6 @@ function roundRect(x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath();
-}
-
-function drawCar() {
-  const c = car;
-  ctx.save();
-  ctx.translate(c.x, c.y);
-  ctx.rotate(c.a);
-
-  // Boost-vlam
-  if (c.boost > 0) {
-    ctx.fillStyle = '#ffb02e';
-    ctx.beginPath();
-    ctx.moveTo(-19, -5);
-    ctx.lineTo(-19 - rand(14, 26), 0);
-    ctx.lineTo(-19, 5);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // Schaduw
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-  roundRect(-17, -9, 38, 22, 6);
-  ctx.fill();
-
-  // Wielen
-  ctx.fillStyle = '#111';
-  ctx.fillRect(-14, -13, 9, 5);
-  ctx.fillRect(-14, 8, 9, 5);
-  ctx.fillRect(7, -13, 9, 5);
-  ctx.fillRect(7, 8, 9, 5);
-
-  // Carrosserie
-  ctx.fillStyle = '#e8282f';
-  roundRect(-19, -11, 38, 22, 6);
-  ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(-19, -2, 38, 4);
-
-  // Ramen
-  ctx.fillStyle = '#1b2440';
-  roundRect(1, -8, 9, 16, 3);
-  ctx.fill();
-  roundRect(-12, -7, 6, 14, 2);
-  ctx.fill();
-
-  // Lampen
-  ctx.fillStyle = '#fff6b0';
-  ctx.fillRect(16, -9, 3, 4);
-  ctx.fillRect(16, 5, 3, 4);
-  ctx.fillStyle = c.braking ? '#ff2030' : '#7a1015';
-  ctx.fillRect(-19, -9, 3, 4);
-  ctx.fillRect(-19, 5, 3, 4);
-
-  ctx.restore();
 }
 
 function panel(x, y, w, h) {
