@@ -9,7 +9,7 @@ Gratis browsergames die je meteen kunt spelen, op pc en op je telefoon.
 | Game | Map | Wat is het? |
 |---|---|---|
 | 🏁 **Turbo Tijdrit** | `race/` | 3D-racegame tegen de klok: 12 levels met loopings, schansen en muurritten, medailles en een spookauto |
-| 🔫 **Robo Overval** | `overval/` | Overval 5 locaties vol beveiligingsrobots: pak de buit, kraak de kluis en ontsnap naar de vluchtauto |
+| 🔫 **Robo Overval** | `overval/` | 3D first-person shooter: overval 5 locaties vol beveiligingsrobots: pak de buit, kraak de kluis en ontsnap naar de vluchtauto |
 | 🗼 **Robo Defense** | `td/` | Tower defense: 4 soorten torens, upgrades en 20 golven robots op 3 kaarten |
 | ☄️ **Meteorenregen 2.0** | `meteoren/` | Schiet meteoren en vijanden kapot. Je kanon raakt oververhit, het tempo gaat steeds omhoog en elke minuut komt er een baas |
 | 🏃 **Neon Runner** | `runner/` | 3-baans endless runner: springen, bukken en munten pakken in een neonwereld |
