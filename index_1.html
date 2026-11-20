@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Turbo Tijdrit</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0b0d14;
+      color: #e8ecff;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+    main {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px;
+    }
+    .scherm {
+      position: relative;
+      width: min(100%, calc((100vh - 70px) * 1.6));
+      aspect-ratio: 16 / 10;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 12px;
+      border: 2px solid #2a3150;
+      box-shadow: 0 0 40px rgba(80, 120, 255, 0.2);
+      touch-action: none;
+    }
+    .touch {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 12px;
+      display: none;
+      justify-content: space-between;
+      padding: 0 12px;
+      pointer-events: none;
+    }
+    .touch div { display: flex; gap: 10px; }
+    .touch button {
+      pointer-events: auto;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      background: rgba(20, 24, 45, 0.55);
+      color: #fff;
+      font-size: 24px;
+      font-weight: bold;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .touch button.actief { background: rgba(255, 255, 255, 0.35); }
+    @media (hover: none) and (pointer: coarse) {
+      .touch { display: flex; }
+    }
+    .uitleg {
+      margin: 0;
+      font-size: 13px;
+      opacity: 0.7;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="scherm">
+      <canvas id="spel" width="960" height="600" aria-label="Turbo Tijdrit racespel"></canvas>
+      <div class="touch">
+        <div>
+          <button data-key="ArrowLeft">◀</button>
+          <button data-key="ArrowRight">▶</button>
+        </div>
+        <div>
+          <button data-key="ArrowDown">▼</button>
+          <button data-key="ArrowUp">▲</button>
+        </div>
+      </div>
+    </div>
+    <p class="uitleg">
+      ↑/W = gas · ↓/S = rem/achteruit · ←→/AD = sturen · Spatie = handrem (driften) · R = herstart · P = pauze · M = geluid
+    </p>
+  </main>
+
+  <script>
+'use strict';
+
+// ================= Basis =================
+const canvas = document.getElementById('spel');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+
+const LAPS = 3;       // aantal rondes
+const HW = 70;        // halve breedte van de baan
+const RUNOFF = 70;    // gras tussen baan en muur
+const CAR_R = 14;     // botsstraal van de auto
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+
+function fmt(t) {
+  if (t == null) return '--:--.---';
+  const m = Math.floor(t / 60);
+  const s = t - m * 60;
+  return `${m}:${s.toFixed(3).padStart(6, '0')}`;
+}
+
+// ================= Baan =================
+// Controlepunten van de baan (rondje met bochten, haarspeld en chicane)
+const CONTROL = [
+  [400, 1450], [400, 900], [600, 400], [1100, 300], [1400, 650], [1300, 1000],
+  [1700, 1200], [2200, 900], [2300, 400], [2800, 400], [3000, 900], [2800, 1500],
+  [2300, 1700], [1800, 1950], [1200, 1850], [800, 2050], [420, 1900],
+];
+
+function catmull(p0, p1, p2, p3, t) {
+  const t2 = t * t, t3 = t2 * t;
+  const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+  return { x: f(p0[0], p1[0], p2[0], p3[0]), y: f(p0[1], p1[1], p2[1], p3[1]) };
+}
+
+const track = [];
+const STEPS = 40;
+for (let i = 0; i < CONTROL.length; i++) {
+  const n = CONTROL.length;
+  const p0 = CONTROL[(i - 1 + n) % n], p1 = CONTROL[i], p2 = CONTROL[(i + 1) % n], p3 = CONTROL[(i + 2) % n];
+  for (let s = 0; s < STEPS; s++) track.push(catmull(p0, p1, p2, p3, s / STEPS));
+}
+const N = track.length;
+for (let i = 0; i < N; i++) {
+  const a = track[(i - 1 + N) % N], b = track[(i + 1) % N];
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  track[i].tx = (b.x - a.x) / len;
+  track[i].ty = (b.y - a.y) / len;
+  track[i].nx = -track[i].ty;
+  track[i].ny = track[i].tx;
+}
+
+const trackPath = new Path2D();
+trackPath.moveTo(track[0].x, track[0].y);
+for (let i = 1; i < N; i++) trackPath.lineTo(track[i].x, track[i].y);
+trackPath.closePath();
+
+const bounds = track.reduce((b, p) => ({
+  minX: Math.min(b.minX, p.x), maxX: Math.max(b.maxX, p.x),
+  minY: Math.min(b.minY, p.y), maxY: Math.max(b.maxY, p.y),
+}), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+
+function nearest(x, y) {
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < N; i++) {
+    const dx = track[i].x - x, dy = track[i].y - y;
+    const d = dx * dx + dy * dy;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+
+// Checkpoints: je moet de hele baan rijden voordat een ronde telt
+const CHECKPOINTS = [0.25, 0.5, 0.75].map((f) => Math.floor(f * N));
+
+// ================= Obstakels =================
+// [positie op de baan (0-1), zijwaartse plek (-1 links ... 1 rechts), soort]
+const OBSTACLE_DEF = [
+  [0.06, 0.45, 'kegel'], [0.075, -0.4, 'kegel'],
+  [0.12, 0, 'boost'],
+  [0.2, -0.5, 'ton'], [0.215, 0.45, 'ton'],
+  [0.27, 0.25, 'olie'],
+  [0.30, 0.5, 'kegel'], [0.315, -0.5, 'kegel'], [0.33, 0.5, 'kegel'], [0.345, -0.5, 'kegel'],
+  [0.42, 0.5, 'ton'],
+  [0.46, -0.25, 'olie'],
+  [0.53, 0, 'boost'],
+  [0.6, -0.45, 'ton'], [0.625, 0.45, 'ton'],
+  [0.7, 0.1, 'olie'],
+  [0.78, -0.5, 'kegel'], [0.795, 0.5, 'kegel'], [0.81, -0.5, 'kegel'], [0.825, 0.5, 'kegel'],
+  [0.9, 0.3, 'boost'],
+];
+const OBSTACLE_R = { kegel: 9, ton: 17, olie: 30, boost: 24 };
+
+const obstacles = OBSTACLE_DEF.map(([f, off, type]) => {
+  const t = track[Math.floor(f * N) % N];
+  return {
+    type,
+    x: t.x + t.nx * off * HW,
+    y: t.y + t.ny * off * HW,
+    r: OBSTACLE_R[type],
+    angle: Math.atan2(t.ty, t.tx),
+  };
+});
+
+// ================= Opslag beste tijden =================
+let best = { lap: null, total: null };
+try {
+  const saved = JSON.parse(localStorage.getItem('turbotijdrit_best'));
+  if (saved) best = { lap: saved.lap ?? null, total: saved.total ?? null };
+} catch (e) { /* geen opslag */ }
+function saveBest() {
+  try { localStorage.setItem('turbotijdrit_best', JSON.stringify(best)); } catch (e) { /* geen opslag */ }
+}
+
+// ================= Geluid =================
+let audio = null, engineOsc = null, engineGain = null, muted = false;
+
+function initAudio() {
+  if (audio) return;
+  try {
+    audio = new (window.AudioContext || window.webkitAudioContext)();
+    engineOsc = audio.createOscillator();
+    const filter = audio.createBiquadFilter();
+    engineGain = audio.createGain();
+    engineOsc.type = 'sawtooth';
+    engineOsc.frequency.value = 50;
+    filter.type = 'lowpass';
+    filter.frequency.value = 700;
+    engineGain.gain.value = 0;
+    engineOsc.connect(filter);
+    filter.connect(engineGain);
+    engineGain.connect(audio.destination);
+    engineOsc.start();
+  } catch (e) { audio = null; }
+}
+
+function beep(freq, dur, type = 'square', vol = 0.05, slide = 0) {
+  if (muted || !audio) return;
+  try {
+    const t = audio.currentTime;
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(audio.destination);
+    o.start(t);
+    o.stop(t + dur);
+  } catch (e) { /* negeren */ }
+}
+
+function updateEngineSound() {
+  if (!audio || !engineOsc) return;
+  const speed = car ? Math.hypot(car.vx, car.vy) : 0;
+  const on = !muted && (state === 'racing' || state === 'countdown' || state === 'finish');
+  engineOsc.frequency.setTargetAtTime(45 + speed * 0.28, audio.currentTime, 0.05);
+  engineGain.gain.setTargetAtTime(on ? 0.035 : 0, audio.currentTime, 0.1);
+}
+
+// ================= Besturing =================
+const keys = {};
+
+addEventListener('keydown', (e) => {
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
+  initAudio();
+  keys[e.code] = true;
+  if (e.repeat) return;
+  if (e.code === 'Enter' && (state === 'menu' || state === 'finish')) startRace();
+  else if (e.code === 'KeyR' && state !== 'menu') startRace();
+  else if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
+  else if (e.code === 'KeyM') muted = !muted;
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('blur', () => {
+  for (const k in keys) keys[k] = false;
+  if (state === 'racing' || state === 'countdown') togglePause();
+});
+
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  initAudio();
+  if (state === 'menu' || (state === 'finish' && finishTimer <= 0)) startRace();
+  else if (state === 'paused') togglePause();
+});
+
+document.querySelectorAll('.touch button').forEach((btn) => {
+  const code = btn.dataset.key;
+  const down = (e) => { e.preventDefault(); initAudio(); keys[code] = true; btn.classList.add('actief'); };
+  const up = () => { keys[code] = false; btn.classList.remove('actief'); };
+  btn.addEventListener('pointerdown', down);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((t) => btn.addEventListener(t, up));
+});
+
+function readInput() {
+  return {
+    gas: keys.ArrowUp || keys.KeyW,
+    rem: keys.ArrowDown || keys.KeyS,
+    links: keys.ArrowLeft || keys.KeyA,
+    rechts: keys.ArrowRight || keys.KeyD,
+    handrem: keys.Space,
+  };
+}
+const NO_INPUT = { gas: false, rem: false, links: false, rechts: false, handrem: false };
+
+// ================= Spelstatus =================
+let state = 'menu'; // menu | countdown | racing | paused | finish
+let pausedFrom = null;
+let car, countdown, goTimer, raceTime, lapTime, lap, lapTimes, nextCp, toast, skids, shake, finishTimer;
+let newBestTotal = false, newBestLap = false;
+const cam = { x: 0, y: 0, zoom: 1 };
+
+function startRace() {
+  const t = track[N - 8];
+  car = { x: t.x, y: t.y, a: Math.atan2(t.ty, t.tx), vx: 0, vy: 0, boost: 0, offTrack: false, onOil: false, braking: false };
+  cam.x = car.x; cam.y = car.y; cam.zoom = 1;
+  countdown = 3;
+  goTimer = 0;
+  raceTime = 0;
+  lapTime = 0;
+  lap = 1;
+  lapTimes = [];
+  nextCp = 0;
+  toast = null;
+  skids = [];
+  shake = 0;
+  newBestTotal = false;
+  newBestLap = false;
+  state = 'countdown';
+  beep(440, 0.15, 'square', 0.05);
+}
+
+function togglePause() {
+  if (state === 'racing' || state === 'countdown') { pausedFrom = state; state = 'paused'; }
+  else if (state === 'paused') state = pausedFrom;
+}
+
+function completeLap() {
+  const lt = lapTime;
+  lapTimes.push(lt);
+  const delta = best.lap != null ? lt - best.lap : null;
+  if (best.lap == null || lt < best.lap) { best.lap = lt; newBestLap = true; saveBest(); }
+  toast = {
+    text: `Ronde ${lap}: ${fmt(lt)}`,
+    sub: delta == null ? 'Eerste rondetijd!' : `${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(3)} t.o.v. snelste ronde`,
+    good: delta == null || delta < 0,
+    t: 2.5,
+  };
+  lap++;
+  lapTime = 0;
+  nextCp = 0;
+  if (lap > LAPS) {
+    state = 'finish';
+    finishTimer = 1;
+    if (best.total == null || raceTime < best.total) { best.total = raceTime; newBestTotal = true; saveBest(); }
+    beep(523, 0.15, 'triangle', 0.07);
+    setTimeout(() => beep(659, 0.15, 'triangle', 0.07), 150);
+    setTimeout(() => beep(784, 0.35, 'triangle', 0.07), 300);
+  } else {
+    beep(700, 0.2, 'triangle', 0.06, 300);
+  }
+}
+
+// ================= Auto-fysica =================
+function updateCar(dt, inp) {
+  const c = car;
+
+  // Ondergrond bepalen
+  const idx = nearest(c.x, c.y);
+  const t = track[idx];
+  c.idx = idx;
+  c.offTrack = Math.hypot(c.x - t.x, c.y - t.y) > HW;
+  c.onOil = false;
+  let onBoost = false;
+  for (const o of obstacles) {
+    const od = Math.hypot(c.x - o.x, c.y - o.y);
+    if (o.type === 'olie' && od < o.r) c.onOil = true;
+    if (o.type === 'boost' && od < o.r) onBoost = true;
+  }
+  if (onBoost) {
+    if (c.boost <= 0.2) beep(300, 0.4, 'sawtooth', 0.04, 600);
+    c.boost = 1.1;
+  }
+  c.boost = Math.max(0, c.boost - dt);
+
+  // Sturen
+  let fwdOld = c.vx * Math.cos(c.a) + c.vy * Math.sin(c.a);
+  const steer = (inp.rechts ? 1 : 0) - (inp.links ? 1 : 0);
+  let turn = steer * 2.9 * Math.min(1, Math.abs(fwdOld) / 160) * (fwdOld >= 0 ? 1 : -1);
+  if (c.onOil) turn *= 0.35;
+  if (inp.handrem) turn *= 1.35;
+  c.a += turn * dt;
+
+  // Snelheid opsplitsen in vooruit en zijwaarts
+  const fx = Math.cos(c.a), fy = Math.sin(c.a);
+  let fwd = c.vx * fx + c.vy * fy;
+  let lat = -c.vx * fy + c.vy * fx;
+
+  const maxF = c.boost > 0 ? 820 : c.offTrack ? 230 : 560;
+  if (inp.gas) fwd += (c.offTrack ? 300 : 520) * dt;
+  if (inp.rem) fwd -= (fwd > 20 ? 900 : 300) * dt;
+  if (!inp.gas && !inp.rem) {
+    const r = (c.offTrack ? 400 : 160) * dt;
+    fwd = Math.abs(fwd) < r ? 0 : fwd - Math.sign(fwd) * r;
+  }
+  if (c.boost > 0) fwd += 900 * dt;
+  if (fwd > maxF) fwd -= Math.min(fwd - maxF, (c.offTrack ? 700 : 400) * dt);
+  if (fwd < -180) fwd = -180;
+  if (inp.handrem) fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), 150 * dt);
+  c.braking = inp.rem && fwd > 0;
+
+  // Grip (hoe minder grip, hoe meer de auto glijdt)
+  const grip = c.onOil ? 0.8 : inp.handrem ? 1.5 : c.offTrack ? 5 : 9;
+  lat *= Math.max(0, 1 - grip * dt);
+
+  c.vx = fx * fwd - fy * lat;
+  c.vy = fy * fwd + fx * lat;
+  c.x += c.vx * dt;
+  c.y += c.vy * dt;
+  c.fwd = fwd;
+
+  // Remsporen
+  if ((Math.abs(lat) > 70 || (c.braking && fwd > 250)) && !c.offTrack) {
+    for (const side of [-1, 1]) {
+      skids.push({ x: c.x - fx * 12 + -fy * side * 8, y: c.y - fy * 12 + fx * side * 8 });
+    }
+    if (skids.length > 1600) skids.splice(0, skids.length - 1600);
+  }
+
+  // Muur langs de baan
+  const t2 = track[nearest(c.x, c.y)];
+  const dx = c.x - t2.x, dy = c.y - t2.y;
+  const d = Math.hypot(dx, dy);
+  const limit = HW + RUNOFF - CAR_R;
+  if (d > limit) {
+    const nx = dx / d, ny = dy / d;
+    c.x = t2.x + nx * limit;
+    c.y = t2.y + ny * limit;
+    bounce(nx, ny);
+  }
+
+  // Botsen met kegels en tonnen
+  for (const o of obstacles) {
+    if (o.type !== 'kegel' && o.type !== 'ton') continue;
+    const ox = c.x - o.x, oy = c.y - o.y;
+    const od = Math.hypot(ox, oy);
+    if (od < o.r + CAR_R && od > 0) {
+      const nx = ox / od, ny = oy / od;
+      c.x = o.x + nx * (o.r + CAR_R);
+      c.y = o.y + ny * (o.r + CAR_R);
+      bounce(-nx, -ny);
+    }
+  }
+}
+
+// n = richting waarin de auto ergens tegenaan rijdt
+function bounce(nx, ny) {
+  const c = car;
+  const vn = c.vx * nx + c.vy * ny;
+  if (vn > 0) {
+    c.vx -= nx * vn * 1.5;
+    c.vy -= ny * vn * 1.5;
+    c.vx *= 0.7;
+    c.vy *= 0.7;
+    if (vn > 80) {
+      shake = Math.min(12, vn / 40);
+      beep(90, 0.15, 'sawtooth', 0.06, -40);
+    }
+  }
+}
+
+// ================= Update =================
+function update(dt) {
+  if (toast) { toast.t -= dt; if (toast.t <= 0) toast = null; }
+  shake = Math.max(0, shake - dt * 30);
+  goTimer = Math.max(0, goTimer - dt);
+
+  if (state === 'countdown') {
+    const before = Math.ceil(countdown);
+    countdown -= dt;
+    const after = Math.ceil(countdown);
+    if (countdown <= 0) {
+      state = 'racing';
+      goTimer = 0.8;
+      beep(880, 0.35, 'square', 0.06);
+    } else if (after !== before) {
+      beep(440, 0.15, 'square', 0.05);
+    }
+  }
+
+  if (state === 'racing') {
+    raceTime += dt;
+    lapTime += dt;
+    updateCar(dt, readInput());
+
+    const idx = car.idx;
+    if (nextCp < CHECKPOINTS.length && Math.abs(idx - CHECKPOINTS[nextCp]) < 15) nextCp++;
+    if (nextCp === CHECKPOINTS.length && idx < 15) completeLap();
+  } else if (state === 'finish') {
+    finishTimer -= dt;
+    updateCar(dt, NO_INPUT);
+  }
+
+  if (car && state !== 'paused') {
+    const spd = Math.hypot(car.vx, car.vy);
+    const k = Math.min(1, 5 * dt);
+    cam.x += (car.x + car.vx * 0.35 - cam.x) * k;
+    cam.y += (car.y + car.vy * 0.35 - cam.y) * k;
+    const targetZoom = 1.05 - Math.min(0.35, spd / 2000);
+    cam.zoom += (targetZoom - cam.zoom) * Math.min(1, 2 * dt);
+  }
+}
+
+// ================= Tekenen =================
+const grassPattern = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#2f7a36';
+  g.fillRect(0, 0, 64, 64);
+  for (let i = 0; i < 40; i++) {
+    g.fillStyle = Math.random() < 0.5 ? '#2a6e30' : '#358640';
+    g.fillRect(Math.random() * 64, Math.random() * 64, 3, 3);
+  }
+  return ctx.createPattern(c, 'repeat');
+})();
+
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#2f7a36';
+  ctx.fillRect(0, 0, W, H);
+
+  // Camera
+  const z = cam.zoom;
+  const sx = shake ? rand(-shake, shake) : 0;
+  const sy = shake ? rand(-shake, shake) : 0;
+  ctx.setTransform(z, 0, 0, z, W / 2 - cam.x * z + sx, H / 2 - cam.y * z + sy);
+
+  const vw = W / z, vh = H / z;
+  ctx.fillStyle = grassPattern;
+  ctx.fillRect(cam.x - vw / 2 - 60, cam.y - vh / 2 - 60, vw + 120, vh + 120);
+
+  drawTrack();
+  drawObstacles();
+  if (car) drawCar();
+
+  // Scherm-HUD
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (state === 'menu') { drawMenu(); return; }
+  drawHud();
+  drawMinimap();
+  if (state === 'countdown') drawBigText(String(Math.ceil(countdown)), '#ffd84a');
+  if (goTimer > 0) drawBigText('GO!', '#5dff8a');
+  if (state === 'paused') drawPanel('PAUZE', ['Druk op P of tik om verder te gaan']);
+  if (state === 'finish') drawFinish();
+}
+
+function drawTrack() {
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // Muur (vangrail)
+  ctx.strokeStyle = '#c9ccd6';
+  ctx.lineWidth = 2 * (HW + RUNOFF) + 12;
+  ctx.stroke(trackPath);
+  ctx.strokeStyle = grassPattern;
+  ctx.lineWidth = 2 * (HW + RUNOFF);
+  ctx.stroke(trackPath);
+
+  // Rood-witte randen
+  ctx.lineCap = 'butt';
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2 * HW + 16;
+  ctx.stroke(trackPath);
+  ctx.strokeStyle = '#e0333a';
+  ctx.setLineDash([24, 24]);
+  ctx.stroke(trackPath);
+  ctx.setLineDash([]);
+  ctx.lineCap = 'round';
+
+  // Asfalt
+  ctx.strokeStyle = '#3a3c44';
+  ctx.lineWidth = 2 * HW;
+  ctx.stroke(trackPath);
+
+  // Middenstreep
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'butt';
+  ctx.setLineDash([20, 26]);
+  ctx.stroke(trackPath);
+  ctx.setLineDash([]);
+
+  // Remsporen
+  if (skids) {
+    ctx.fillStyle = 'rgba(15, 15, 18, 0.35)';
+    for (const s of skids) ctx.fillRect(s.x - 2, s.y - 2, 4, 4);
+  }
+
+  // Start/finish-lijn (geblokt)
+  const t = track[0];
+  ctx.save();
+  ctx.translate(t.x, t.y);
+  ctx.rotate(Math.atan2(t.ty, t.tx));
+  const size = 10;
+  for (let row = 0; row < 2; row++) {
+    let k = 0;
+    for (let y = -HW; y < HW; y += size, k++) {
+      ctx.fillStyle = (k + row) % 2 === 0 ? '#ffffff' : '#111111';
+      ctx.fillRect(row * size - size, y, size, size);
+    }
+  }
+  ctx.restore();
+}
+
+function drawObstacles() {
+  for (const o of obstacles) {
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    if (o.type === 'olie') {
+      ctx.fillStyle = 'rgba(10, 10, 20, 0.85)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, o.r, o.r * 0.75, o.angle, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(120, 80, 200, 0.35)';
+      ctx.beginPath();
+      ctx.ellipse(-6, -4, o.r * 0.45, o.r * 0.25, o.angle + 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (o.type === 'boost') {
+      ctx.rotate(o.angle);
+      ctx.fillStyle = '#ff8a1f';
+      ctx.fillRect(-o.r, -o.r, o.r * 2, o.r * 2);
+      ctx.strokeStyle = '#ffe14a';
+      ctx.lineWidth = 5;
+      const pulse = (performance.now() / 300) % 1;
+      for (let i = 0; i < 2; i++) {
+        const x = -10 + i * 12;
+        ctx.globalAlpha = 0.6 + 0.4 * Math.sin((pulse + i * 0.5) * Math.PI * 2);
+        ctx.beginPath();
+        ctx.moveTo(x - 4, -12);
+        ctx.lineTo(x + 6, 0);
+        ctx.lineTo(x - 4, 12);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    } else if (o.type === 'kegel') {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath(); ctx.arc(3, 3, o.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ff7a1a';
+      ctx.beginPath(); ctx.arc(0, 0, o.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, o.r * 0.55, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#ff7a1a';
+      ctx.beginPath(); ctx.arc(0, 0, o.r * 0.25, 0, Math.PI * 2); ctx.fill();
+    } else if (o.type === 'ton') {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath(); ctx.arc(4, 4, o.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c0392b';
+      ctx.beginPath(); ctx.arc(0, 0, o.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#7d1f16';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, o.r * 0.65, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#e8e8e8';
+      ctx.beginPath(); ctx.arc(0, 0, o.r * 0.25, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawCar() {
+  const c = car;
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(c.a);
+
+  // Boost-vlam
+  if (c.boost > 0) {
+    ctx.fillStyle = '#ffb02e';
+    ctx.beginPath();
+    ctx.moveTo(-19, -5);
+    ctx.lineTo(-19 - rand(14, 26), 0);
+    ctx.lineTo(-19, 5);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Schaduw
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  roundRect(-17, -9, 38, 22, 6);
+  ctx.fill();
+
+  // Wielen
+  ctx.fillStyle = '#111';
+  ctx.fillRect(-14, -13, 9, 5);
+  ctx.fillRect(-14, 8, 9, 5);
+  ctx.fillRect(7, -13, 9, 5);
+  ctx.fillRect(7, 8, 9, 5);
+
+  // Carrosserie
+  ctx.fillStyle = '#e8282f';
+  roundRect(-19, -11, 38, 22, 6);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(-19, -2, 38, 4);
+
+  // Ramen
+  ctx.fillStyle = '#1b2440';
+  roundRect(1, -8, 9, 16, 3);
+  ctx.fill();
+  roundRect(-12, -7, 6, 14, 2);
+  ctx.fill();
+
+  // Lampen
+  ctx.fillStyle = '#fff6b0';
+  ctx.fillRect(16, -9, 3, 4);
+  ctx.fillRect(16, 5, 3, 4);
+  ctx.fillStyle = c.braking ? '#ff2030' : '#7a1015';
+  ctx.fillRect(-19, -9, 3, 4);
+  ctx.fillRect(-19, 5, 3, 4);
+
+  ctx.restore();
+}
+
+function panel(x, y, w, h) {
+  ctx.fillStyle = 'rgba(8, 10, 24, 0.72)';
+  roundRect(x, y, w, h, 10);
+  ctx.fill();
+}
+
+function drawHud() {
+  panel(14, 14, 230, 118);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#9fb0ff';
+  ctx.font = 'bold 15px system-ui, sans-serif';
+  ctx.fillText(`RONDE ${Math.min(lap, LAPS)}/${LAPS}`, 28, 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 34px ui-monospace, Consolas, monospace';
+  ctx.fillText(fmt(raceTime), 28, 44);
+  ctx.font = '14px ui-monospace, Consolas, monospace';
+  ctx.fillStyle = '#cfd6ff';
+  ctx.fillText(`Ronde  ${fmt(state === 'finish' ? lapTimes[lapTimes.length - 1] : lapTime)}`, 28, 86);
+  ctx.fillStyle = '#ffd36b';
+  ctx.fillText(`Snelst ${fmt(best.lap)}`, 28, 106);
+
+  // Snelheid
+  const kmh = Math.round(Math.abs(car.fwd || 0) * 0.36);
+  panel(14, H - 74, 150, 60);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 32px ui-monospace, Consolas, monospace';
+  ctx.fillText(String(kmh).padStart(3, ' '), 28, H - 66);
+  ctx.font = '14px system-ui, sans-serif';
+  ctx.fillStyle = '#9fb0ff';
+  ctx.fillText('km/u', 100, H - 52);
+  if (car.offTrack) { ctx.fillStyle = '#7dff8a'; ctx.fillText('GRAS', 100, H - 34); }
+  else if (car.onOil) { ctx.fillStyle = '#c59bff'; ctx.fillText('OLIE!', 100, H - 34); }
+  else if (car.boost > 0) { ctx.fillStyle = '#ffb02e'; ctx.fillText('BOOST', 100, H - 34); }
+
+  // Melding bij elke ronde
+  if (toast) {
+    ctx.globalAlpha = Math.min(1, toast.t * 2);
+    panel(W / 2 - 160, 20, 320, 66);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.fillText(toast.text, W / 2, 30);
+    ctx.font = '15px system-ui, sans-serif';
+    ctx.fillStyle = toast.good ? '#5dff8a' : '#ff6b6b';
+    ctx.fillText(toast.sub, W / 2, 60);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawMinimap() {
+  const mw = 180;
+  const s = mw / (bounds.maxX - bounds.minX);
+  const mh = (bounds.maxY - bounds.minY) * s;
+  const ox = W - mw - 24, oy = 24;
+  panel(ox - 10, oy - 10, mw + 20, mh + 20);
+  ctx.save();
+  ctx.setTransform(s, 0, 0, s, ox - bounds.minX * s, oy - bounds.minY * s);
+  ctx.strokeStyle = '#8a92b8';
+  ctx.lineWidth = 60;
+  ctx.lineJoin = 'round';
+  ctx.stroke(trackPath);
+  ctx.restore();
+  // Start
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(ox + (track[0].x - bounds.minX) * s - 3, oy + (track[0].y - bounds.minY) * s - 3, 6, 6);
+  // Auto
+  ctx.fillStyle = '#ff3b3b';
+  ctx.beginPath();
+  ctx.arc(ox + (car.x - bounds.minX) * s, oy + (car.y - bounds.minY) * s, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBigText(text, color) {
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 110px system-ui, sans-serif';
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.strokeText(text, W / 2, H / 2 - 30);
+  ctx.fillStyle = color;
+  ctx.fillText(text, W / 2, H / 2 - 30);
+}
+
+function drawPanel(title, lines) {
+  ctx.fillStyle = 'rgba(5, 6, 20, 0.6)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 48px system-ui, sans-serif';
+  ctx.fillText(title, W / 2, H / 2 - 40);
+  ctx.font = '20px system-ui, sans-serif';
+  ctx.fillStyle = '#cfd6ff';
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, H / 2 + 10 + i * 30));
+}
+
+function drawFinish() {
+  ctx.fillStyle = 'rgba(5, 6, 20, 0.65)';
+  ctx.fillRect(0, 0, W, H);
+  const x = W / 2 - 200, y = 90, w = 400, h = 400;
+  panel(x, y, w, h);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 40px system-ui, sans-serif';
+  ctx.fillText('🏁 FINISH', W / 2, y + 22);
+
+  ctx.font = 'bold 44px ui-monospace, Consolas, monospace';
+  ctx.fillStyle = newBestTotal ? '#5dff8a' : '#ffffff';
+  ctx.fillText(fmt(raceTime), W / 2, y + 80);
+  ctx.font = '17px system-ui, sans-serif';
+  ctx.fillStyle = newBestTotal ? '#5dff8a' : '#ffd36b';
+  ctx.fillText(newBestTotal ? '🏆 Nieuw record!' : `Record: ${fmt(best.total)}`, W / 2, y + 135);
+
+  const fastest = Math.min(...lapTimes);
+  ctx.font = '18px ui-monospace, Consolas, monospace';
+  lapTimes.forEach((t, i) => {
+    ctx.fillStyle = t === fastest ? '#ffd36b' : '#cfd6ff';
+    ctx.fillText(`Ronde ${i + 1}   ${fmt(t)}${t === fastest ? '  ★' : ''}`, W / 2, y + 180 + i * 30);
+  });
+
+  ctx.font = '15px system-ui, sans-serif';
+  ctx.fillStyle = '#9fb0ff';
+  ctx.fillText(`Snelste ronde ooit: ${fmt(best.lap)}${newBestLap ? '  (nieuw!)' : ''}`, W / 2, y + 290);
+  if (finishTimer <= 0) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 18px system-ui, sans-serif';
+    ctx.fillText('Enter of tik = opnieuw rijden', W / 2, y + 340);
+  }
+}
+
+function drawMenu() {
+  ctx.fillStyle = 'rgba(5, 6, 20, 0.55)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.save();
+  ctx.shadowColor = '#ff3b3b';
+  ctx.shadowBlur = 25;
+  ctx.fillStyle = '#ff5a4a';
+  ctx.font = 'italic bold 64px system-ui, sans-serif';
+  ctx.fillText('TURBO TIJDRIT', W / 2, 120);
+  ctx.restore();
+
+  ctx.fillStyle = '#e8ecff';
+  ctx.font = '19px system-ui, sans-serif';
+  ctx.fillText(`Rij ${LAPS} rondes zo snel mogelijk. Alleen jij tegen de klok!`, W / 2, 190);
+
+  ctx.font = '16px system-ui, sans-serif';
+  ctx.fillStyle = '#cfd6ff';
+  const lines = [
+    '🟠 Kegels & 🔴 tonnen: daar bots je op',
+    '⚫ Olie: je auto glijdt weg',
+    '🟧 Boost-pad: extra snelheid!',
+    '🟩 Gras: je rijdt een stuk langzamer',
+  ];
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, 245 + i * 30));
+
+  ctx.fillStyle = '#ffd36b';
+  ctx.font = '17px ui-monospace, Consolas, monospace';
+  ctx.fillText(`Record: ${fmt(best.total)}   ·   Snelste ronde: ${fmt(best.lap)}`, W / 2, 390);
+
+  if (Math.floor(performance.now() / 500) % 2 === 0) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.fillText('Druk op ENTER of tik om te starten', W / 2, 460);
+  }
+}
+
+// ================= Game loop =================
+// Op de achtergrond van het menu staat de auto al op de startlijn
+startRace();
+state = 'menu';
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.033, (now - last) / 1000);
+  last = now;
+  update(dt);
+  draw();
+  updateEngineSound();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
