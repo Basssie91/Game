@@ -1,6 +1,6 @@
 # 🏎️ Turbo Tijdrit
 
-Een 3D-racegame in je browser waarin je alleen tegen de klok rijdt. Je kijkt vanaf achter je auto (third person). Rij 3 rondes over een baan met bochten, een haarspeld, een chicane en obstakels, en probeer je eigen record te verbreken.
+Een 3D-racegame in je browser waarin je alleen tegen de klok rijdt. Je kijkt vanaf achter je auto (third person). Rij 3 rondes over een baan met bochten, een haarspeld, schansen en obstakels, en probeer je eigen record te verbreken.
 
 ## Besturing
 
@@ -20,6 +20,7 @@ Een 3D-racegame in je browser waarin je alleen tegen de klok rijdt. Je kijkt van
 - ⚫ **Olie**: je auto glijdt weg en stuurt slecht
 - 🟧 **Boost-pad**: even extra snelheid
 - 🟩 **Gras**: je rijdt een stuk langzamer
+- 🟨 **Schans**: spring! Bij twee schansen ligt water erachter. Te weinig snelheid (onder ±110 km/u) = plons, en je wordt teruggezet vóór de schans
 
 De tijd start na het aftellen (3, 2, 1, GO!) en stopt als je na de laatste ronde over de finish komt. Je ziet per ronde of je sneller was dan je snelste ronde. Je record en je snelste ronde worden in je browser bewaard.
 
