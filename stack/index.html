@@ -170,22 +170,44 @@ let best = Arcade.best(GAME);
 
 function iso(x, y, z) { return { x: CX + (x - z) * COS * SC, y: BASE_Y + camY - (x + z) * SIN * SC - y * SC }; }
 
-function shade(level, f) {
-  // Grijstinten die per laag langzaam verlopen
-  const t = (Math.sin(level * 0.18) + 1) / 2;
-  const v = Math.round((70 + t * 160) * f);
-  return `rgb(${v},${v},${Math.min(255, v + 6)})`;
+// Elke laag een eigen tint (blauwgrijs, licht/donker om en om) zodat je diepte ziet
+function layerColors(level) {
+  const hue = 205 + Math.sin(level * 0.22) * 25;
+  const light = 58 + Math.sin(level * 0.5) * 8 + (level % 2 ? -5 : 5);
+  return [`hsl(${hue}, 28%, ${light + 12}%)`, `hsl(${hue}, 30%, ${light - 22}%)`, `hsl(${hue}, 28%, ${light - 8}%)`];
 }
-function drawBox(b, level, overrideColor) {
+const MOVING = ['#ff4d55', '#a61d24', '#d42a32'];
+const PERFECT = ['#ffffff', '#9aa1ab', '#c9ced6'];
+function drawBox(b, level, colors, alpha = 1) {
   const { x, z, w, d } = b, y = b.y;
   const p = (dx, dy, dz) => iso(x + dx, y + dy, z + dz);
   const top = [p(0, LH, 0), p(w, LH, 0), p(w, LH, d), p(0, LH, d)];
   const left = [p(0, 0, d), p(w, 0, d), p(w, LH, d), p(0, LH, d)];
   const right = [p(w, 0, 0), p(w, 0, d), p(w, LH, d), p(w, LH, 0)];
-  const poly = (pts, col) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); ctx.fill(); };
-  poly(left, overrideColor ? overrideColor[1] : shade(level, 0.62));
-  poly(right, overrideColor ? overrideColor[2] : shade(level, 0.8));
-  poly(top, overrideColor ? overrideColor[0] : shade(level, 1));
+  const cols = colors || layerColors(level);
+  ctx.globalAlpha = alpha;
+  ctx.lineJoin = 'round';
+  const poly = (pts, col) => {
+    ctx.fillStyle = col;
+    ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+  };
+  poly(left, cols[1]);
+  poly(right, cols[2]);
+  poly(top, cols[0]);
+  ctx.globalAlpha = 1;
+}
+// Hulplijn: waar de toren eronder ligt, op de hoogte van het bewegende blok
+function drawGuide(top, y, good) {
+  const p = (dx, dz) => iso(top.x + dx, y, top.z + dz);
+  const pts = [p(0, 0), p(top.w, 0), p(top.w, top.d), p(0, top.d)];
+  ctx.save();
+  ctx.setLineDash([6, 5]);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = good ? '#3ddc84' : 'rgba(255,255,255,0.55)';
+  ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); ctx.stroke();
+  ctx.restore();
 }
 
 function start() {
@@ -211,7 +233,7 @@ function drop() {
   const m = moving;
   const a = m.axis, size = a === 'x' ? 'w' : 'd';
   const delta = m[a] - top[a];
-  if (Math.abs(delta) < 0.08) {
+  if (Math.abs(delta) < 0.12) {
     // Perfect!
     m[a] = top[a];
     combo++;
@@ -236,7 +258,7 @@ function drop() {
     const cut = { ...m };
     if (delta > 0) { cut[a] = top[a] + top[size]; cut[size] = delta; m[size] = overlap; }
     else { cut[a] = m[a]; cut[size] = -delta; m[a] = top[a]; m[size] = overlap; }
-    falling.push({ ...cut, vy: 0, level: layers.length });
+    falling.push({ ...cut, vy: 0, level: layers.length, front: delta > 0 });
     Arcade.beep(300, 0.08, 'square', 0.04, -100);
   }
   const placed = { x: m.x, z: m.z, w: m.w, d: m.d, y: m.y };
@@ -278,10 +300,27 @@ function draw() {
   g.addColorStop(0, '#20232a'); g.addColorStop(1, '#0b0c10');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   if (state !== 'menu' || layers) {
+    if (layers) drawBox({ x: -2.6, z: -2.6, w: 5.2, d: 5.2, y: layers[0].y - LH }, 0, ['#2a2e36', '#16181d', '#1f2228']);
     if (!layers) start(), (state = 'menu');
+    // Afgevallen stukken achter de toren eerst, die ervoor pas na de toren
+    for (const f of falling) if (!f.front) drawBox(f, f.level || layers.length, null, Math.max(0, Math.min(1, 1 + f.y / 20)));
     layers.forEach((b, i) => drawBox(b, i));
-    if (moving && state === 'play') drawBox(moving, layers.length, perfectT > 0 ? null : null);
-    for (const f of falling) drawBox(f, f.level || layers.length, ['#e8282f', '#a61d24', '#c4232b']);
+    if (moving && state === 'play') {
+      const top = layers[layers.length - 1];
+      const good = Math.abs(moving[moving.axis] - top[moving.axis]) < 0.12;
+      // Schaduw van het bewegende blok op de toren
+      const ox0 = Math.max(moving.x, top.x), ox1 = Math.min(moving.x + moving.w, top.x + top.w);
+      const oz0 = Math.max(moving.z, top.z), oz1 = Math.min(moving.z + moving.d, top.z + top.d);
+      if (ox1 > ox0 && oz1 > oz0) {
+        const q = (x, z) => iso(x, top.y + LH, z);
+        const pts = [q(ox0, oz0), q(ox1, oz0), q(ox1, oz1), q(ox0, oz1)];
+        ctx.fillStyle = good ? 'rgba(61,220,132,0.35)' : 'rgba(0,0,0,0.25)';
+        ctx.beginPath(); pts.forEach((v, i) => (i ? ctx.lineTo(v.x, v.y) : ctx.moveTo(v.x, v.y))); ctx.closePath(); ctx.fill();
+      }
+      drawBox(moving, layers.length, good ? PERFECT : MOVING);
+      drawGuide(top, moving.y + LH, good);
+    }
+    for (const f of falling) if (f.front) drawBox(f, f.level || layers.length, null, Math.max(0, Math.min(1, 1 + f.y / 20)));
     if (perfectT > 0) {
       const top = layers[layers.length - 1];
       const q = iso(top.x + top.w / 2, top.y + LH, top.z + top.d / 2);
@@ -297,6 +336,7 @@ function draw() {
     Arcade.text(ctx, 'Laat het blok vallen als het precies', W / 2, 228, 16, '#c9ced6', 'center', '600');
     Arcade.text(ctx, 'boven de toren hangt. Wat uitsteekt valt eraf!', W / 2, 252, 16, '#c9ced6', 'center', '600');
     Arcade.text(ctx, '3× perfect = je blok wordt weer groter', W / 2, 284, 14, '#ffffff', 'center', '700');
+    Arcade.text(ctx, 'Wordt het blok wit met een groene lijn? Nu klikken!', W / 2, 312, 14, '#3ddc84', 'center', '700');
     if (best) Arcade.text(ctx, `Record: ${best}`, W / 2, 640, 17, '#fff', 'center', '800');
     if (Math.floor(performance.now() / 500) % 2 === 0) Arcade.text(ctx, Arcade.touch ? 'Tik om te starten' : 'Spatie = start / laten vallen', W / 2, 680, 18, '#ffffff', 'center', '800');
     return;
