@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Turbo Tijdrit · Sunset Edition</title>
+  <title>Turbo Tijdrit</title>
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1030; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #e6eaee; }
     #gl, #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
     #hud { touch-action: none; }
     .touch { position: fixed; left: 0; right: 0; bottom: 16px; display: none; justify-content: space-between; padding: 0 16px; pointer-events: none; }
     .touch div { display: flex; gap: 12px; }
     .touch button { pointer-events: auto; width: 76px; height: 76px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);
-      background: rgba(30, 20, 60, 0.45); color: #fff; font-size: 26px; font-weight: bold; user-select: none; -webkit-user-select: none; touch-action: none; }
+      background: rgba(14, 15, 18, 0.45); color: #fff; font-size: 26px; font-weight: bold; user-select: none; -webkit-user-select: none; touch-action: none; }
     .touch button.actief { background: rgba(255, 255, 255, 0.35); }
   </style>
 </head>
@@ -29,7 +29,8 @@ const S = 24;          // lengte van één baanstuk
 const HALF_W = 6;      // halve breedte van de weg
 const STEP = 1.5;      // afstand tussen meetpunten op de baan
 const BASE_Y = 4;      // normale hoogte van de weg
-const WATER_Y = -2;    // hoogte van het water
+const GROUND_Y = -24;  // hoogte van de grond ver onder de baan
+const TAU = Math.PI * 2;
 
 const P = {
   max: 40,          // topsnelheid (×4 = km/u)
@@ -38,212 +39,312 @@ const P = {
   reverse: 10,
   boostMax: 58,
   boostAccel: 45,
-  turn: 2.0,
-  grip: 8,
+  turn: 2.6,
+  grip: 14,
   gravity: 32,
+  mu: 2.3,          // hoeveel grip de banden maximaal hebben
+  slope: 0.5,       // hoe sterk hellingen je afremmen/versnellen
 };
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const smooth = (t) => t * t * (3 - 2 * t);
+const bump = (t, edge = 0.25) => smooth(clamp(t / edge, 0, 1)) * smooth(clamp((1 - t) / edge, 0, 1));
 function angleDiff(a, b) {
   let d = a - b;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
+  while (d > Math.PI) d -= TAU;
+  while (d < -Math.PI) d += TAU;
   return d;
+}
+// Vectoren
+const V = {
+  add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+  sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+  mul: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
+  dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+  cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+  len: (a) => Math.hypot(a[0], a[1], a[2]),
+  norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+  lerp: (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t],
+  ma: (a, b, s) => [a[0] + b[0] * s, a[1] + b[1] * s, a[2] + b[2] * s],
+};
+
+// Richting (T), rechts (R) en "omhoog van de weg" (N) uit koers a, helling p en kanteling b
+function frameFromAngles(a, p, b) {
+  const cp = Math.cos(p);
+  const T = [Math.sin(a) * cp, Math.sin(p), Math.cos(a) * cp];
+  const R0 = [-Math.cos(a), 0, Math.sin(a)];
+  const N0 = V.cross(R0, T);
+  const cb = Math.cos(b), sb = Math.sin(b);
+  return {
+    T,
+    R: [R0[0] * cb + N0[0] * sb, R0[1] * cb + N0[1] * sb, R0[2] * cb + N0[2] * sb],
+    N: [N0[0] * cb - R0[0] * sb, N0[1] * cb - R0[1] * sb, N0[2] * cb - R0[2] * sb],
+  };
 }
 
 /* Baanstukken:
-   S = recht          B = boost-strook       C = checkpoint
-   L / R = scherpe bocht (90°)   l / r = flauwe bocht (45°)
-   U / D = helling omhoog / omlaag            H = bult
-   J = schans met gat               K = grote schans met groot gat
-   F = finish */
+   S = recht            B = boost-strook        C = checkpoint       F = finish
+   L / R = scherpe bocht (90°)        l / r = flauwe bocht (45°)
+   U / D = heuvel omhoog / omlaag     H = bult (je vliegt eroverheen!)
+   J = schans met gat                 K = grote schans met groot gat
+   O = looping
+   Y / Z = schuine bocht links / rechts (kanteling ±55°)
+   W / M = muurrit links / rechts (kanteling ±75°, alleen met snelheid!)
+   N = smal stuk */
 function buildTrack(code) {
   const samples = [];
   const cps = [];
-  let x = 0, y = BASE_Y, z = 0, a = 0, finishIdx = -1;
-  const push = (flag) => samples.push({ x, y, z, a, flag: flag || '' });
-  const forward = (len, flag, hFn) => {
-    const n = Math.max(1, Math.round(len / STEP));
-    const y0 = y;
-    for (let k = 1; k <= n; k++) {
-      x += Math.sin(a) * len / n;
-      z += Math.cos(a) * len / n;
-      if (hFn) y = y0 + hFn(k / n);
-      push(flag);
-    }
+  let pos = [0, BASE_Y, 0], a = 0, p = 0, b = 0, w = HALF_W, finishIdx = -1;
+  const push = (flag) => {
+    const f = frameFromAngles(a, p, b);
+    samples.push({ p: pos.slice(), T: f.T, R: f.R, N: f.N, w, flag: flag || '' });
   };
-  const arc = (ang, rad) => {
-    const len = Math.abs(ang) * rad;
+  const seg = (len, o = {}) => {
+    const A = o.A || (() => 0), Pf = o.P || (() => 0), Bf = o.B || (() => 0), Sh = o.Sh || (() => 0);
     const n = Math.max(2, Math.round(len / STEP));
-    const da = ang / n, ds = len / n;
-    for (let k = 0; k < n; k++) {
-      const am = a + da / 2;
-      x += Math.sin(am) * ds;
-      z += Math.cos(am) * ds;
-      a += da;
-      push();
+    const ds = len / n, a0 = a, p0 = p;
+    let prevSh = 0;
+    for (let k = 1; k <= n; k++) {
+      const t = k / n, tm = (k - 0.5) / n;
+      const am = a0 + A(tm), pm = p0 + Pf(tm), cp = Math.cos(pm);
+      const sh = Sh(t);
+      const R0 = [-Math.cos(am), 0, Math.sin(am)];
+      pos = [pos[0] + Math.sin(am) * cp * ds + R0[0] * (sh - prevSh), pos[1] + Math.sin(pm) * ds, pos[2] + Math.cos(am) * cp * ds + R0[2] * (sh - prevSh)];
+      prevSh = sh;
+      a = a0 + A(t);
+      p = p0 + Pf(t);
+      b = Bf(t);
+      if (o.W) w = o.W(t);
+      push(o.flag);
     }
+    p = ((p % TAU) + TAU) % TAU;
+    if (p > Math.PI) p -= TAU;
+    if (Math.abs(p) < 1e-6) p = 0;
   };
+  const turn = (ang, rad, bank, flag) => seg(Math.abs(ang) * rad, { A: (t) => ang * t, B: bank ? (t) => bank * bump(t) : undefined, flag });
 
   push();
-  forward(2 * S);
+  seg(2 * S);
   for (const tk of code.trim().split(/\s+/)) {
     switch (tk) {
-      case 'S': forward(S); break;
-      case 'B': forward(S, 'boost'); break;
-      case 'C': cps.push(samples.length - 1); forward(S); break;
-      case 'L': arc(Math.PI / 2, S); break;
-      case 'R': arc(-Math.PI / 2, S); break;
-      case 'l': arc(Math.PI / 4, 2 * S); break;
-      case 'r': arc(-Math.PI / 4, 2 * S); break;
-      case 'U': forward(2 * S, '', (t) => 6 * smooth(t)); break;
-      case 'D': forward(2 * S, '', (t) => -6 * smooth(t)); break;
-      case 'H': forward(S, '', (t) => 2.5 * Math.sin(Math.PI * t)); break;
-      case 'J': { const y0 = y; forward(S, 'ramp', (t) => 3.5 * t); y = y0; forward(0.75 * S, 'gap'); break; }
-      case 'K': { const y0 = y; forward(S, 'ramp', (t) => 5 * t); y = y0; forward(1.3 * S, 'gap'); break; }
-      case 'F': finishIdx = samples.length - 1; forward(4 * S); break;
+      case 'S': seg(S); break;
+      case 'B': seg(S, { flag: 'boost' }); break;
+      case 'C': cps.push(samples.length - 1); seg(S); break;
+      case 'L': turn(Math.PI / 2, S); break;
+      case 'R': turn(-Math.PI / 2, S); break;
+      case 'l': turn(Math.PI / 4, 2 * S); break;
+      case 'r': turn(-Math.PI / 4, 2 * S); break;
+      case 'U': seg(2 * S, { P: (t) => 0.32 * Math.sin(Math.PI * t) }); break;
+      case 'D': seg(2 * S, { P: (t) => -0.32 * Math.sin(Math.PI * t) }); break;
+      case 'H': seg(S, { P: (t) => 0.24 * Math.sin(TAU * t) }); break;
+      case 'J': case 'K': {
+        const big = tk === 'K';
+        const y0 = pos[1];
+        seg(S, { P: (t) => (big ? 0.36 : 0.28) * smooth(clamp(t / 0.5, 0, 1)), flag: 'ramp' });
+        p = 0;
+        pos[1] = y0;
+        seg(big ? 1.5 * S : 22, { flag: 'gap' });
+        break;
+      }
+      case 'O': seg(TAU * 12, { P: (t) => TAU * t, Sh: (t) => 14 * smooth(t), flag: 'loop' }); break;
+      case 'Y': turn(Math.PI / 2, 2 * S, 0.95, 'bank'); break;
+      case 'Z': turn(-Math.PI / 2, 2 * S, -0.95, 'bank'); break;
+      case 'W': turn(Math.PI / 2, 1.5 * S, 1.3, 'wall'); break;
+      case 'M': turn(-Math.PI / 2, 1.5 * S, -1.3, 'wall'); break;
+      case 'N': seg(2 * S, { W: (t) => HALF_W - 2.8 * bump(t, 0.2) }); break;
+      case 'F': finishIdx = samples.length - 1; seg(4 * S); break;
       default: break;
     }
   }
-  if (finishIdx < 0) { finishIdx = samples.length - 1; forward(4 * S); }
+  if (finishIdx < 0) { finishIdx = samples.length - 1; seg(4 * S); }
 
+  // Kromming per punt (voor loskomen en meedraaien)
   const n = samples.length;
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, minY = Infinity;
   for (let i = 0; i < n; i++) {
     const s = samples[i];
-    const p = samples[Math.max(0, i - 1)], q = samples[Math.min(n - 1, i + 1)];
-    const d = Math.hypot(q.x - p.x, q.z - p.z) || STEP;
-    s.sl = (q.flag === 'gap' || p.flag === 'gap') ? 0 : (q.y - p.y) / d;
-    minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x);
-    minZ = Math.min(minZ, s.z); maxZ = Math.max(maxZ, s.z);
-    if (s.flag !== 'gap') minY = Math.min(minY, s.y);
+    const p0 = samples[Math.max(0, i - 1)], p1 = samples[Math.min(n - 1, i + 1)];
+    const d = V.len(V.sub(p1.p, p0.p)) || STEP;
+    const dT = V.mul(V.sub(p1.T, p0.T), 1 / d);
+    const broken = p0.flag === 'gap' || p1.flag === 'gap' || s.flag === 'gap' || d > 3 * STEP;
+    s.kn = broken ? 0 : V.dot(dT, s.N);
+    s.kg = broken ? 0 : V.dot(dT, s.R);
+    s.len = i < n - 1 ? (V.len(V.sub(samples[i + 1].p, s.p)) || STEP) : STEP;
+    minX = Math.min(minX, s.p[0]); maxX = Math.max(maxX, s.p[0]);
+    minZ = Math.min(minZ, s.p[2]); maxZ = Math.max(maxZ, s.p[2]);
+    if (s.flag !== 'gap') minY = Math.min(minY, s.p[1]);
   }
   return { samples, cps, finishIdx, startIdx: 6, startGate: 14, bounds: { minX, maxX, minZ, maxZ, minY } };
 }
 
-// Waar ligt de weg onder/bij dit punt?
-function roadAt(track, x, y, z) {
+// Weg-assenstelsel op een (gebroken) positie langs de baan
+function frameAt(track, fi) {
   const ss = track.samples;
-  let best = 0, bd = Infinity;
-  for (let i = 0; i < ss.length; i++) {
-    const s = ss[i];
-    const dx = s.x - x, dz = s.z - z, dy = (s.y - y) * 2;
-    const d = dx * dx + dz * dz + dy * dy;
-    if (d < bd) { bd = d; best = i; }
-  }
-  const s = ss[best];
-  const fx = Math.sin(s.a), fz = Math.cos(s.a);
-  const along = (x - s.x) * fx + (z - s.z) * fz;
-  const lateral = (x - s.x) * -fz + (z - s.z) * fx;
-  const j = clamp(best + (along >= 0 ? 1 : -1), 0, ss.length - 1);
-  const sj = ss[j];
-  const segLen = Math.hypot(sj.x - s.x, sj.z - s.z) || STEP;
-  const frac = clamp(Math.abs(along) / segLen, 0, 1);
-  const h = j === best ? s.y : s.y + (sj.y - s.y) * frac;
-  let on = Math.abs(lateral) <= HALF_W && s.flag !== 'gap' && !(sj.flag === 'gap' && frac > 0.5);
-  if ((best === 0 && along < 0) || (best === ss.length - 1 && along > 0)) on = false;
-  return { idx: best, h, lateral, on, s };
-}
-
-function newCar(track, idx = track.startIdx) {
-  const s = track.samples[idx];
+  const i = clamp(Math.floor(fi), 0, ss.length - 2);
+  const f = clamp(fi - i, 0, 1);
+  const s0 = ss[i], s1 = ss[i + 1];
+  const T = V.norm(V.lerp(s0.T, s1.T, f));
+  const N0 = V.norm(V.lerp(s0.N, s1.N, f));
+  const R = V.norm(V.cross(T, N0));
+  const N = V.cross(R, T);
   return {
-    x: s.x, y: s.y, z: s.z, a: s.a, vx: 0, vy: 0, vz: 0,
-    ground: true, boost: 0, idx, lateral: 0, fwd: 0, lat: 0, airT: 0,
-    pitch: 0, roll: 0, steer: 0, roadH: s.y, onRoad: true, braking: false,
+    i, f, s0, s1, T, R, N,
+    P: V.lerp(s0.p, s1.p, f),
+    w: lerp(s0.w, s1.w, f),
+    kn: lerp(s0.kn, s1.kn, f),
+    kg: lerp(s0.kg, s1.kg, f),
+    segLen: s0.len,
+    gap: s0.flag === 'gap' || (s1.flag === 'gap' && f > 0.5),
   };
 }
 
-function placeCar(c, track, idx) {
-  const n = newCar(track, idx);
-  Object.assign(c, n);
+// Dichtstbijzijnde stuk weg bij een punt in de ruimte
+function nearestRoad(track, pos) {
+  const ss = track.samples;
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < ss.length; i++) {
+    const s = ss[i].p;
+    const dx = s[0] - pos[0], dy = s[1] - pos[1], dz = s[2] - pos[2];
+    const d = dx * dx + dy * dy + dz * dz;
+    if (d < bd) { bd = d; best = i; }
+  }
+  const s = ss[best];
+  const along = V.dot(V.sub(pos, s.p), s.T);
+  const fi = clamp(best + along / s.len, 0, ss.length - 1.001);
+  const fr = frameAt(track, fi);
+  const d = V.sub(pos, fr.P);
+  return { fi, fr, idx: best, h: V.dot(d, fr.N), u: V.dot(d, fr.R), dist: Math.sqrt(bd) };
 }
 
-// Eén stapje auto-fysica. Geeft 'splash' terug als je in het water valt.
+function newCar(track, idx = track.startIdx) {
+  const fr = frameAt(track, idx);
+  return {
+    ground: true, fi: idx, u: 0, psi: 0, vf: 0, vl: 0,
+    pos: fr.P.slice(), vel: [0, 0, 0], F: fr.T.slice(), U: fr.N.slice(),
+    boost: 0, airT: 0, idx, steer: 0, braking: false, landing: 0, kmh: 0,
+    shadow: null,
+  };
+}
+
+function placeCar(c, track, idx) { Object.assign(c, newCar(track, idx)); }
+
+// Eén stapje auto-fysica. Geeft 'fall' terug als je van de baan valt.
 function stepCar(c, track, inp, dt) {
-  // Sturen
-  const fwd0 = c.vx * Math.sin(c.a) + c.vz * Math.cos(c.a);
-  const steer = (inp.rechts ? 1 : 0) - (inp.links ? 1 : 0);
-  c.steer = lerp(c.steer, steer, Math.min(1, 10 * dt));
-  let turn = c.steer * P.turn * Math.min(1, Math.abs(fwd0) / 6) * (fwd0 >= 0 ? 1 : -1);
-  if (!c.ground) turn *= 0.3;
-  if (inp.handrem) turn *= 1.4;
-  c.a -= turn * dt;
-
-  const fx = Math.sin(c.a), fz = Math.cos(c.a);
-  const rx = -fz, rz = fx;
-  let fwd = c.vx * fx + c.vz * fz;
-  let lat = c.vx * rx + c.vz * rz;
+  const ss = track.samples;
+  const steerIn = (inp.rechts ? 1 : 0) - (inp.links ? 1 : 0);
+  c.steer = lerp(c.steer, steerIn, Math.min(1, 10 * dt));
+  const g = [0, -P.gravity, 0];
 
   if (c.ground) {
+    let fr = frameAt(track, c.fi);
+    // Sturen: de auto draait, de snelheid draait (door grip) mee
+    let turn = c.steer * P.turn * Math.min(1, Math.abs(c.vf) / 6) * (c.vf >= 0 ? 1 : -1);
+    if (inp.handrem) turn *= 1.4;
+    const dpsi = turn * dt;
+    c.psi += dpsi;
+    const cs = Math.cos(dpsi), sn = Math.sin(dpsi);
+    const vf0 = c.vf, vl0 = c.vl;
+    c.vf = vf0 * cs + vl0 * sn;
+    c.vl = -vf0 * sn + vl0 * cs;
+
+    let cp = Math.cos(c.psi), sp = Math.sin(c.psi);
+    let F = V.add(V.mul(fr.T, cp), V.mul(fr.R, sp));
+    let Rc = V.sub(V.mul(fr.R, cp), V.mul(fr.T, sp));
+
+    // Motor en remmen
+    let vf = c.vf;
     let max = P.max;
-    if (c.boost > 0) { max = P.boostMax; if (fwd < max) fwd = Math.min(max, fwd + P.boostAccel * dt); }
-    if (inp.gas && fwd < max) fwd = Math.min(max, fwd + P.accel * dt * (1 - 0.45 * clamp(fwd / P.max, 0, 1)));
-    if (inp.rem) fwd -= (fwd > 0.5 ? P.brake : P.accel * 0.6) * dt;
-    if (!inp.gas && !inp.rem) {
-      const r = 5 * dt;
-      fwd = Math.abs(fwd) < r ? 0 : fwd - Math.sign(fwd) * r;
-    }
-    if (inp.handrem) fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), 6 * dt);
-    // Bergop gaat langzamer, bergaf sneller
-    const carSlope = c.slope || 0;
-    fwd -= P.gravity * carSlope * 0.5 * dt;
-    if (fwd > max) fwd = Math.max(max, fwd - 12 * dt);
-    if (fwd < -P.reverse) fwd = -P.reverse;
-    lat *= Math.max(0, 1 - (inp.handrem ? 1.2 : P.grip) * dt);
-  }
-  c.boost = Math.max(0, c.boost - dt);
-  c.braking = !!inp.rem && fwd > 0.5;
+    if (c.boost > 0) { max = P.boostMax; if (vf < max) vf = Math.min(max, vf + P.boostAccel * dt); }
+    if (inp.gas && vf < max) vf = Math.min(max, vf + P.accel * dt * (1 - 0.45 * clamp(vf / P.max, 0, 1)));
+    if (inp.rem) vf -= (vf > 0.5 ? P.brake : P.accel * 0.6) * dt;
+    if (!inp.gas && !inp.rem) { const r = 5 * dt; vf = Math.abs(vf) < r ? 0 : vf - Math.sign(vf) * r; }
+    if (inp.handrem) vf -= Math.sign(vf) * Math.min(Math.abs(vf), 6 * dt);
+    vf += V.dot(g, F) * P.slope * dt;                 // bergop/bergaf
+    if (vf > max) vf = Math.max(max, vf - 12 * dt);
+    if (vf < -P.reverse) vf = -P.reverse;
 
-  c.vx = fx * fwd + rx * lat;
-  c.vz = fz * fwd + rz * lat;
-  c.x += c.vx * dt;
-  c.z += c.vz * dt;
-  c.fwd = fwd;
-  c.lat = lat;
+    // Hoe hard word je tegen de weg gedrukt? (negatief = je komt los)
+    const along = vf * cp - c.vl * sp;
+    const Nf = along * along * fr.kn - V.dot(g, fr.N);
+    // Zijwaartse grip, begrensd door hoe hard je tegen de weg gedrukt wordt
+    const gR = V.dot(g, Rc);
+    const cap = P.mu * Math.max(0, Nf) * (inp.handrem ? 0.35 : 1);
+    const want = -c.vl * (inp.handrem ? 1.2 : P.grip) - gR;
+    c.vl += (gR + clamp(want, -cap, cap)) * dt;
+    c.vf = vf;
 
-  // Hoogte
-  const road = roadAt(track, c.x, c.y, c.z);
-  c.idx = road.idx;
-  c.lateral = road.lateral;
-  c.onRoad = road.on;
-  c.roadH = road.on ? road.h : null;
-  const dirDot = Math.sin(c.a) * Math.sin(road.s.a) + Math.cos(c.a) * Math.cos(road.s.a);
-  c.slope = road.s.sl * dirDot;
+    // Verplaatsen langs de baan
+    const a2 = c.vf * cp - c.vl * sp;
+    const lat = c.vf * sp + c.vl * cp;
+    c.fi += (a2 * dt) / fr.segLen;
+    c.u += lat * dt;
+    c.psi -= fr.kg * a2 * dt;
+    c.psi = angleDiff(c.psi, 0);
 
-  if (c.ground) {
-    const targetVy = road.on ? (road.h - c.y) / dt : -Infinity;
-    if (road.on && road.h <= c.y + 1.2 && targetVy >= c.vy - P.gravity * dt * 1.5) {
-      c.vy = targetVy;
-      c.y = road.h;
-    } else {
+    const outOfTrack = c.fi < 0 || c.fi > ss.length - 1.01;
+    c.fi = clamp(c.fi, 0, ss.length - 1.01);
+    fr = frameAt(track, c.fi);
+    cp = Math.cos(c.psi); sp = Math.sin(c.psi);
+    F = V.add(V.mul(fr.T, cp), V.mul(fr.R, sp));
+    Rc = V.sub(V.mul(fr.R, cp), V.mul(fr.T, sp));
+    c.pos = V.ma(fr.P, fr.R, c.u);
+    c.F = F;
+    c.U = fr.N;
+    c.vel = V.add(V.mul(F, c.vf), V.mul(Rc, c.vl));
+    c.idx = Math.floor(c.fi);
+    c.u_rel = c.u;
+    c.shadow = { P: c.pos, fr };
+
+    if (outOfTrack || fr.gap || Math.abs(c.u) > fr.w || Nf < -1) {
       c.ground = false;
       c.airT = 0;
+      if (Nf < -1) c.vel = V.ma(c.vel, fr.N, 0.5);
     }
-  }
-  if (!c.ground) {
-    c.vy -= P.gravity * dt;
-    c.y += c.vy * dt;
+    if (c.ground && fr.s0.flag === 'boost') c.boost = 1.0;
+  } else {
+    // In de lucht
+    c.vel = V.ma(c.vel, g, dt);
+    c.pos = V.ma(c.pos, c.vel, dt);
     c.airT += dt;
-    if (road.on && c.vy <= 0 && c.y <= road.h && c.y >= road.h - 2) {
-      c.landing = c.vy;
-      c.y = road.h;
-      c.vy = 0;
+    // Een beetje sturen in de lucht
+    const yaw = c.steer * P.turn * 0.35 * dt;
+    const Rc = V.norm(V.cross(c.F, c.U));
+    c.F = V.norm(V.add(V.mul(c.F, Math.cos(yaw)), V.mul(Rc, Math.sin(yaw))));
+    // Langzaam weer rechtop
+    c.U = V.norm(V.lerp(c.U, [0, 1, 0], Math.min(1, 1.5 * dt)));
+    c.F = V.norm(V.ma(c.F, c.U, -V.dot(c.F, c.U)));
+
+    const rd = nearestRoad(track, c.pos);
+    c.idx = rd.idx;
+    c.u_rel = rd.u;
+    c.shadow = (!rd.fr.gap && Math.abs(rd.u) <= rd.fr.w && rd.h > -0.5 && rd.h < 30) ? { P: V.ma(rd.fr.P, rd.fr.R, rd.u), fr: rd.fr } : null;
+    const vN = V.dot(c.vel, rd.fr.N);
+    if (!rd.fr.gap && Math.abs(rd.u) <= rd.fr.w && rd.h <= 0.1 && rd.h > -2.5 && vN <= 0.5 && rd.fr.N[1] > -0.2) {
+      // Landen
+      const fr = rd.fr;
       c.ground = true;
+      c.fi = rd.fi;
+      c.u = rd.u;
+      const Fp = V.norm(V.ma(c.F, fr.N, -V.dot(c.F, fr.N)));
+      c.psi = Math.atan2(V.dot(Fp, fr.R), V.dot(Fp, fr.T));
+      const cp = Math.cos(c.psi), sp = Math.sin(c.psi);
+      const F = V.add(V.mul(fr.T, cp), V.mul(fr.R, sp));
+      const Rc2 = V.sub(V.mul(fr.R, cp), V.mul(fr.T, sp));
+      c.vf = V.dot(c.vel, F);
+      c.vl = V.dot(c.vel, Rc2) * 0.5;
+      c.landing = vN;
+      c.pos = V.ma(fr.P, fr.R, c.u);
+      c.F = F;
+      c.U = fr.N;
     }
   }
+  c.boost = Math.max(0, c.boost - dt);
+  c.braking = !!inp.rem && c.vf > 0.5;
+  c.kmh = Math.round(Math.abs(c.ground ? c.vf : V.len(c.vel)) * 4);
 
-  if (c.ground && road.on && road.s.flag === 'boost') c.boost = 1.0;
-
-  // Kanteling (alleen voor het plaatje)
-  const targetPitch = c.ground ? Math.atan(c.slope) : clamp(Math.atan2(c.vy, Math.max(8, Math.abs(fwd))) * 0.6, -0.5, 0.5);
-  c.pitch = lerp(c.pitch, targetPitch, Math.min(1, 8 * dt));
-  c.roll = lerp(c.roll, c.ground ? c.steer * 0.06 * clamp(fwd / 25, 0, 1) : 0, Math.min(1, 6 * dt));
-
-  if (c.y < WATER_Y + 0.3) return 'splash';
-  if (!c.ground && c.airT > 4) return 'splash';
+  if (c.pos[1] < GROUND_Y + 1) return 'fall';
+  if (!c.ground && c.airT > 4) return 'fall';
   return null;
 }
 
@@ -251,11 +352,11 @@ function newRace(track) {
   return { t: 0, started: false, nextCp: 0, lastCpIdx: track.startIdx, splits: [], finished: false, ghost: [], recT: 0 };
 }
 
-// Geeft een lijst met gebeurtenissen terug: 'start', 'cp', 'finish', 'splash'
+// Gebeurtenissen: 'start', 'cp', 'finish', 'fall'
 function stepRace(r, c, track, inp, dt) {
   const ev = [];
   if (r.finished) {
-    stepCar(c, track, { gas: false, rem: true, links: false, rechts: false, handrem: false }, dt);
+    stepCar(c, track, { rem: true }, dt);
     return ev;
   }
   if (!r.started) {
@@ -266,24 +367,25 @@ function stepRace(r, c, track, inp, dt) {
   r.t += dt;
   const res = stepCar(c, track, inp, dt);
   while (r.recT <= r.t) {
-    r.ghost.push(Math.round(c.x * 100) / 100, Math.round(c.y * 100) / 100, Math.round(c.z * 100) / 100, Math.round(c.a * 1000) / 1000);
+    const q = (v, k) => Math.round(v * k) / k;
+    r.ghost.push(q(c.pos[0], 100), q(c.pos[1], 100), q(c.pos[2], 100), q(c.F[0], 1000), q(c.F[1], 1000), q(c.F[2], 1000), q(c.U[0], 1000), q(c.U[1], 1000), q(c.U[2], 1000));
     r.recT += 1 / 30;
   }
-  if (res === 'splash') {
-    ev.push('splash');
+  if (res === 'fall') {
+    ev.push('fall');
     respawn(r, c, track);
     return ev;
   }
-  const near = Math.abs(c.lateral) < HALF_W + 4;
+  const gateNear = (idx) => V.len(V.sub(c.pos, track.samples[idx].p)) < HALF_W + 6;
   if (r.nextCp < track.cps.length) {
     const cp = track.cps[r.nextCp];
-    if (near && c.idx >= cp && c.idx <= cp + 30) {
+    if (c.idx >= cp && c.idx <= cp + 30 && gateNear(Math.min(c.idx, track.samples.length - 1))) {
       r.splits.push(r.t);
       r.lastCpIdx = cp;
       r.nextCp++;
       ev.push('cp');
     }
-  } else if (near && c.idx >= track.finishIdx && c.idx <= track.finishIdx + 30) {
+  } else if (c.idx >= track.finishIdx && c.idx <= track.finishIdx + 30 && gateNear(Math.min(c.idx, track.samples.length - 1))) {
     r.finished = true;
     ev.push('finish');
   }
@@ -291,19 +393,19 @@ function stepRace(r, c, track, inp, dt) {
 }
 
 function respawn(r, c, track) {
-  placeCar(c, track, Math.min(track.samples.length - 1, r.lastCpIdx + 1));
+  placeCar(c, track, Math.min(track.samples.length - 2, r.lastCpIdx + 1));
 }
 
 // ================= 3D-WEERGAVE (WebGL) =================
 const glCanvas = document.getElementById('gl');
 const gl = glCanvas.getContext('webgl', { antialias: true }) || glCanvas.getContext('experimental-webgl');
 
-const SUN_DIR = norm3([0.35, 0.16, 1]);           // richting naar de zon (laag, zonsondergang)
-const LIGHT_DIR = norm3([-0.35, -0.75, -0.55]);   // richting waarin het licht schijnt
-const FOG = hex('#f29a7a');
-const SKY_TOP = hex('#24306e');
-const SKY_MID = hex('#c8608a');
-const SKY_HOR = hex('#ffb37a');
+const SUN_DIR = norm3([0.4, 0.45, 1]);            // richting naar de zon
+const LIGHT_DIR = norm3([-0.4, -0.85, -0.35]);   // richting waarin het licht schijnt
+const FOG = hex('#e6eaee');
+const SKY_TOP = hex('#7f98b3');
+const SKY_MID = hex('#bccbd9');
+const SKY_HOR = hex('#eef1f4');
 
 function hex(h) {
   const n = parseInt(h.slice(1), 16);
@@ -335,7 +437,36 @@ const M4 = {
     }
     return o;
   },
+  invert(m) {
+    const inv = new Float32Array(16);
+    inv[0] = m[5]*m[10]*m[15]-m[5]*m[11]*m[14]-m[9]*m[6]*m[15]+m[9]*m[7]*m[14]+m[13]*m[6]*m[11]-m[13]*m[7]*m[10];
+    inv[4] = -m[4]*m[10]*m[15]+m[4]*m[11]*m[14]+m[8]*m[6]*m[15]-m[8]*m[7]*m[14]-m[12]*m[6]*m[11]+m[12]*m[7]*m[10];
+    inv[8] = m[4]*m[9]*m[15]-m[4]*m[11]*m[13]-m[8]*m[5]*m[15]+m[8]*m[7]*m[13]+m[12]*m[5]*m[11]-m[12]*m[7]*m[9];
+    inv[12] = -m[4]*m[9]*m[14]+m[4]*m[10]*m[13]+m[8]*m[5]*m[14]-m[8]*m[6]*m[13]-m[12]*m[5]*m[10]+m[12]*m[6]*m[9];
+    inv[1] = -m[1]*m[10]*m[15]+m[1]*m[11]*m[14]+m[9]*m[2]*m[15]-m[9]*m[3]*m[14]-m[13]*m[2]*m[11]+m[13]*m[3]*m[10];
+    inv[5] = m[0]*m[10]*m[15]-m[0]*m[11]*m[14]-m[8]*m[2]*m[15]+m[8]*m[3]*m[14]+m[12]*m[2]*m[11]-m[12]*m[3]*m[10];
+    inv[9] = -m[0]*m[9]*m[15]+m[0]*m[11]*m[13]+m[8]*m[1]*m[15]-m[8]*m[3]*m[13]-m[12]*m[1]*m[11]+m[12]*m[3]*m[9];
+    inv[13] = m[0]*m[9]*m[14]-m[0]*m[10]*m[13]-m[8]*m[1]*m[14]+m[8]*m[2]*m[13]+m[12]*m[1]*m[10]-m[12]*m[2]*m[9];
+    inv[2] = m[1]*m[6]*m[15]-m[1]*m[7]*m[14]-m[5]*m[2]*m[15]+m[5]*m[3]*m[14]+m[13]*m[2]*m[7]-m[13]*m[3]*m[6];
+    inv[6] = -m[0]*m[6]*m[15]+m[0]*m[7]*m[14]+m[4]*m[2]*m[15]-m[4]*m[3]*m[14]-m[12]*m[2]*m[7]+m[12]*m[3]*m[6];
+    inv[10] = m[0]*m[5]*m[15]-m[0]*m[7]*m[13]-m[4]*m[1]*m[15]+m[4]*m[3]*m[13]+m[12]*m[1]*m[7]-m[12]*m[3]*m[5];
+    inv[14] = -m[0]*m[5]*m[14]+m[0]*m[6]*m[13]+m[4]*m[1]*m[14]-m[4]*m[2]*m[13]-m[12]*m[1]*m[6]+m[12]*m[2]*m[5];
+    inv[3] = -m[1]*m[6]*m[11]+m[1]*m[7]*m[10]+m[5]*m[2]*m[11]-m[5]*m[3]*m[10]-m[9]*m[2]*m[7]+m[9]*m[3]*m[6];
+    inv[7] = m[0]*m[6]*m[11]-m[0]*m[7]*m[10]-m[4]*m[2]*m[11]+m[4]*m[3]*m[10]+m[8]*m[2]*m[7]-m[8]*m[3]*m[6];
+    inv[11] = -m[0]*m[5]*m[11]+m[0]*m[7]*m[9]+m[4]*m[1]*m[11]-m[4]*m[3]*m[9]-m[8]*m[1]*m[7]+m[8]*m[3]*m[5];
+    inv[15] = m[0]*m[5]*m[10]-m[0]*m[6]*m[9]-m[4]*m[1]*m[10]+m[4]*m[2]*m[9]+m[8]*m[1]*m[6]-m[8]*m[2]*m[5];
+    let det = m[0]*inv[0]+m[1]*inv[4]+m[2]*inv[8]+m[3]*inv[12];
+    det = det ? 1 / det : 0;
+    for (let i = 0; i < 16; i++) inv[i] *= det;
+    return inv;
+  },
   ident() { return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); },
+  // Positie + assen: F = vooruit, U = omhoog
+  basis(pos, F, U) {
+    const L = norm3(cross3(U, F));
+    const U2 = cross3(F, L);
+    return new Float32Array([L[0], L[1], L[2], 0, U2[0], U2[1], U2[2], 0, F[0], F[1], F[2], 0, pos[0], pos[1], pos[2], 1]);
+  },
   // Positie + draaiing (koers, kantelen voor/achter, kantelen opzij)
   model(x, y, z, yaw, pitch, roll) {
     const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch), cr = Math.cos(roll), sr = Math.sin(roll);
@@ -368,7 +499,7 @@ void main() {
   vec3 n = normalize(vN);
   float d = abs(dot(n, -uLight));
   float up = 0.5 + 0.5 * n.y;
-  vec3 c = vCol * (0.42 + 0.62 * d + 0.12 * up);
+  vec3 c = vCol * (0.5 + 0.55 * d + 0.1 * up);
   c = mix(c, uTint.rgb, uTint.a);
   float f = clamp((vDist - uFogNear) / (uFogFar - uFogNear), 0.0, 1.0);
   gl_FragColor = vec4(mix(c, uFog, f * f * 0.9 + f * 0.1), uAlpha);
@@ -377,21 +508,25 @@ const SKY_VS = `
 attribute vec2 aP; varying vec2 vP;
 void main() { vP = aP; gl_Position = vec4(aP, 0.9999, 1.0); }`;
 const SKY_FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 varying vec2 vP;
-uniform float uHor; uniform vec2 uSun; uniform float uSunOn; uniform float uAspect;
+uniform mat4 uInv; uniform vec3 uCamP; uniform vec3 uSunD;
 uniform vec3 uTop; uniform vec3 uMid; uniform vec3 uHorC; uniform vec3 uFog;
 void main() {
-  float y = vP.y - uHor;
+  vec4 p = uInv * vec4(vP, 1.0, 1.0);
+  vec3 d = normalize(p.xyz / p.w - uCamP);
   vec3 c;
-  if (y < 0.0) c = uFog;
+  if (d.y < 0.0) c = uFog;
   else {
-    c = mix(uHorC, uMid, smoothstep(0.0, 0.35, y));
-    c = mix(c, uTop, smoothstep(0.3, 1.3, y));
+    c = mix(uHorC, uMid, smoothstep(0.0, 0.25, d.y));
+    c = mix(c, uTop, smoothstep(0.2, 0.9, d.y));
   }
-  vec2 d = vP - uSun; d.x *= uAspect;
-  float r = length(d);
-  c += uSunOn * (vec3(1.0, 0.85, 0.55) * smoothstep(0.13, 0.11, r) + vec3(1.0, 0.55, 0.35) * 0.35 * exp(-r * 4.0));
+  float s = max(dot(d, uSunD), 0.0);
+  c += vec3(1.0) * 0.5 * smoothstep(0.9990, 0.9994, s) + vec3(1.0, 0.98, 0.95) * 0.22 * pow(s, 40.0);
   gl_FragColor = vec4(c, 1.0);
 }`;
 
@@ -461,71 +596,73 @@ function buildTrackMesh(track) {
   const mb = new MeshBuilder();
   const ss = track.samples;
   const C = {
-    road: hex('#3a3d52'), road2: hex('#424660'), curbA: hex('#ff4f7b'), curbB: hex('#fff3e8'),
-    side: hex('#2a2b3d'), under: hex('#1f2030'), pillar: hex('#e9d9ee'),
-    boost: hex('#ff8a1f'), arrow: hex('#ffe45c'), rampA: hex('#ffd23f'), rampB: hex('#2b2b38'),
+    road: hex('#2c2e33'), road2: hex('#323439'), curbA: hex('#111214'), curbB: hex('#f2f2f2'),
+    side: hex('#1c1d20'), under: hex('#17181a'), pillar: hex('#c4c9d0'),
+    boost: hex('#2f7bff'), arrow: hex('#ffffff'), rampA: hex('#f2f2f2'), rampB: hex('#1a1b1e'),
+    wall: hex('#3a3d44'), wall2: hex('#43464e'),
   };
-  const P3 = (s, off, dy = 0) => [s.x + Math.cos(s.a) * off, s.y + dy, s.z - Math.sin(s.a) * off];  // off > 0 = links
-  const T = 1.5; // dikte van de weg
-  const roadSamples = [];
+  // Punt op de weg: off = opzij (+ = rechts), up = langs de normaal
+  const P3 = (s, off, up = 0) => [s.p[0] + s.R[0] * off + s.N[0] * up, s.p[1] + s.R[1] * off + s.N[1] * up, s.p[2] + s.R[2] * off + s.N[2] * up];
+  const TH = 1.4; // dikte van de weg
   for (let i = 0; i < ss.length - 1; i++) {
     const s0 = ss[i], s1 = ss[i + 1];
     if (s0.flag === 'gap' || s1.flag === 'gap') continue;
-    roadSamples.push(i);
     let top = Math.floor(i / 4) % 2 ? C.road : C.road2;
+    if (s1.flag === 'wall' || s1.flag === 'bank') top = Math.floor(i / 4) % 2 ? C.wall : C.wall2;
     if (s1.flag === 'boost') top = C.boost;
     if (s1.flag === 'ramp') top = Math.floor(i / 2) % 2 ? C.rampA : C.rampB;
-    const iw = HALF_W - 0.9;
-    mb.quad(P3(s0, -iw), P3(s1, -iw), P3(s1, iw), P3(s0, iw), top, 0.02);
-    // Randen (stoeprand)
+    const iw0 = s0.w - 0.9, iw1 = s1.w - 0.9;
+    mb.quad(P3(s0, -iw0), P3(s1, -iw1), P3(s1, iw1), P3(s0, iw0), top, 0.02);
     const curb = Math.floor(i / 2) % 2 ? C.curbA : C.curbB;
     for (const side of [-1, 1]) {
-      const a = side * iw, b = side * HALF_W;
-      mb.quad(P3(s0, a, 0.12), P3(s1, a, 0.12), P3(s1, b, 0.12), P3(s0, b, 0.12), curb, 0.02);
-      mb.quad(P3(s0, a, 0), P3(s1, a, 0), P3(s1, a, 0.12), P3(s0, a, 0.12), curb, 0.02);
-      // Zijkant van de weg
-      mb.quad(P3(s0, b, 0.12), P3(s1, b, 0.12), P3(s1, b, -T), P3(s0, b, -T), C.side, 0.02);
+      const a0 = side * iw0, a1 = side * iw1, b0 = side * s0.w, b1 = side * s1.w;
+      mb.quad(P3(s0, a0, 0.12), P3(s1, a1, 0.12), P3(s1, b1, 0.12), P3(s0, b0, 0.12), curb, 0.02);
+      mb.quad(P3(s0, a0, 0), P3(s1, a1, 0), P3(s1, a1, 0.12), P3(s0, a0, 0.12), curb, 0.02);
+      mb.quad(P3(s0, b0, 0.12), P3(s1, b1, 0.12), P3(s1, b1, -TH), P3(s0, b0, -TH), C.side, 0.02);
     }
-    mb.quad(P3(s0, -HALF_W, -T), P3(s1, -HALF_W, -T), P3(s1, HALF_W, -T), P3(s0, HALF_W, -T), C.under, 0.02);
-    // Pijlen op de boost
+    mb.quad(P3(s0, -s0.w, -TH), P3(s1, -s1.w, -TH), P3(s1, s1.w, -TH), P3(s0, s0.w, -TH), C.under, 0.02);
     if (s1.flag === 'boost' && i % 6 === 0) {
-      const f = (s, along, off) => [s.x + Math.sin(s.a) * along + Math.cos(s.a) * off, s.y + 0.05, s.z + Math.cos(s.a) * along - Math.sin(s.a) * off];
-      mb.tri(f(s0, 1.6, 0), f(s0, -1.2, 3), f(s0, -1.2, -3), C.arrow);
+      const f = (along, off) => {
+        const q = P3(s0, off, 0.05);
+        return [q[0] + s0.T[0] * along, q[1] + s0.T[1] * along, q[2] + s0.T[2] * along];
+      };
+      mb.tri(f(1.6, 0), f(-1.2, 3), f(-1.2, -3), C.arrow);
     }
   }
-  // Pilaren onder de weg (niet als er een andere weg onder ligt)
+  // Pilaren (alleen onder vlakke weg, en niet als er een andere weg onder ligt)
   for (let i = 0; i < ss.length; i += 14) {
     const s = ss[i];
-    if (s.flag === 'gap') continue;
+    if (s.flag === 'gap' || s.flag === 'loop' || s.N[1] < 0.9) continue;
     let blocked = false;
     for (let j = 0; j < ss.length; j += 3) {
       const o = ss[j];
-      if (o.flag !== 'gap' && Math.abs(j - i) > 20 && o.y < s.y - 2 && Math.hypot(o.x - s.x, o.z - s.z) < HALF_W + 2) { blocked = true; break; }
+      if (o.flag !== 'gap' && Math.abs(j - i) > 20 && o.p[1] < s.p[1] - 2 && Math.hypot(o.p[0] - s.p[0], o.p[2] - s.p[2]) < HALF_W + 3) { blocked = true; break; }
     }
     if (blocked) continue;
     const w = 0.8;
-    mb.box(s.x - w, s.x + w, WATER_Y - 1, s.y - T, s.z - w, s.z + w, C.pillar, 0.06);
+    mb.box(s.p[0] - w, s.p[0] + w, GROUND_Y, s.p[1] - TH, s.p[2] - w, s.p[2] + w, C.pillar, 0.06);
   }
   // Poorten: start, checkpoints, finish
   const gate = (idx, type) => {
     const s = ss[idx];
-    const colPost = type === 'cp' ? hex('#3fd6ff') : type === 'start' ? hex('#5dff9a') : hex('#ffffff');
-    const fwd = [Math.sin(s.a), Math.cos(s.a)], left = [Math.cos(s.a), -Math.sin(s.a)];
-    const pt = (along, off, y) => [s.x + fwd[0] * along + left[0] * off, s.y + y, s.z + fwd[1] * along + left[1] * off];
+    const colPost = type === 'cp' ? hex('#2f7bff') : hex('#f2f2f2');
+    const pt = (along, off, y) => {
+      const q = P3(s, off, y);
+      return [q[0] + s.T[0] * along, q[1] + s.T[1] * along, q[2] + s.T[2] * along];
+    };
     const post = (off) => {
       const p = [];
       for (const yy of [0, 6.6]) for (const [aa, oo] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) p.push(pt(aa, off + oo, yy));
-      mb.hexa(p, colPost);
+      mb.hexa(p, type === 'cp' ? colPost : hex('#1a1b1e'));
     };
-    post(HALF_W + 0.8);
-    post(-HALF_W - 0.8);
-    const W = HALF_W + 1.3;
-    const n = 12;
+    post(s.w + 0.8);
+    post(-s.w - 0.8);
+    const W = s.w + 1.3, n = 14;
     for (let k = 0; k < n; k++) {
       const o0 = -W + (2 * W * k) / n, o1 = -W + (2 * W * (k + 1)) / n;
-      let col = colPost;
-      if (type === 'finish') col = k % 2 ? hex('#111111') : hex('#ffffff');
-      else if (k % 2) col = type === 'cp' ? hex('#1a8fd0') : hex('#2bb86a');
+      let col;
+      if (type === 'cp') col = k % 2 ? hex('#1f5fd0') : hex('#4a90ff');
+      else col = k % 2 ? hex('#111214') : hex('#f4f4f4');
       const p = [];
       for (const yy of [5.6, 6.8]) for (const [aa, oo] of [[-0.5, o0], [0.5, o0], [0.5, o1], [-0.5, o1]]) p.push(pt(aa, oo, yy));
       mb.hexa(p, col, 0);
@@ -537,7 +674,7 @@ function buildTrackMesh(track) {
   return mb.build();
 }
 
-// ----- Landschap: zee, eilandjes, bomen, bergen, wolken -----
+// ----- Landschap: lichte vlakte met blokken, bomen, bergen en wolken -----
 function buildSceneryMesh(track, seed) {
   const mb = new MeshBuilder();
   const R = rng(seed);
@@ -545,68 +682,47 @@ function buildSceneryMesh(track, seed) {
   const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
   const ss = track.samples;
   const farFromTrack = (x, z, d) => {
-    for (let i = 0; i < ss.length; i += 4) if (Math.hypot(ss[i].x - x, ss[i].z - z) < d) return false;
+    for (let i = 0; i < ss.length; i += 4) if (Math.hypot(ss[i].p[0] - x, ss[i].p[2] - z) < d) return false;
     return true;
   };
-  // Zee
-  const W = 2600;
-  const sea = hex('#3a5fa8'), sea2 = hex('#4670b8');
-  const grid = 13, cell = (2 * W) / grid;
+  // Grond als groot schaakbord
+  const W = 2600, grid = 26, cell = (2 * W) / grid;
+  const g1 = hex('#d7dbe0'), g2 = hex('#cfd4da');
   for (let i = 0; i < grid; i++) for (let j = 0; j < grid; j++) {
     const x0 = cx - W + i * cell, z0 = cz - W + j * cell;
-    mb.quad([x0, WATER_Y, z0], [x0 + cell, WATER_Y, z0], [x0 + cell, WATER_Y, z0 + cell], [x0, WATER_Y, z0 + cell], (i + j) % 2 ? sea : sea2, 0.02);
+    mb.quad([x0, GROUND_Y, z0], [x0 + cell, GROUND_Y, z0], [x0 + cell, GROUND_Y, z0 + cell], [x0, GROUND_Y, z0 + cell], (i + j) % 2 ? g1 : g2, 0.01);
   }
-  // Eilandjes met bomen
-  const sand = hex('#f2c58a'), grass = hex('#5fae5a'), grass2 = hex('#4b9a4f'), trunk = hex('#8a5a3c'), leaf = hex('#2f8a4f'), rock = hex('#8b7f99');
-  const island = (x, z, r, h) => {
-    const n = 7;
-    const ring = (rad, y, wob) => Array.from({ length: n }, (_, k) => {
-      const t = (k / n) * Math.PI * 2;
-      const rr = rad * (1 + (R() - 0.5) * wob);
-      return [x + Math.cos(t) * rr, y, z + Math.sin(t) * rr];
-    });
-    const r0 = ring(r * 1.15, WATER_Y - 0.5, 0.2), r1 = ring(r, WATER_Y + h * 0.4, 0.2), r2 = ring(r * 0.65, WATER_Y + h, 0.25);
-    for (let k = 0; k < n; k++) {
-      const k1 = (k + 1) % n;
-      mb.quad(r0[k], r0[k1], r1[k1], r1[k], sand);
-      mb.quad(r1[k], r1[k1], r2[k1], r2[k], grass2);
-    }
-    const top = [x, WATER_Y + h * 1.1, z];
-    for (let k = 0; k < n; k++) mb.tri(r2[k], r2[(k + 1) % n], top, grass);
-    const trees = 1 + Math.floor(R() * 4);
-    for (let t = 0; t < trees; t++) {
-      const a = R() * Math.PI * 2, d = R() * r * 0.45;
-      const tx = x + Math.cos(a) * d, tz = z + Math.sin(a) * d, ty = WATER_Y + h;
-      const th = 4 + R() * 4;
-      mb.box(tx - 0.4, tx + 0.4, ty, ty + th * 0.4, tz - 0.4, tz + 0.4, trunk);
-      const cone = 5;
-      const base = Array.from({ length: cone }, (_, k) => {
-        const tt = (k / cone) * Math.PI * 2;
-        return [tx + Math.cos(tt) * th * 0.35, ty + th * 0.35, tz + Math.sin(tt) * th * 0.35];
-      });
-      const apex = [tx, ty + th * 1.3, tz];
-      for (let k = 0; k < cone; k++) mb.tri(base[k], base[(k + 1) % cone], apex, leaf);
-    }
-  };
-  let placed = 0;
-  for (let tries = 0; tries < 400 && placed < 45; tries++) {
-    const x = b.minX - 250 + R() * (b.maxX - b.minX + 500);
-    const z = b.minZ - 250 + R() * (b.maxZ - b.minZ + 500);
-    const r = 8 + R() * 22;
-    if (!farFromTrack(x, z, r + 14)) continue;
-    island(x, z, r, 3 + R() * 8);
+  // Blokken in wit/grijs/zwart
+  const blockCols = [hex('#f4f5f7'), hex('#e1e4e8'), hex('#a9afb8'), hex('#5b616b'), hex('#2a2d33')];
+  for (let k = 0, placed = 0; k < 600 && placed < 70; k++) {
+    const x = b.minX - 300 + R() * (b.maxX - b.minX + 600);
+    const z = b.minZ - 300 + R() * (b.maxZ - b.minZ + 600);
+    const sx = 4 + R() * 16, sz = 4 + R() * 16;
+    if (!farFromTrack(x, z, Math.max(sx, sz) + 16)) continue;
+    const h = 4 + Math.pow(R(), 2) * 60;
+    mb.box(x - sx, x + sx, GROUND_Y, GROUND_Y + h, z - sz, z + sz, blockCols[Math.floor(R() * blockCols.length)], 0.03);
     placed++;
   }
-  // Rotsen in het water
-  for (let k = 0; k < 40; k++) {
-    const x = b.minX - 300 + R() * (b.maxX - b.minX + 600), z = b.minZ - 300 + R() * (b.maxZ - b.minZ + 600);
-    if (!farFromTrack(x, z, 12)) continue;
-    const s = 1.5 + R() * 3;
-    mb.hexa([[x - s, WATER_Y - 1, z - s], [x + s, WATER_Y - 1, z - s * 0.8], [x + s * 0.9, WATER_Y - 1, z + s], [x - s * 0.8, WATER_Y - 1, z + s],
-      [x - s * 0.5, WATER_Y + s * 0.9, z - s * 0.3], [x + s * 0.4, WATER_Y + s, z - s * 0.4], [x + s * 0.3, WATER_Y + s * 0.8, z + s * 0.5], [x - s * 0.4, WATER_Y + s * 0.7, z + s * 0.3]], rock, 0.1);
+  // Bomen (donkergroen, low-poly)
+  const trunk = hex('#4a4038'), leaf = hex('#3f5a46'), leaf2 = hex('#4d6b52');
+  for (let k = 0, placed = 0; k < 600 && placed < 90; k++) {
+    const x = b.minX - 300 + R() * (b.maxX - b.minX + 600);
+    const z = b.minZ - 300 + R() * (b.maxZ - b.minZ + 600);
+    if (!farFromTrack(x, z, 10)) continue;
+    const th = 6 + R() * 8, ty = GROUND_Y;
+    mb.box(x - 0.5, x + 0.5, ty, ty + th * 0.4, z - 0.5, z + 0.5, trunk);
+    const n = 5;
+    const base = Array.from({ length: n }, (_, i) => {
+      const t = (i / n) * Math.PI * 2;
+      return [x + Math.cos(t) * th * 0.35, ty + th * 0.35, z + Math.sin(t) * th * 0.35];
+    });
+    const apex = [x, ty + th * 1.3, z];
+    const lc = R() < 0.5 ? leaf : leaf2;
+    for (let i = 0; i < n; i++) mb.tri(base[i], base[(i + 1) % n], apex, lc);
+    placed++;
   }
   // Bergen in de verte
-  const mcols = [hex('#6a4a8c'), hex('#7d5592'), hex('#5a3f7a')];
+  const mcols = [hex('#9aa6b4'), hex('#aab4c0'), hex('#8c98a8')];
   const span = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
   for (let k = 0; k < 34; k++) {
     const t = (k / 34) * Math.PI * 2 + R() * 0.1;
@@ -616,21 +732,21 @@ function buildSceneryMesh(track, seed) {
     const n = 6;
     const base = Array.from({ length: n }, (_, i) => {
       const a = (i / n) * Math.PI * 2;
-      return [x + Math.cos(a) * r * (0.8 + R() * 0.4), WATER_Y - 2, z + Math.sin(a) * r * (0.8 + R() * 0.4)];
+      return [x + Math.cos(a) * r * (0.8 + R() * 0.4), GROUND_Y, z + Math.sin(a) * r * (0.8 + R() * 0.4)];
     });
-    const apex = [x + (R() - 0.5) * r * 0.3, WATER_Y + h, z + (R() - 0.5) * r * 0.3];
+    const apex = [x + (R() - 0.5) * r * 0.3, GROUND_Y + h, z + (R() - 0.5) * r * 0.3];
     const col = mcols[k % 3];
-    for (let i = 0; i < n; i++) mb.tri(base[i], base[(i + 1) % n], apex, col, 0.12);
+    for (let i = 0; i < n; i++) mb.tri(base[i], base[(i + 1) % n], apex, col, 0.08);
   }
   // Wolken
-  const cloud = hex('#ffd9e6');
+  const cloud = hex('#ffffff');
   for (let k = 0; k < 26; k++) {
     const x = b.minX - 500 + R() * (b.maxX - b.minX + 1000), z = b.minZ - 500 + R() * (b.maxZ - b.minZ + 1000);
-    const y = 70 + R() * 60;
+    const y = 90 + R() * 60;
     const parts = 3 + Math.floor(R() * 3);
     for (let p = 0; p < parts; p++) {
       const ox = x + (R() - 0.5) * 40, oz = z + (R() - 0.5) * 20, w = 10 + R() * 14, hh = 4 + R() * 5;
-      mb.box(ox - w, ox + w, y, y + hh, oz - w * 0.6, oz + w * 0.6, cloud, 0.05);
+      mb.box(ox - w, ox + w, y, y + hh, oz - w * 0.6, oz + w * 0.6, cloud, 0.03);
     }
   }
   return mb.build();
@@ -683,7 +799,7 @@ function buildShadowMesh() {
 // ----- Tekenen -----
 let viewProj = M4.ident();
 let camPos = [0, 0, 0];
-let fogNear = 140, fogFar = 1300;
+let fogNear = 160, fogFar = 1400;
 
 function resizeGL() {
   const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
@@ -692,10 +808,10 @@ function resizeGL() {
   gl.viewport(0, 0, w, h);
 }
 
-function setCamera(eye, target, fovDeg) {
+function setCamera(eye, target, fovDeg, up = [0, 1, 0]) {
   const aspect = glCanvas.width / glCanvas.height;
   const proj = M4.persp((fovDeg * Math.PI) / 180, aspect, 0.3, 2600);
-  const view = M4.lookAt(eye, target, [0, 1, 0]);
+  const view = M4.lookAt(eye, target, up);
   viewProj = M4.mul(proj, view);
   camPos = eye;
 }
@@ -710,19 +826,16 @@ function projectDir(dir) {
   return { x: x / w, y: y / w, front: w > 0 };
 }
 
-function drawSky(yaw) {
+function drawSky() {
   gl.disable(gl.DEPTH_TEST);
   gl.useProgram(skyProg.p);
   gl.bindBuffer(gl.ARRAY_BUFFER, skyBuf);
   const a = skyProg.a.aP;
   gl.enableVertexAttribArray(a);
   gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-  const hor = projectDir([Math.sin(yaw), 0, Math.cos(yaw)]);
-  const sun = projectDir(SUN_DIR);
-  gl.uniform1f(skyProg.u.uHor, hor.y);
-  gl.uniform2f(skyProg.u.uSun, sun.x, sun.y);
-  gl.uniform1f(skyProg.u.uSunOn, sun.front ? 1 : 0);
-  gl.uniform1f(skyProg.u.uAspect, glCanvas.width / glCanvas.height);
+  gl.uniformMatrix4fv(skyProg.u.uInv, false, M4.invert(viewProj));
+  gl.uniform3fv(skyProg.u.uCamP, camPos);
+  gl.uniform3fv(skyProg.u.uSunD, SUN_DIR);
   gl.uniform3fv(skyProg.u.uTop, SKY_TOP);
   gl.uniform3fv(skyProg.u.uMid, SKY_MID);
   gl.uniform3fv(skyProg.u.uHorC, SKY_HOR);
@@ -771,12 +884,18 @@ function drawMesh(mesh, model, opts = {}) {
 
 // ================= SPEL: levels, menu, HUD, geluid =================
 const LEVELS = [
-  { naam: 'Eerste Rit', code: 'S S R S C S L S S U S S D S C S R S S L S F', medals: [18.1, 20.3, 23.9], seed: 11 },
-  { naam: 'Springplank', code: 'S S J S S R S C S S J S L S S C B S K S S R S J S F', medals: [19.9, 22.5, 26.4], seed: 22 },
-  { naam: 'Hoogtevrees', code: 'S U S U S R S C S H S H S L S D S C r S l S D S R S H S F', medals: [23.9, 27.0, 31.6], seed: 33 },
-  { naam: 'Boostbaan', code: 'S B S J S S S R B S K S S C L S S B U S D J S C r r S B K S S L B S J S F', medals: [24.9, 28.1, 33.0], seed: 44 },
-  { naam: 'Slingerweg', code: 'S l r r l S C R S l l S r r S C L L S S R S C S l r S r l S F', medals: [26.5, 29.9, 35.0], seed: 55 },
-  { naam: 'Meesterwerk', code: 'S S U U U L S S L S S L S S S S S D D D C S R S J S S L S C B S K S S r S l S H S H S C S R S B K S F', medals: [39.6, 44.7, 52.5], seed: 66 },
+  { naam: 'Eerste Rit', code: 'S S R S C S L S S U S D S C S R S S L S F', medals: [19.7, 22.6, 26.8], seed: 11 },
+  { naam: 'Springplank', code: 'S S J S S R S C S S J S L S S S C B S K S S F', medals: [20.4, 23.4, 27.7], seed: 22 },
+  { naam: 'Looping', code: 'S S S O S S R S C S S O S L S C S S S O S S F', medals: [22.3, 25.5, 30.3], seed: 33 },
+  { naam: 'Schuine Bochten', code: 'S S Y S S Z S C S Y S S Z S C S S F', medals: [18.5, 21.2, 25.2], seed: 44 },
+  { naam: 'Bultenweg', code: 'S H S H S R S H S H S H S C S L S H S J S C S H H S F', medals: [21.5, 24.6, 29.2], seed: 55 },
+  { naam: 'Boostbaan', code: 'S B S J S S S R B S K S S C L S S U S D B J S S C r r S B K S S F', medals: [25.4, 29.1, 34.6], seed: 66 },
+  { naam: 'Muurrit', code: 'S S S W S S S C S S M S S S C B S W S S F', medals: [16.8, 19.3, 22.8], seed: 77 },
+  { naam: 'Smalle Paden', code: 'S N S R N S C S L N S J S C r N l S F', medals: [19.3, 22.1, 26.3], seed: 88 },
+  { naam: 'Achtbaan', code: 'S S O S S U S D S C S R S O S S H H S C S L S S O S F', medals: [26.3, 30.1, 35.7], seed: 99 },
+  { naam: 'Slingerweg', code: 'S l r r l S C R S l l S r r S C L L S S R S C S l r S r l S F', medals: [28.8, 33.0, 39.1], seed: 111 },
+  { naam: 'Wolkenkrabber', code: 'S S U U U S W S S S C S M S S D D D S C S O S J S S F', medals: [26.2, 30.1, 35.7], seed: 122 },
+  { naam: 'Meesterwerk', code: 'S S U U U L S S L S S L S S S S S D D D C S R S J S S L S C B S K S S O S Y S S C S N S W S S S H H S C S O S B K S F', medals: [53.2, 60.9, 72.3], seed: 133 },
 ];
 const MEDAL_NAMES = ['GOUD', 'ZILVER', 'BRONS'];
 const MEDAL_COLORS = ['#ffd23f', '#d9dee8', '#d98a4a'];
@@ -790,7 +909,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('tt2_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('tt2_' + k, JSON.stringify(v)); } catch (e) { /* vol of uit */ } },
 };
-let bests = store.get('bests', {});        // { levelIndex: { t, splits } }
+let bests = store.get('bests2', {});        // { levelIndex: { t, splits } }
 let carColor = store.get('color', CAR_COLORS[0]);
 let muted = store.get('muted', false);
 
@@ -849,7 +968,7 @@ function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
 function updateEngine() {
   if (!audio || !engOsc) return;
   const playing = (state === 'race' || state === 'finish') && !muted;
-  const spd = car ? Math.abs(car.fwd) : 0;
+  const spd = car ? car.kmh / 4 : 0;
   const f = 55 + spd * 3.2 + (car && !car.ground ? 25 : 0);
   engOsc.frequency.setTargetAtTime(f, audio.currentTime, 0.05);
   engOsc2.frequency.setTargetAtTime(f * 0.5, audio.currentTime, 0.05);
@@ -910,7 +1029,7 @@ let car, race, ghost = null;
 let toast = null;
 let result = null;
 let shake = 0;
-const cam = { x: 0, y: 10, z: -10, yaw: 0, fov: 70 };
+const cam = { pos: [0, 10, -10], F: [0, 0, 1], U: [0, 1, 0], fov: 70 };
 let menuTime = 0;
 
 shadowMesh = gl ? buildShadowMesh() : null;
@@ -929,8 +1048,8 @@ function loadLevel(i) {
 function restart() {
   car = newCar(track);
   race = newRace(track);
-  const g = store.get('ghost' + levelIdx, null);
-  ghost = g && g.length > 8 ? g : null;
+  const g = store.get('ghost2_' + levelIdx, null);
+  ghost = g && g.length > 18 ? g : null;
   toast = null;
   result = null;
   state = 'race';
@@ -955,7 +1074,7 @@ function onKey(code) {
       const firstOpen = LEVELS.findIndex((_, i) => unlocked(i) && bests[i] == null);
       startLevel(firstOpen >= 0 ? firstOpen : 0);
     }
-    if (/^Digit[1-6]$/.test(code)) startLevel(+code.slice(5) - 1);
+    if (/^Digit[1-9]$/.test(code)) startLevel(+code.slice(5) - 1);
     return;
   }
   if (state === 'race') {
@@ -986,8 +1105,8 @@ function finishRace() {
   const wasLocked = levelIdx < LEVELS.length - 1 && !unlocked(levelIdx + 1);
   if (isRecord) {
     bests[levelIdx] = { t, splits: race.splits.slice() };
-    store.set('bests', bests);
-    store.set('ghost' + levelIdx, race.ghost);
+    store.set('bests2', bests);
+    store.set('ghost2_' + levelIdx, race.ghost);
   }
   result = { t, isRecord, prev: prev ? prev.t : null, medal, newMedal: medal >= 0 && (prevMedal < 0 || medal < prevMedal), unlockedNext: wasLocked };
   state = 'finish';
@@ -1019,15 +1138,15 @@ function update(dt) {
       beep(990, 0.12, 'triangle', 0.06);
       beep(1320, 0.18, 'triangle', 0.05, 0, 0.1);
     }
-    if (e === 'splash') {
-      toast = { title: '💦 Plons!', sub: 'Terug naar het laatste checkpoint', t: 1.8 };
+    if (e === 'fall') {
+      toast = { title: 'Eraf gevallen!', sub: 'Terug naar het laatste checkpoint', t: 1.8 };
       beep(220, 0.45, 'sine', 0.08, -160);
       shake = 6;
       snapCamera();
     }
     if (e === 'finish') finishRace();
   }
-  if (car.landing && car.landing < -14) { shake = Math.min(8, -car.landing / 4); beep(80, 0.18, 'sawtooth', 0.05, -30); }
+  if (car.landing && car.landing < -10) { shake = Math.min(8, -car.landing / 4); beep(80, 0.18, 'sawtooth', 0.05, -30); }
   car.landing = 0;
   if (car.boost > 0.95 && !car._boostSnd) { beep(320, 0.35, 'sawtooth', 0.04, 500); car._boostSnd = true; }
   if (car.boost <= 0) car._boostSnd = false;
@@ -1035,25 +1154,21 @@ function update(dt) {
 }
 
 function snapCamera() {
-  cam.yaw = car.a;
-  const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
-  cam.x = car.x - fx * 9;
-  cam.z = car.z - fz * 9;
-  cam.y = car.y + 3.6;
+  cam.F = car.F.slice();
+  cam.U = car.U.slice();
+  cam.pos = V.add(V.ma(car.pos, cam.F, -9), V.mul(cam.U, 3.6));
 }
 
 function updateCamera(dt) {
-  // Bij hoge snelheid volgt de camera iets losser
-  const k = Math.min(1, 6 * dt);
-  cam.yaw += angleDiff(car.a, cam.yaw) * k;
-  const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
-  const spd = Math.hypot(car.vx, car.vz);
+  // De camera draait mee met de auto (ook in loopings), net iets vertraagd
+  cam.F = V.norm(V.lerp(cam.F, car.F, Math.min(1, 6 * dt)));
+  cam.U = V.norm(V.lerp(cam.U, car.ground ? car.U : [0, 1, 0], Math.min(1, (car.ground ? 5 : 2) * dt)));
+  const spd = V.len(car.vel);
   const back = 8.5 + spd * 0.04;
-  const tx = car.x - fx * back, tz = car.z - fz * back, ty = car.y + 3.4 + spd * 0.015;
-  const kp = Math.min(1, 14 * dt);
-  cam.x += (tx - cam.x) * kp;
-  cam.z += (tz - cam.z) * kp;
-  cam.y += (ty - cam.y) * Math.min(1, 8 * dt);
+  // Op gewone stukken kijkt de camera vlakker mee (niet onder een schans duiken)
+  const Fc = cam.U[1] > 0.6 ? V.norm([cam.F[0], cam.F[1] * 0.3, cam.F[2]]) : cam.F;
+  const target = V.add(V.ma(car.pos, Fc, -back), V.mul(cam.U, 3.6 + spd * 0.015));
+  cam.pos = V.lerp(cam.pos, target, Math.min(1, 12 * dt));
   cam.fov += (66 + Math.min(18, spd * 0.32) - cam.fov) * Math.min(1, 4 * dt);
 }
 
@@ -1061,7 +1176,7 @@ function updateCamera(dt) {
 function render() {
   if (!gl) return;
   resizeGL();
-  let eye, target, fov, yaw;
+  let eye, target, fov, up = [0, 1, 0];
   if (state === 'menu') {
     const b = track.bounds;
     const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
@@ -1070,43 +1185,43 @@ function render() {
     eye = [cx + Math.sin(a) * rad, 70, cz + Math.cos(a) * rad];
     target = [cx, 4, cz];
     fov = 60;
-    yaw = Math.atan2(target[0] - eye[0], target[2] - eye[2]);
   } else {
-    const sx = shake ? (Math.random() - 0.5) * shake * 0.08 : 0, sy = shake ? (Math.random() - 0.5) * shake * 0.08 : 0;
-    eye = [cam.x + sx, cam.y + sy, cam.z];
-    const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
-    target = [car.x + fx * 4, car.y + 1.4, car.z + fz * 4];
+    const sh = shake ? shake * 0.08 : 0;
+    eye = V.add(cam.pos, [(Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh, 0]);
+    target = V.add(V.ma(car.pos, cam.F, 4), V.mul(cam.U, 1.4));
     fov = cam.fov;
-    yaw = cam.yaw;
+    up = cam.U;
   }
-  setCamera(eye, target, fov);
+  setCamera(eye, target, fov, up);
   gl.clearColor(FOG[0], FOG[1], FOG[2], 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  drawSky(yaw);
+  drawSky();
   beginScene();
   drawMesh(sceneryMesh);
   drawMesh(trackMesh);
   if (state !== 'menu') {
     // Schaduw op de weg
-    if (car.onRoad && car.roadH != null) {
+    if (car.shadow) {
+      const fr = car.shadow.fr;
+      const height = V.dot(V.sub(car.pos, car.shadow.P), fr.N);
+      const Fp = V.norm(V.ma(car.F, fr.N, -V.dot(car.F, fr.N)));
       gl.enable(gl.POLYGON_OFFSET_FILL);
       gl.polygonOffset(-2, -2);
-      const fade = Math.max(0.12, 0.4 - (car.y - car.roadH) * 0.03);
-      drawMesh(shadowMesh, M4.model(car.x, car.roadH + 0.02, car.z, car.a, 0, 0), { alpha: fade, tint: [0, 0, 0, 1] });
+      drawMesh(shadowMesh, M4.basis(V.ma(car.shadow.P, fr.N, 0.03), Fp, fr.N), { alpha: Math.max(0.1, 0.4 - height * 0.03), tint: [0, 0, 0, 1] });
       gl.disable(gl.POLYGON_OFFSET_FILL);
     }
-    drawMesh(carMesh, M4.model(car.x, car.y, car.z, car.a, car.pitch, car.roll));
+    drawMesh(carMesh, M4.basis(car.pos, car.F, car.U));
     // Spookauto van je beste rit
     if (ghost && race.started) {
       const fr = race.t * 30;
       const i0 = Math.floor(fr), f = fr - i0;
-      const n = ghost.length / 4;
+      const n = ghost.length / 9;
       if (i0 < n - 1) {
-        const g = (k, o) => ghost[k * 4 + o];
-        const gx = lerp(g(i0, 0), g(i0 + 1, 0), f), gy = lerp(g(i0, 1), g(i0 + 1, 1), f), gz = lerp(g(i0, 2), g(i0 + 1, 2), f);
-        const ga = g(i0, 3) + angleDiff(g(i0 + 1, 3), g(i0, 3)) * f;
-        const d = Math.hypot(gx - car.x, gz - car.z);
-        drawMesh(ghostMesh, M4.model(gx, gy, gz, ga, 0, 0), { alpha: d < 6 ? 0.18 : 0.4, tint: [0.75, 0.92, 1, 0.55] });
+        const g = (k, o) => ghost[k * 9 + o];
+        const L = (o) => lerp(g(i0, o), g(i0 + 1, o), f);
+        const gp = [L(0), L(1), L(2)], gF = V.norm([L(3), L(4), L(5)]), gU = V.norm([L(6), L(7), L(8)]);
+        const d = V.len(V.sub(gp, car.pos));
+        drawMesh(ghostMesh, M4.basis(gp, gF, gU), { alpha: d < 6 ? 0.18 : 0.4, tint: [0.85, 0.9, 1, 0.55] });
       }
     }
   }
@@ -1135,7 +1250,7 @@ function rr(x, y, w, h, r) {
   hctx.closePath();
 }
 function panel(x, y, w, h, alpha = 0.55) {
-  hctx.fillStyle = `rgba(20, 16, 44, ${alpha})`;
+  hctx.fillStyle = `rgba(14, 15, 18, ${alpha})`;
   rr(x, y, w, h, 14);
   hctx.fill();
 }
@@ -1148,11 +1263,11 @@ function text(t, x, y, size, color = '#fff', align = 'left', weight = '700', fon
 }
 const MONO = 'ui-monospace, "Cascadia Mono", Consolas, monospace';
 function button(label, x, y, w, h, fn, primary = false) {
-  hctx.fillStyle = primary ? '#ff5d8f' : 'rgba(255,255,255,0.14)';
+  hctx.fillStyle = primary ? '#ffffff' : 'rgba(255,255,255,0.14)';
   rr(x, y, w, h, 12);
   hctx.fill();
   if (!primary) { hctx.strokeStyle = 'rgba(255,255,255,0.35)'; hctx.lineWidth = 1.5; hctx.stroke(); }
-  text(label, x + w / 2, y + h / 2 + 1, Math.min(18, h * 0.4), '#fff', 'center');
+  text(label, x + w / 2, y + h / 2 + 1, Math.min(18, h * 0.4), primary ? '#111214' : '#fff', 'center');
   uiButtons.push({ x, y, w, h, fn });
 }
 function medalBadge(x, y, r, idx) {
@@ -1185,58 +1300,54 @@ function drawHud() {
 
 function drawMenu() {
   const W = HW_, H = HH_;
-  hctx.fillStyle = 'rgba(16, 10, 40, 0.35)';
+  hctx.fillStyle = 'rgba(12, 13, 16, 0.25)';
   hctx.fillRect(0, 0, W, H);
   const small = W < 640;
   // Titel
   const ty = small ? 50 : 70;
   hctx.save();
-  hctx.shadowColor = '#ff5d8f';
-  hctx.shadowBlur = 24;
-  const g = hctx.createLinearGradient(W / 2 - 250, 0, W / 2 + 250, 0);
-  g.addColorStop(0, '#ffd23f');
-  g.addColorStop(0.5, '#ff7a59');
-  g.addColorStop(1, '#ff4fb0');
+  hctx.shadowColor = 'rgba(0,0,0,0.35)';
+  hctx.shadowBlur = 18;
   hctx.font = `italic 900 ${small ? 38 : 64}px system-ui, sans-serif`;
-  hctx.fillStyle = g;
+  hctx.fillStyle = '#ffffff';
   hctx.textAlign = 'center';
   hctx.textBaseline = 'middle';
   hctx.fillText('TURBO TIJDRIT', W / 2, ty);
   hctx.restore();
-  text('SUNSET EDITION · kies een level', W / 2, ty + (small ? 34 : 48), small ? 13 : 16, '#ffe3d6', 'center', '600');
+  text('kies een level', W / 2, ty + (small ? 34 : 48), small ? 13 : 16, '#ffffff', 'center', '600');
 
   // Levelkaarten
-  const cols = W > 900 ? 3 : 2;
-  const gap = 14;
-  const cw = Math.min(260, (W - 40 - gap * (cols - 1)) / cols), ch = small ? 92 : 112;
+  const cols = W > 1000 ? 4 : W > 700 ? 3 : 2;
+  const gap = small ? 10 : 12;
+  const cw = Math.min(250, (W - 30 - gap * (cols - 1)) / cols), ch = small ? 66 : 84;
   const totalW = cols * cw + (cols - 1) * gap;
-  const x0 = (W - totalW) / 2, y0 = ty + (small ? 64 : 90);
+  const x0 = (W - totalW) / 2, y0 = ty + (small ? 58 : 84);
   LEVELS.forEach((lv, i) => {
     const x = x0 + (i % cols) * (cw + gap), y = y0 + Math.floor(i / cols) * (ch + gap);
     const open = unlocked(i);
     const best = bests[i];
     const medal = best ? medalFor(i, best.t) : -1;
-    hctx.fillStyle = open ? 'rgba(30, 20, 60, 0.72)' : 'rgba(30, 20, 60, 0.4)';
+    hctx.fillStyle = open ? 'rgba(14, 15, 18, 0.72)' : 'rgba(14, 15, 18, 0.4)';
     rr(x, y, cw, ch, 16);
     hctx.fill();
-    hctx.strokeStyle = open ? 'rgba(255, 140, 160, 0.6)' : 'rgba(255,255,255,0.12)';
+    hctx.strokeStyle = open ? 'rgba(255, 255, 255, 0.55)' : 'rgba(255,255,255,0.12)';
     hctx.lineWidth = 2;
     hctx.stroke();
-    text(String(i + 1), x + 26, y + ch / 2, small ? 30 : 38, open ? '#ffd23f' : 'rgba(255,255,255,0.3)', 'center', '900');
-    text(lv.naam, x + 52, y + ch * 0.32, small ? 15 : 19, open ? '#fff' : 'rgba(255,255,255,0.4)');
+    text(String(i + 1), x + 28, y + ch / 2, small ? 26 : 34, open ? '#ffffff' : 'rgba(255,255,255,0.3)', 'center', '900');
+    text(lv.naam, x + 52, y + ch * 0.34, small ? 14 : 17, open ? '#fff' : 'rgba(255,255,255,0.4)');
     if (open) {
-      text(best ? fmt(best.t) : (small ? 'nieuw!' : 'nog niet gereden'), x + 52, y + ch * 0.62, small ? 13 : 15, best ? '#ffe3d6' : 'rgba(255,255,255,0.5)', 'left', '600', best ? MONO : undefined);
+      text(best ? fmt(best.t) : (small ? 'nieuw!' : 'nog niet gereden'), x + 52, y + ch * 0.67, small ? 12 : 14, best ? '#c9ced6' : 'rgba(255,255,255,0.5)', 'left', '600', best ? MONO : undefined);
       if (small) medalBadge(x + cw - 16, y + 16, 9, medal); else medalBadge(x + cw - 26, y + ch / 2, 15, medal);
       uiButtons.push({ x, y, w: cw, h: ch, fn: () => startLevel(i) });
     } else {
-      text(small ? '🔒 op slot' : '🔒 haal eerst level ' + i, x + 52, y + ch * 0.62, small ? 12 : 14, 'rgba(255,255,255,0.45)', 'left', '500');
+      text(small ? '🔒 op slot' : '🔒 haal eerst level ' + i, x + 52, y + ch * 0.67, small ? 11 : 13, 'rgba(255,255,255,0.45)', 'left', '500');
     }
   });
 
   // Kleur van je auto
   const rows = Math.ceil(LEVELS.length / cols);
-  const cy = y0 + rows * (ch + gap) + 22;
-  text('Kleur van je auto', W / 2, cy, 15, '#ffe3d6', 'center', '600');
+  const cy = y0 + rows * (ch + gap) + 14;
+  text('Kleur van je auto', W / 2, cy, 15, '#ffffff', 'center', '600');
   const sw = 34, sg = 10, sx0 = W / 2 - (CAR_COLORS.length * (sw + sg) - sg) / 2;
   CAR_COLORS.forEach((c, i) => {
     const x = sx0 + i * (sw + sg) + sw / 2, y = cy + 34;
@@ -1249,7 +1360,7 @@ function drawMenu() {
     hctx.stroke();
     uiButtons.push({ x: x - sw / 2, y: y - sw / 2, w: sw, h: sw, fn: () => { carColor = c; store.set('color', c); carMesh = buildCarMesh(c); } });
   });
-  if (!small) text('↑/W gas · ↓/S rem · ←→ sturen · Spatie drift · R opnieuw · Enter terug naar checkpoint · M geluid', W / 2, H - 22, 13, 'rgba(255,240,230,0.8)', 'center', '500');
+  if (!small) text('↑/W gas · ↓/S rem · ←→ sturen · Spatie drift · R opnieuw · Enter terug naar checkpoint · M geluid', W / 2, H - 22, 13, 'rgba(40,44,52,0.85)', 'center', '500');
 }
 
 function drawRaceHud() {
@@ -1260,27 +1371,27 @@ function drawRaceHud() {
   const tw = small ? 200 : 260;
   panel(W / 2 - tw / 2, 14, tw, small ? 62 : 74);
   text(fmt(race.t), W / 2, small ? 38 : 44, small ? 30 : 38, '#fff', 'center', '800', MONO);
-  text(track.cps.length ? `Checkpoint ${race.nextCp}/${track.cps.length}` : '', W / 2, small ? 64 : 76, 12, 'rgba(255,230,220,0.85)', 'center', '600');
+  text(track.cps.length ? `Checkpoint ${race.nextCp}/${track.cps.length}` : '', W / 2, small ? 64 : 76, 12, 'rgba(230,233,238,0.85)', 'center', '600');
 
   // Level + medailles links
   if (!small) {
     panel(14, 14, 200, 128);
-    text(`${levelIdx + 1}. ${lv.naam}`, 28, 36, 16, '#ffd23f');
+    text(`${levelIdx + 1}. ${lv.naam}`, 28, 36, 16, '#ffffff');
     lv.medals.forEach((m, i) => {
       medalBadge(36, 62 + i * 22, 7, i);
       text(fmt(m), 52, 62 + i * 22, 14, race.t > m && race.started ? 'rgba(255,255,255,0.4)' : '#fff', 'left', '600', MONO);
     });
     const b = bests[levelIdx];
-    text(`Record ${b ? fmt(b.t) : '--'}`, 28, 128, 12, '#ffe3d6', 'left', '600');
+    text(`Record ${b ? fmt(b.t) : '--'}`, 28, 128, 12, '#c9ced6', 'left', '600');
   }
 
   // Snelheid
-  const kmh = Math.round(Math.abs(car.fwd) * 4);
+  const kmh = car.kmh;
   panel(14, H - (small ? 150 : 84), 140, 68);
   text(String(kmh), 28, H - (small ? 116 : 50), 34, '#fff', 'left', '800', MONO);
-  text('km/u', 100, H - (small ? 108 : 42), 13, '#ffd2c2', 'left', '600');
-  if (!car.ground && race.started) text('IN DE LUCHT', 28, H - (small ? 142 : 76), 11, '#ffd23f', 'left', '800');
-  else if (car.boost > 0) text('BOOST!', 28, H - (small ? 142 : 76), 11, '#ff8a1f', 'left', '800');
+  text('km/u', 100, H - (small ? 108 : 42), 13, '#c9ced6', 'left', '600');
+  if (!car.ground && race.started) text('IN DE LUCHT', 28, H - (small ? 142 : 76), 11, '#ffffff', 'left', '800');
+  else if (car.boost > 0) text('BOOST!', 28, H - (small ? 142 : 76), 11, '#6aa5ff', 'left', '800');
 
   // Pauzeknop
   button('', W - 60, 14, 46, 46, () => { if (state === 'race') state = 'pause'; });
@@ -1297,8 +1408,8 @@ function drawRaceHud() {
     if (toast.delta != null) {
       const good = toast.delta <= 0;
       text(`${good ? '−' : '+'}${Math.abs(toast.delta).toFixed(3)}`, W / 2, y + 44, 18, good ? '#6dff9a' : '#ff6b7f', 'center', '800', MONO);
-    } else if (toast.sub) text(toast.sub, W / 2, y + 44, 13, '#ffe3d6', 'center', '500');
-    else text(fmt(toast.time), W / 2, y + 44, 15, '#ffe3d6', 'center', '700', MONO);
+    } else if (toast.sub) text(toast.sub, W / 2, y + 44, 13, '#c9ced6', 'center', '500');
+    else text(fmt(toast.time), W / 2, y + 44, 15, '#c9ced6', 'center', '700', MONO);
     hctx.globalAlpha = 1;
   }
 
@@ -1306,15 +1417,15 @@ function drawRaceHud() {
     const y = H * 0.62;
     panel(W / 2 - 190, y - 34, 380, 68, 0.6);
     text('Geef gas om te starten!', W / 2, y - 8, 22, '#fff', 'center', '800');
-    text(ghost ? 'Je race tegen je spookauto 👻' : 'De tijd start zodra je rijdt', W / 2, y + 18, 13, '#ffe3d6', 'center', '500');
+    text(ghost ? 'Je race tegen je spookauto 👻' : 'De tijd start zodra je rijdt', W / 2, y + 18, 13, '#c9ced6', 'center', '500');
   } else if (state === 'race' && !small) {
-    text('R = opnieuw · Enter = terug naar checkpoint · Esc = pauze', W / 2, H - 18, 12, 'rgba(255,240,230,0.7)', 'center', '500');
+    text('R = opnieuw · Enter = terug naar checkpoint · Esc = pauze', W / 2, H - 18, 12, 'rgba(255,255,255,0.75)', 'center', '500');
   }
 }
 
 function drawPause() {
   const W = HW_, H = HH_;
-  hctx.fillStyle = 'rgba(16, 10, 40, 0.55)';
+  hctx.fillStyle = 'rgba(12, 13, 16, 0.55)';
   hctx.fillRect(0, 0, W, H);
   panel(W / 2 - 160, H / 2 - 130, 320, 260, 0.85);
   text('PAUZE', W / 2, H / 2 - 92, 34, '#fff', 'center', '900');
@@ -1325,7 +1436,7 @@ function drawPause() {
 
 function drawFinish() {
   const W = HW_, H = HH_;
-  hctx.fillStyle = 'rgba(16, 10, 40, 0.5)';
+  hctx.fillStyle = 'rgba(12, 13, 16, 0.5)';
   hctx.fillRect(0, 0, W, H);
   const pw = Math.min(400, W - 30), ph = 360;
   const x = W / 2 - pw / 2, y = H / 2 - ph / 2;
@@ -1336,10 +1447,10 @@ function drawFinish() {
     medalBadge(W / 2 - 70, y + 140, 18, result.medal);
     text(MEDAL_NAMES[result.medal], W / 2 - 42, y + 141, 22, MEDAL_COLORS[result.medal], 'left', '900');
   } else {
-    text(`Brons haal je onder ${fmt(LEVELS[levelIdx].medals[2])}`, W / 2, y + 140, 14, '#ffe3d6', 'center', '600');
+    text(`Brons haal je onder ${fmt(LEVELS[levelIdx].medals[2])}`, W / 2, y + 140, 14, '#c9ced6', 'center', '600');
   }
   let line = result.isRecord ? (result.prev ? `🏆 Nieuw record! (${(result.t - result.prev).toFixed(3)})` : '🏆 Eerste tijd neergezet!') : `Record: ${fmt(result.prev)}  (+${(result.t - result.prev).toFixed(3)})`;
-  text(line, W / 2, y + 180, 15, result.isRecord ? '#ffd23f' : '#ffe3d6', 'center', '700');
+  text(line, W / 2, y + 180, 15, result.isRecord ? '#ffffff' : '#c9ced6', 'center', '700');
   if (result.unlockedNext) text(`🔓 Level ${levelIdx + 2} is vrijgespeeld!`, W / 2, y + 206, 14, '#6dff9a', 'center', '700');
   const bw = (pw - 60) / 2;
   button('↻  Opnieuw', x + 20, y + ph - 110, bw, 44, restart, levelIdx === LEVELS.length - 1);

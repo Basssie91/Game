@@ -1,6 +1,6 @@
-# 🌅 Turbo Tijdrit · Sunset Edition
+# 🏁 Turbo Tijdrit
 
-Een 3D-racegame in je browser, geïnspireerd op PolyTrack, maar in een eigen stijl: een low-poly zonsondergang boven een zee vol eilandjes. Race tegen de klok over zwevende banen met schansen, boosts, hellingen en bruggen.
+Een 3D-racegame in je browser, geïnspireerd op PolyTrack, in een strakke wit-zwart-grijze stijl. Race tegen de klok over zwevende banen met loopings, schuine bochten, muurritten, schansen, boosts en smalle stukken.
 
 **Spelen:** https://basjonker2009-lab.github.io/Game/
 
@@ -8,12 +8,18 @@ Een 3D-racegame in je browser, geïnspireerd op PolyTrack, maar in een eigen sti
 
 | # | Level | Wat je krijgt |
 |---|---|---|
-| 1 | Eerste Rit | Rustig beginnen: bochten en een heuvel |
-| 2 | Springplank | Schansen over het water |
-| 3 | Hoogtevrees | Hoog, hoger, bulten |
-| 4 | Boostbaan | Boosts en grote sprongen |
-| 5 | Slingerweg | Bocht na bocht |
-| 6 | Meesterwerk | Alles tegelijk, met een brug over de start |
+| 1 | Eerste Rit | Rustig beginnen |
+| 2 | Springplank | Schansen over een gat |
+| 3 | Looping | Drie loopings: genoeg snelheid of je valt eraf |
+| 4 | Schuine Bochten | Gekantelde bochten |
+| 5 | Bultenweg | Bulten waar je overheen vliegt |
+| 6 | Boostbaan | Boosts en grote sprongen |
+| 7 | Muurrit | Bijna verticaal over de muur rijden |
+| 8 | Smalle Paden | Smalle stukken weg |
+| 9 | Achtbaan | Loopings en heuvels |
+| 10 | Slingerweg | Bocht na bocht |
+| 11 | Wolkenkrabber | Hoog klimmen, muren en een looping |
+| 12 | Meesterwerk | Alles tegelijk |
 
 Haal een level om het volgende vrij te spelen. Per level zijn er medailles te verdienen: 🥇 goud, 🥈 zilver en 🥉 brons.
 
