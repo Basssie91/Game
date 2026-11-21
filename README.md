@@ -1,6 +1,6 @@
-# 🎮 Bas Arcade
+# 🎮 Game Arcade
 
-![Bas Arcade](bas-arcade-share.png)
+![Game Arcade](game-arcade-share.png)
 
 Gratis browsergames die je meteen kunt spelen, op pc en op je telefoon.
 
