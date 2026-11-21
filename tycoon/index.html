@@ -1396,12 +1396,12 @@ c.addEventListener('pointerup', endDrag); c.addEventListener('pointercancel', en
 // In de code staat alleen een 'vingerafdruk' (SHA-256) van de code, niet de code zelf.
 const ADMIN_HASH = '3caffc05c7f0e2906e518b7c96b1a3bab9ae1ed894b83d31ca651e93a0b19a15';
 async function sha256(t) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join(''); }
-let adminOk = sessionStorage.getItem('tyc_admin') === ADMIN_HASH;
+let adminOk = false;   // elke keer opnieuw de code vragen
 let moneyTaps = [];
 $('money').style.pointerEvents = 'auto';
 $('money').addEventListener('click', () => { const now = Date.now(); moneyTaps = moneyTaps.filter((t) => now - t < 2000); moneyTaps.push(now); if (moneyTaps.length >= 5) { moneyTaps = []; openAdmin(); } });
 addEventListener('keydown', (e) => { if (e.ctrlKey && e.shiftKey && e.code === 'KeyA') { e.preventDefault(); openAdmin(); } });
-$('adminClose').onclick = () => $('admin').classList.add('hide');
+$('adminClose').onclick = () => { $('admin').classList.add('hide'); adminOk = false; };
 function openAdmin() {
   for (const k in keys) keys[k] = false;
   $('admin').classList.remove('hide');
@@ -1409,7 +1409,7 @@ function openAdmin() {
     $('adminBody').innerHTML = `<p>Voer de admincode in:</p><input id="aCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Code"><button id="aGo" class="pri">OK</button><p id="aMsg" class="muted"></p>`;
     const go = async () => {
       const h = await sha256($('aCode').value.trim().toUpperCase());
-      if (h === ADMIN_HASH) { adminOk = true; sessionStorage.setItem('tyc_admin', h); openAdmin(); }
+      if (h === ADMIN_HASH) { adminOk = true; openAdmin(); }
       else { $('aMsg').textContent = 'Verkeerde code.'; $('aCode').value = ''; }
     };
     $('aGo').onclick = go; $('aCode').onkeydown = (e) => { if (e.key === 'Enter') go(); };
@@ -1427,7 +1427,7 @@ function openAdmin() {
   $('aAdd').onclick = () => { if ($('aAmount').value === '') return; const v = Math.max(0, +$('aAmount').value || 0); SV.money = v; done(`Saldo is nu €${fmt(v)}`); };
   $('aAll').onclick = () => { for (const u of LV.unlocks) if (u.kind !== 'next' && !SV.unlocked[u.id]) { SV.unlocked[u.id] = 1; delete SV.paid[u.id]; spawnUnlock(u, true); } buildNav(); refreshPads(); done('Alles ontgrendeld'); };
   $('aUp').onclick = () => { for (const u of UPGR) SV.up[u.id] = u.max; done('Alle upgrades op max'); };
-  $('aNext').onclick = () => { $('admin').classList.add('hide'); const u = LV.unlocks.find((x) => x.kind === 'next'); unlock(u); };
+  $('aNext').onclick = () => { $('admin').classList.add('hide'); adminOk = false; const u = LV.unlocks.find((x) => x.kind === 'next'); unlock(u); };
 }
 
 // ----- Opslaan / laden -----
