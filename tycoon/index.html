@@ -32,7 +32,7 @@ canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,
 .toast { background: rgba(40,34,14,0.95); border: 1px solid rgba(255,210,63,0.8); color: #fff; padding: 8px 14px; border-radius: 10px; font: 800 14px system-ui; transition: opacity 0.4s; }
 .toast.out { opacity: 0; }
 #upPanel { position: absolute; right: 14px; top: 64px; width: min(340px, 92vw); max-height: calc(100vh - 90px); overflow: auto; pointer-events: auto; background: rgba(20,22,27,0.96); border: 1px solid rgba(255,255,255,0.15); border-radius: 16px; padding: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); color: #fff; }
-#upPanel.hide, #joy.hide, #modal.hide { display: none; }
+#upPanel.hide, #joy.hide, #modal.hide, #admin.hide { display: none; }
 #upPanel h3 { margin: 0 0 10px; }
 #upPanel small { color: #8a919b; display: block; text-align: center; margin-top: 6px; }
 .urow { display: flex; align-items: center; gap: 10px; padding: 8px; background: #1b1e24; border-radius: 10px; margin-bottom: 6px; }
@@ -47,6 +47,16 @@ canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,
 #modal .mb { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 #modal button { border: 0; border-radius: 10px; padding: 11px 18px; font: 800 15px system-ui; cursor: pointer; background: rgba(255,255,255,0.1); color: #fff; }
 #modal button.pri { background: #fff; color: #111214; }
+
+#money { cursor: default; }
+#admin { position: absolute; inset: 0; pointer-events: auto; background: rgba(5,6,8,0.7); display: grid; place-items: center; padding: 16px; z-index: 20; }
+#admin .box { width: min(460px, 100%); background: linear-gradient(180deg, #20232a, #15171c); border: 1px solid rgba(232,40,47,0.6); border-radius: 18px; padding: 20px; color: #fff; }
+#admin h2 { margin: 0 0 8px; } #admin p { color: #c9ced6; font-size: 14px; margin: 10px 0 6px; } #admin .muted { color: #5fd38a; min-height: 18px; }
+#admin input { width: 100%; box-sizing: border-box; background: #0e0f13; color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 10px; font: 700 15px system-ui; margin-bottom: 8px; }
+#admin .arow { display: flex; flex-wrap: wrap; gap: 6px; } #admin .arow input { flex: 1; margin: 0; }
+#admin button { border: 0; border-radius: 10px; padding: 9px 12px; font: 800 13px system-ui; cursor: pointer; background: rgba(255,255,255,0.1); color: #fff; }
+#admin button.pri { background: #fff; color: #111214; }
+#admin .mb { display: flex; justify-content: flex-end; margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -1310,7 +1320,8 @@ hud.innerHTML = `
   <div id="hint"></div>
   <div id="upPanel" class="hide"><h3>⬆️ Upgrades</h3><div id="upList"></div><small>Loop weg om te sluiten</small></div>
   <div id="joy" class="hide"><i></i></div>
-  <div id="modal" class="hide"><div class="box" id="modalBox"></div></div>`;
+  <div id="modal" class="hide"><div class="box" id="modalBox"></div></div>
+  <div id="admin" class="hide"><div class="box"><h2>🔐 Admin</h2><div id="adminBody"></div><div class="mb"><button id="adminClose">Sluiten</button></div></div></div>`;
 document.body.appendChild(hud);
 const $ = (id) => document.getElementById(id);
 function toast(t) {
@@ -1360,7 +1371,7 @@ function checkDesk() {
 }
 
 // ----- Besturing: toetsen of slepen (joystick) -----
-addEventListener('keydown', (e) => { if (ArcadeCore.isOpen()) return; keys[e.code] = true; if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); });
+addEventListener('keydown', (e) => { if (ArcadeCore.isOpen() || e.target.tagName === 'INPUT') return; keys[e.code] = true; if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; joy.x = joy.z = 0; });
 let drag = null;
@@ -1380,6 +1391,44 @@ c.addEventListener('pointermove', (e) => {
 });
 const endDrag = (e) => { if (!drag || e.pointerId !== drag.id) return; drag = null; joy.x = joy.z = 0; $('joy').classList.add('hide'); $('joy').firstElementChild.style.transform = ''; };
 c.addEventListener('pointerup', endDrag); c.addEventListener('pointercancel', endDrag);
+
+// ----- Admin (alleen met de geheime code) -----
+// In de code staat alleen een 'vingerafdruk' (SHA-256) van de code, niet de code zelf.
+const ADMIN_HASH = 'f166ea529aed72fc1fefd3a7e96f7e4e1e6e4318a0ac649ca871a7949c6cc4b4';
+async function sha256(t) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join(''); }
+let adminOk = sessionStorage.getItem('tyc_admin') === ADMIN_HASH;
+let moneyTaps = [];
+$('money').style.pointerEvents = 'auto';
+$('money').addEventListener('click', () => { const now = Date.now(); moneyTaps = moneyTaps.filter((t) => now - t < 2000); moneyTaps.push(now); if (moneyTaps.length >= 5) { moneyTaps = []; openAdmin(); } });
+addEventListener('keydown', (e) => { if (e.ctrlKey && e.shiftKey && e.code === 'KeyA') { e.preventDefault(); openAdmin(); } });
+$('adminClose').onclick = () => $('admin').classList.add('hide');
+function openAdmin() {
+  for (const k in keys) keys[k] = false;
+  $('admin').classList.remove('hide');
+  if (!adminOk) {
+    $('adminBody').innerHTML = `<p>Voer de admincode in:</p><input id="aCode" type="password" autocomplete="off" placeholder="Code"><button id="aGo" class="pri">OK</button><p id="aMsg" class="muted"></p>`;
+    const go = async () => {
+      const h = await sha256($('aCode').value.trim().toUpperCase());
+      if (h === ADMIN_HASH) { adminOk = true; sessionStorage.setItem('tyc_admin', h); openAdmin(); }
+      else { $('aMsg').textContent = 'Verkeerde code.'; $('aCode').value = ''; }
+    };
+    $('aGo').onclick = go; $('aCode').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    setTimeout(() => $('aCode').focus(), 50);
+    return;
+  }
+  $('adminBody').innerHTML = `<p>Geld geven:</p>
+    <div class="arow">${[1e3, 1e5, 1e7, 1e9].map((v) => `<button data-add="${v}">+€${fmt(v)}</button>`).join('')}</div>
+    <div class="arow"><input id="aAmount" type="number" min="0" placeholder="Eigen bedrag"><button id="aAdd" class="pri">Geven</button></div>
+    <p>Snel vooruit:</p>
+    <div class="arow"><button id="aAll">Alles in deze winkel ontgrendelen</button><button id="aUp">Upgrades max</button><button id="aNext">Volgende level</button></div>
+    <p class="muted" id="aMsg"></p>`;
+  const done = (t) => { $('aMsg').textContent = t; save(); };
+  $('adminBody').querySelectorAll('[data-add]').forEach((b) => (b.onclick = () => { SV.money += +b.dataset.add; done(`+€${fmt(+b.dataset.add)} gegeven`); }));
+  $('aAdd').onclick = () => { const v = Math.max(0, +$('aAmount').value || 0); SV.money += v; done(`+€${fmt(v)} gegeven`); };
+  $('aAll').onclick = () => { for (const u of LV.unlocks) if (u.kind !== 'next' && !SV.unlocked[u.id]) { SV.unlocked[u.id] = 1; delete SV.paid[u.id]; spawnUnlock(u, true); } buildNav(); refreshPads(); done('Alles ontgrendeld'); };
+  $('aUp').onclick = () => { for (const u of UPGR) SV.up[u.id] = u.max; done('Alle upgrades op max'); };
+  $('aNext').onclick = () => { $('admin').classList.add('hide'); const u = LV.unlocks.find((x) => x.kind === 'next'); unlock(u); };
+}
 
 // ----- Opslaan / laden -----
 function save() {
