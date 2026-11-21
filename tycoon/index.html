@@ -1109,6 +1109,11 @@ function updatePlayer(dt) {
     r.cash = 0; r.bills = 0; Sfx.money();
   }
   // ontgrendel-vakken betalen door erop te staan
+  // vak al helemaal betaald (bijv. na een prijsverlaging)? Dan meteen ontgrendelen en het teveel terugstorten
+  for (const p of E.pads) {
+    const paid = SV.paid[p.u.id] || 0;
+    if (paid > 0 && paid >= p.u.price - 0.001) { SV.money += paid - p.u.price; unlock(p.u); return; }
+  }
   let onPad = null;
   for (const p of E.pads) if (Math.abs(PL.x - p.u.pos.x) <= 1.15 && Math.abs(PL.z - p.u.pos.z) <= 1.15) onPad = p;
   // eerst 1 seconde stilstaan op het vak, dan pas betalen
