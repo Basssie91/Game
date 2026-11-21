@@ -1109,8 +1109,14 @@ function updatePlayer(dt) {
     r.cash = 0; r.bills = 0; Sfx.money();
   }
   // ontgrendel-vakken betalen door erop te staan
+  let onPad = null;
+  for (const p of E.pads) if (Math.abs(PL.x - p.u.pos.x) <= 1.15 && Math.abs(PL.z - p.u.pos.z) <= 1.15) onPad = p;
+  // eerst 1 seconde stilstaan op het vak, dan pas betalen
+  if (!onPad || PL.moving > 0.05 || onPad !== PL.padOn) PL.padT = 0;
+  PL.padOn = onPad;
+  if (onPad && PL.moving <= 0.05) PL.padT = (PL.padT || 0) + dt;
   for (const p of E.pads) {
-    if (Math.abs(PL.x - p.u.pos.x) > 1.15 || Math.abs(PL.z - p.u.pos.z) > 1.15) continue;
+    if (p !== onPad || PL.padT < 1) continue;
     const left = p.u.price - (SV.paid[p.u.id] || 0);
     if (left <= 0 || SV.money <= 0) continue;
     const amount = Math.min(left, SV.money, Math.max(p.u.price / 1.3, 25) * dt);
@@ -1427,7 +1433,7 @@ function loop(now) {
     if (k >= 1) { world.remove(f.m); E.flying.splice(i, 1); }
   }
   for (let i = E.floats.length - 1; i >= 0; i--) { const f = E.floats[i]; f.t += dt; f.s.position.y += dt * 1.2; f.s.material.opacity = 1 - f.t; if (f.t > 1) { world.remove(f.s); f.s.material.map.dispose(); E.floats.splice(i, 1); } }
-  for (const p of E.pads) { updatePadTex(p); p.mesh.position.y = 0.03; }
+  for (const p of E.pads) { updatePadTex(p); p.mesh.position.y = 0.03; const w = p === PL.padOn ? (PL.padT < 1 ? 1 + 0.1 * PL.padT : 1.1) : 1; p.mesh.scale.set(w, w, 1); }
   // kassa-lampje: groen als er iemand achter staat
   showStock();
   // camera volgt je
