@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Patience · Bas Arcade</title>
+  <meta name="description" content="Het bekende kaartspel: leg alle kaarten op volgorde op de vier stapels.">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Crect%20x%3D%2211%22%20y%3D%2215%22%20width%3D%2224%22%20height%3D%2234%22%20rx%3D%224%22%20fill%3D%22%23fff%22%20transform%3D%22rotate%28-12%2023%2032%29%22/%3E%3Ctext%20x%3D%2223%22%20y%3D%2237%22%20font-family%3D%22Arial%22%20font-size%3D%2215%22%20fill%3D%22%23d4232b%22%20text-anchor%3D%22middle%22%20transform%3D%22rotate%28-12%2023%2032%29%22%3E%E2%99%A5%3C/text%3E%3Crect%20x%3D%2229%22%20y%3D%2214%22%20width%3D%2224%22%20height%3D%2234%22%20rx%3D%224%22%20fill%3D%22%23fff%22%20transform%3D%22rotate%2810%2041%2031%29%22/%3E%3Ctext%20x%3D%2241%22%20y%3D%2228%22%20font-family%3D%22Arial%22%20font-weight%3D%22900%22%20font-size%3D%2211%22%20fill%3D%22%2315171b%22%20text-anchor%3D%22middle%22%20transform%3D%22rotate%2810%2041%2031%29%22%3EA%3C/text%3E%3Ctext%20x%3D%2241%22%20y%3D%2241%22%20font-family%3D%22Arial%22%20font-size%3D%2213%22%20fill%3D%22%2315171b%22%20text-anchor%3D%22middle%22%20transform%3D%22rotate%2810%2041%2031%29%22%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #fff; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+.terug, .geluid { position: fixed; top: 12px; z-index: 5; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); padding: 8px 12px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.terug { left: 12px; } .geluid { right: 12px; }
+.terug:hover, .geluid:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <a class="terug" href="../">← Games</a>
+  <canvas id="c"></canvas>
+  
+  <script>
+'use strict';
+// ================= Bas Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
+const ArcadeCore = (() => {
+  const KEY = 'arcade_settings';
+  const DEF = { music: 0.5, sfx: 0.8, quality: 'normaal', muted: false };
+  let S = { ...DEF };
+  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* standaard */ }
+  const listeners = [];
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* */ }
+    listeners.forEach((f) => f(S));
+  };
+  const set = (k, v) => { S[k] = v; save(); };
+  const sfx = () => (S.muted ? 0 : S.sfx);
+  const musicVol = () => (S.muted ? 0 : S.music);
+  // Hoeveel pixels we tekenen: lager = soepeler op trage apparaten
+  const dprCap = () => ({ hoog: 2, normaal: 1.5, laag: 1 })[S.quality] || 1.5;
+
+  // ---------- Muziek: kleine sequencer met drums, bas, akkoorden en melodie ----------
+  const SCALE = [0, 2, 3, 5, 7, 8, 10]; // mineur
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // Elke game een eigen nummer
+  const SONGS = {
+    menu:     { bpm: 92,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x.....x.x.......', arp: true,  lead: 'triangle', seed: 3, density: 0.35, pad: 'triangle' },
+    race:     { bpm: 128, root: 52, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xo', bass: 'x.xox.xox.xox.xo', arp: true,  lead: 'sawtooth', seed: 11, density: 0.45, pad: 'sawtooth' },
+    meteoren: { bpm: 140, root: 50, prog: [[0, 3, 7], [1, 5, 8], [-2, 2, 5], [0, 3, 7]], kick: 'x..x..x.x..x..x.', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx', bass: 'xxoxxxoxxxoxxxox', arp: false, lead: 'square', seed: 21, density: 0.55, pad: 'sawtooth' },
+    runner:   { bpm: 124, root: 54, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..o...o...o...o.', bass: 'x.x.x.x.x.x.x.x.', arp: true,  lead: 'sawtooth', seed: 31, density: 0.4, pad: 'sawtooth' },
+    snake:    { bpm: 112, root: 60, prog: [[0, 3, 7], [5, 8, 12], [3, 7, 10], [-2, 2, 5]], kick: 'x.....x.x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...o...x...o...', arp: false, lead: 'square', seed: 41, density: 0.6, pad: null },
+    2048:     { bpm: 84,  root: 55, prog: [[0, 3, 7, 10], [-4, 0, 3, 7], [3, 7, 10, 14], [-2, 2, 5, 9]], kick: 'x.........x.....', snare: '....x.......x...', hat: '..x...x...x..xx.', bass: 'x.......x..x....', arp: false, lead: 'triangle', seed: 51, density: 0.25, pad: 'triangle' },
+    blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
+    overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
+    td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    mijnen:   { bpm: 80,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], kick: 'x.........x.....', snare: '................', hat: '........x.......', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 81, density: 0.25, pad: 'triangle' },
+    sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
+    memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
+    vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
+    stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
+  };
+  // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
+  function makeMelody(song) {
+    const R = rng(song.seed);
+    const motif = [];
+    for (let i = 0; i < 32; i++) {
+      if (R() > song.density || i % 2 === 1 && R() < 0.5) { motif.push(null); continue; }
+      const deg = Math.floor(R() * 7) + (R() < 0.3 ? 7 : 0);
+      const len = R() < 0.25 ? 3 : R() < 0.5 ? 2 : 1;
+      motif.push({ deg, len });
+    }
+    const mel = [];
+    for (let bar = 0; bar < 8; bar++) {
+      for (let i = 0; i < 16; i++) {
+        let m = motif[(bar % 2) * 16 + i];
+        if (m && bar >= 4 && bar % 2 === 1 && i > 8) m = { deg: m.deg + 2, len: m.len }; // kleine variatie
+        mel.push(m);
+      }
+    }
+    return mel;
+  }
+  for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
+
+  let ac = null, master = null, delayIn = null, reverbIn = null, duck = null, noise = null, timer = null;
+  let song = null, wanted = null, step = 0, nextT = 0;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Galm: zelf gemaakte impulsrespons (geen bestanden nodig)
+  function makeReverb(sec = 2.2) {
+    const len = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
+  function initAudio() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = musicVol() * 0.5;
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -16; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      const warm = ac.createBiquadFilter(); warm.type = 'highshelf'; warm.frequency.value = 6000; warm.gain.value = -4;
+      master.connect(warm); warm.connect(comp); comp.connect(ac.destination);
+      // 'duck' zakt even weg op elke kick (pompend effect zoals in echte dance-muziek)
+      duck = ac.createGain(); duck.connect(master);
+      // Echo voor melodie
+      delayIn = ac.createGain(); delayIn.gain.value = 0.2;
+      const d = ac.createDelay(); d.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.32;
+      const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2400;
+      delayIn.connect(d); d.connect(dlp); dlp.connect(fb); fb.connect(d); dlp.connect(duck);
+      reverbIn = ac.createGain(); reverbIn.gain.value = 0.28;
+      const rv = makeReverb(); reverbIn.connect(rv); rv.connect(duck);
+      noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    } catch (e) { ac = null; }
+  }
+  function env(g, t, a, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function out(node, pan = 0) {
+    if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; node.connect(p); return p; }
+    return node;
+  }
+  function kick(t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.002, 0.95, 0.28);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    noiseHit(t, 3000, 0.12, 0.012, 0, master);            // tikje voor de aanslag
+    duck.gain.cancelScheduledValues(t);
+    duck.gain.setValueAtTime(0.45, t); duck.gain.linearRampToValueAtTime(1, t + 0.22);
+  }
+  function noiseHit(t, hp, peak, dur, pan = 0, dest = null, type = 'highpass', q = 0.7) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise;
+    f.type = type; f.frequency.value = hp; f.Q.value = q;
+    env(g, t, 0.002, peak, dur);
+    s.connect(f); f.connect(g); out(g, pan).connect(dest || master);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
+    return g;
+  }
+  function snare(t) {
+    const g = noiseHit(t, 1800, 0.32, 0.18, 0, master, 'bandpass', 0.6);
+    g.connect(reverbIn);
+    const o = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    env(g2, t, 0.002, 0.22, 0.1); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.12);
+  }
+  // Toon met twee licht ontstemde oscillatoren en een filter dat 'opengaat'
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006, opt = {}) {
+    const f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.Q.value = opt.q || 0.8;
+    f.frequency.setValueAtTime(cutoff * (opt.sweep ? 0.25 : 1), t);
+    if (opt.sweep) f.frequency.exponentialRampToValueAtTime(cutoff, t + Math.min(dur, 0.08)), f.frequency.exponentialRampToValueAtTime(cutoff * 0.35, t + dur);
+    const n = opt.unison ? 2 : 1;
+    for (let k = 0; k < n; k++) {
+      const o = ac.createOscillator();
+      o.type = type; o.frequency.value = mtof(midi); o.detune.value = n > 1 ? (k ? 9 : -9) : 0;
+      if (opt.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = 7; l.connect(lg); lg.connect(o.detune); l.start(t + 0.12); l.stop(t + dur + 0.05); }
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    env(g, t, attack, vol / n, dur);
+    f.connect(g);
+    const dst = out(g, opt.pan || 0);
+    dst.connect(opt.dry ? master : duck);
+    if (echo) dst.connect(delayIn);
+    if (opt.verb) dst.connect(reverbIn);
+  }
+  function playStep(s, t) {
+    const sp = 60 / song.bpm / 4;
+    const i = s % 16, barN = Math.floor(s / 16), bar = barN % 4, chord = song.prog[bar];
+    const intro = barN < 2 && song.introDone !== true;
+    const fill = barN % 8 === 7 && i >= 12;                       // drumroffel aan het eind van elke 8 maten
+    if (!intro) {
+      if (song.kick[i] === 'x') kick(t);
+      if (song.snare[i] === 'x' || (fill && i % 2 === 0)) snare(t);
+      if (song.hat[i] === 'x') noiseHit(t, 8000, 0.06 + (i % 4 === 2 ? 0.03 : 0), 0.03, i % 2 ? 0.25 : -0.25);
+      if (song.hat[i] === 'o') noiseHit(t, 7000, 0.08, 0.16, 0.2);
+      if (barN % 8 === 0 && i === 0 && song.introDone) noiseHit(t, 5000, 0.12, 1.4, 0, reverbIn);  // bekken
+    }
+    const b = song.bass[i];
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.2, 900, false, 0.004, { sweep: true, unison: true, q: 4 });
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.045, intro ? 700 : 1500, false, 0.35, { unison: true, verb: true, pan: (n % 3 - 1) * 0.3 });
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length] + (barN % 2 && i >= 8 ? 12 : 0), sp * 0.7, 'square', 0.022, 2400, true, 0.003, { pan: ((i / 2) % 2 ? 0.35 : -0.35) });
+    const m = song.mel[s % song.mel.length];
+    if (m && !intro) {
+      const deg = m.deg;
+      const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.055, song.lead === 'sawtooth' ? 2600 : 3800, true, 0.008, { vib: m.len > 1, verb: true, unison: song.lead === 'sawtooth' });
+    }
+  }
+  function tick() {
+    if (!ac || !song) return;
+    const sp = 60 / song.bpm / 4;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
+    while (nextT < ac.currentTime + 0.15) {
+      playStep(step, nextT);
+      nextT += sp;
+      step++;
+      if (step >= 128) { step = 0; song.introDone = true; }
+    }
+  }
+  function startIfWanted() {
+    if (!wanted) return;
+    initAudio();
+    if (!ac) return;
+    if (song !== SONGS[wanted]) { song = SONGS[wanted]; step = 0; nextT = ac.currentTime + 0.1; }
+    if (!timer) timer = setInterval(tick, 25);
+  }
+  // Muziek mag pas starten na een klik of toetsaanslag (regel van browsers)
+  addEventListener('pointerdown', startIfWanted);
+  addEventListener('keydown', startIfWanted);
+  document.addEventListener('visibilitychange', () => {
+    if (!ac) return;
+    if (document.hidden) ac.suspend(); else ac.resume();
+  });
+  listeners.push(() => { if (master) master.gain.setTargetAtTime(musicVol() * 0.5, ac.currentTime, 0.1); });
+
+  const music = { play(name) { wanted = name; if (ac) startIfWanted(); }, status: () => ({ running: !!timer, song: wanted, step, audio: ac ? ac.state : 'geen' }) };
+
+  // ---------- Instellingenpaneel ----------
+  const CSS = `
+  .ac-gear { position: fixed; top: 12px; right: 12px; z-index: 50; width: 42px; height: 42px; border-radius: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ac-gear:hover { background: rgba(255,255,255,0.2); }
+  .ac-gear svg { width: 22px; height: 22px; transition: transform 0.4s ease; }
+  .ac-gear:hover svg { transform: rotate(60deg); }
+  .ac-ov { position: fixed; inset: 0; z-index: 60; background: rgba(5,6,9,0.6); display: none; align-items: center; justify-content: center; padding: 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; }
+  .ac-ov.open { display: flex; }
+  .ac-card { width: min(380px, 100%); background: #16181d; border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 20px 22px; color: #fff;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .ac-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .ac-head b { font-size: 20px; font-weight: 900; }
+  .ac-x { background: rgba(255,255,255,0.1); border: 0; color: #fff; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+  .ac-row { margin: 14px 0; }
+  .ac-lab { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #e6e9ee; }
+  .ac-lab span { color: #9aa1ab; font-family: ui-monospace, Consolas, monospace; }
+  .ac-card input[type=range] { width: 100%; accent-color: #e8282f; height: 22px; }
+  .ac-seg { display: flex; gap: 6px; background: #0e0f13; padding: 4px; border-radius: 12px; }
+  .ac-seg button { flex: 1; border: 0; background: transparent; color: #c9ced6; padding: 9px 0; border-radius: 9px; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .ac-seg button.on { background: #fff; color: #111214; }
+  .ac-hint { font-size: 12px; color: #7d848e; margin-top: 6px; }
+  .ac-check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #e6e9ee; cursor: pointer; }
+  .ac-check input { width: 18px; height: 18px; accent-color: #e8282f; }
+  .ac-danger { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; border: 1px solid rgba(232,40,47,0.6); background: rgba(232,40,47,0.12);
+    color: #ff6b72; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .ac-danger:hover { background: rgba(232,40,47,0.25); }`;
+  const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  let ov = null;
+  function buildPanel() {
+    const st = document.createElement('style');
+    st.textContent = CSS;
+    document.head.appendChild(st);
+    const gear = document.createElement('button');
+    gear.className = 'ac-gear';
+    gear.type = 'button';
+    gear.title = 'Instellingen';
+    gear.setAttribute('aria-label', 'Instellingen');
+    gear.innerHTML = GEAR;
+    document.body.appendChild(gear);
+    ov = document.createElement('div');
+    ov.className = 'ac-ov';
+    ov.innerHTML = `
+      <div class="ac-card" role="dialog" aria-label="Instellingen">
+        <div class="ac-head"><b>⚙ Instellingen</b><button class="ac-x" type="button" aria-label="Sluiten">✕</button></div>
+        <div class="ac-row"><div class="ac-lab">🎵 Muziek <span id="acMv"></span></div><input type="range" min="0" max="100" id="acM"></div>
+        <div class="ac-row"><div class="ac-lab">🔊 Geluidseffecten <span id="acSv"></span></div><input type="range" min="0" max="100" id="acS"></div>
+        <div class="ac-row"><label class="ac-check"><input type="checkbox" id="acMute"> Alles dempen (sneltoets M)</label></div>
+        <div class="ac-row"><div class="ac-lab">🖥 Beeldkwaliteit</div>
+          <div class="ac-seg"><button type="button" data-q="laag">Laag</button><button type="button" data-q="normaal">Normaal</button><button type="button" data-q="hoog">Hoog</button></div>
+          <div class="ac-hint">Laag = soepeler op oudere laptops en telefoons. Hoog = scherper beeld.</div></div>
+        <button class="ac-danger" type="button">🗑 Alle records wissen</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const $ = (id) => ov.querySelector('#' + id);
+    const refresh = () => {
+      $('acM').value = Math.round(S.music * 100); $('acMv').textContent = Math.round(S.music * 100) + '%';
+      $('acS').value = Math.round(S.sfx * 100); $('acSv').textContent = Math.round(S.sfx * 100) + '%';
+      $('acMute').checked = !!S.muted;
+      ov.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('on', b.dataset.q === S.quality));
+    };
+    refresh();
+    listeners.push(refresh);
+    $('acM').addEventListener('input', (e) => { set('music', e.target.value / 100); startIfWanted(); });
+    $('acS').addEventListener('input', (e) => set('sfx', e.target.value / 100));
+    $('acS').addEventListener('change', () => { if (window.Arcade) Arcade.beep(660, 0.08, 'triangle', 0.06); });
+    $('acMute').addEventListener('change', (e) => set('muted', e.target.checked));
+    ov.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => set('quality', b.dataset.q)));
+    ov.querySelector('.ac-danger').addEventListener('click', () => {
+      if (!confirm('Weet je zeker dat je ALLE records, medailles en spookauto\'s wilt wissen? Dit kan niet ongedaan worden.')) return;
+      const kill = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (/^arcade_(best_|2048_state)|^tt2_(bests|ghost)/.test(k)) kill.push(k);
+      }
+      kill.forEach((k) => localStorage.removeItem(k));
+      location.reload();
+    });
+    const close = () => ov.classList.remove('open');
+    ov.querySelector('.ac-x').addEventListener('click', close);
+    ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
+    // Toetsen in het paneel niet doorgeven aan de game
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); e.stopPropagation(); });
+    gear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ov.classList.add('open');
+      // Games pauzeren als het venster de focus verliest: dat doen we hier ook
+      window.dispatchEvent(new Event('blur'));
+      gear.blur();
+    });
+    gear.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM' && !(ov && ov.classList.contains('open'))) set('muted', !S.muted);
+  });
+  if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
+
+  return {
+    get settings() { return S; },
+    set, sfx, musicVol, dprCap, music,
+    onChange: (f) => listeners.push(f),
+    isOpen: () => !!(ov && ov.classList.contains('open')),
+  };
+})();
+
+// ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
+const Arcade = (() => {
+  const load = (k, d) => { try { const v = localStorage.getItem('arcade_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem('arcade_' + k, JSON.stringify(v)); } catch (e) { /* uit */ } };
+  let audio = null;
+
+  function initAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  addEventListener('pointerdown', initAudio);
+  addEventListener('keydown', initAudio);
+
+  let sfxBus = null, noiseBuf = null;
+  function bus() {
+    if (sfxBus || !audio) return sfxBus;
+    // zachte filter + compressor: effecten klinken voller en minder schel
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const comp = audio.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    lp.connect(comp); comp.connect(audio.destination);
+    sfxBus = lp;
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return sfxBus;
+  }
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    vol *= level * 1.25 * (type === 'square' || type === 'sawtooth' ? 0.8 : 1.1);
+    try {
+      const t = audio.currentTime + delay;
+      const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+      o.type = o2.type = type;
+      o.frequency.setValueAtTime(freq, t); o2.frequency.setValueAtTime(freq, t); o2.detune.value = 7;
+      if (slide) { o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); o2.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      const g2 = audio.createGain(); g2.gain.value = 0.5;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.connect(bus());
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Ruisgeluid: knal, plof, zoef, explosie
+  function noise(dur = 0.2, vol = 0.1, f0 = 3000, f1 = 300, type = 'lowpass', delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      bus();
+      const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+      s.buffer = noiseBuf; f.type = type;
+      f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      g.gain.setValueAtTime(vol * level * 1.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(sfxBus);
+      s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Effecten: deeltjes, schudden, zwevende tekst (zelfde stijl in elke game)
+  function makeFx() {
+    const parts = [], texts = [], rings = [];
+    let shakeT = 0, shakeA = 0, flashA = 0, flashC = '#fff';
+    return {
+      burst(x, y, n = 14, color = '#fff', speed = 180, life = 0.6, size = 3, grav = 200) {
+        const max = ArcadeCore.settings.quality === 'laag' ? 0.5 : 1;
+        for (let i = 0; i < n * max; i++) {
+          const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+          parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.6 + Math.random() * 0.4), max: life, color: Array.isArray(color) ? color[i % color.length] : color, size: size * (0.6 + Math.random() * 0.8), grav });
+        }
+        if (parts.length > 600) parts.splice(0, parts.length - 600);
+      },
+      ring(x, y, color = '#fff', r = 40, life = 0.4) { rings.push({ x, y, color, r, life, max: life }); },
+      text(x, y, t, color = '#fff', size = 18) { texts.push({ x, y, t, color, size, life: 0.9 }); },
+      shake(a = 6, t = 0.25) { shakeA = Math.max(shakeA, a); shakeT = Math.max(shakeT, t); },
+      flash(c = '#fff', a = 0.35) { flashC = c; flashA = Math.max(flashA, a); },
+      update(dt) {
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.grav * dt; p.vx *= 1 - dt * 1.5; p.x += p.vx * dt; p.y += p.vy * dt; }
+        for (let i = texts.length - 1; i >= 0; i--) { const q = texts[i]; q.life -= dt; q.y -= 40 * dt; if (q.life <= 0) texts.splice(i, 1); }
+        for (let i = rings.length - 1; i >= 0; i--) { const q = rings[i]; q.life -= dt; if (q.life <= 0) rings.splice(i, 1); }
+        shakeT = Math.max(0, shakeT - dt); if (!shakeT) shakeA = 0;
+        flashA = Math.max(0, flashA - dt * 2.5);
+      },
+      // roep aan vóór het tekenen van de wereld (ctx.save gebeurt hier)
+      begin(ctx) { ctx.save(); if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeA * 2, (Math.random() - 0.5) * shakeA * 2); },
+      end(ctx) { ctx.restore(); },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const q of rings) { const k = 1 - q.life / q.max; ctx.globalAlpha = 1 - k; ctx.strokeStyle = q.color; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.3 + k), 0, Math.PI * 2); ctx.stroke(); }
+        for (const q of texts) { ctx.globalAlpha = Math.min(1, q.life * 2); text(ctx, q.t, q.x, q.y, q.size, q.color, 'center', '900'); }
+        ctx.restore();
+      },
+      drawFlash(ctx, W, H) { if (flashA > 0) { ctx.save(); ctx.globalAlpha = flashA; ctx.fillStyle = flashC; ctx.fillRect(0, 0, W, H); ctx.restore(); } },
+      clear() { parts.length = 0; texts.length = 0; rings.length = 0; shakeT = 0; },
+      get count() { return parts.length; },
+    };
+  }
+
+  // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
+  function canvas(id, W, H) {
+    const c = document.getElementById(id);
+    const ctx = c.getContext('2d');
+    const view = { W, H, scale: 1 };
+    const fit = () => {
+      const s = Math.min(innerWidth / W, innerHeight / H);
+      const dpr = Math.min(ArcadeCore.dprCap(), devicePixelRatio || 1);
+      c.style.width = Math.floor(W * s) + 'px';
+      c.style.height = Math.floor(H * s) + 'px';
+      c.width = Math.floor(W * s * dpr);
+      c.height = Math.floor(H * s * dpr);
+      view.scale = s * dpr;
+      ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    };
+    fit();
+    addEventListener('resize', fit);
+    ArcadeCore.onChange(fit);
+    view.begin = () => ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    view.toGame = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    };
+    return { c, ctx, view };
+  }
+
+  // Vegen (swipe) op touchscreens: geeft 'links', 'rechts', 'op' of 'neer'
+  function onSwipe(el, fn, onTap) {
+    let sx = 0, sy = 0, st = 0, active = false;
+    el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; st = performance.now(); active = true; });
+    el.addEventListener('pointerup', (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (onTap) onTap(e); return; }
+      if (Math.abs(dx) > Math.abs(dy)) fn(dx > 0 ? 'rechts' : 'links');
+      else fn(dy > 0 ? 'neer' : 'op');
+    });
+  }
+
+  // Tekenhulpjes in dezelfde stijl
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function text(ctx, t, x, y, size, color = '#fff', align = 'center', weight = '700', mono = false) {
+    ctx.font = `${weight} ${size}px ${mono ? 'ui-monospace, Consolas, monospace' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, x, y);
+  }
+  // Knoppen op het canvas (zelfde stijl overal). btn() elke frame opnieuw tekenen; hit() bij klikken.
+  function ui(ctx) {
+    let list = [], hover = null;
+    return {
+      clear() { list = []; },
+      btn(label, x, y, w, h, fn, primary = false, active = false, size = 0) {
+        const on = hover && hover.x >= x && hover.x <= x + w && hover.y >= y && hover.y <= y + h;
+        const g = ctx.createLinearGradient(0, y, 0, y + h);
+        if (primary || active) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe2e6'); }
+        else { g.addColorStop(0, on ? '#30343c' : '#262930'); g.addColorStop(1, on ? '#24272d' : '#1b1d22'); }
+        ctx.fillStyle = g; rr(ctx, x, y, w, h, Math.min(10, h / 3)); ctx.fill();
+        ctx.strokeStyle = primary || active ? 'rgba(255,255,255,0.6)' : on ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, label, x + w / 2, y + h / 2 + 1, size || Math.min(16, h * 0.4), primary || active ? '#111214' : '#ffffff', 'center', '800');
+        list.push({ x, y, w, h, fn });
+      },
+      hit(q) { for (let i = list.length - 1; i >= 0; i--) { const b = list[i]; if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return true; } } return false; },
+      hover(q) { hover = q; },
+    };
+  }
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  // Standaard scherm voor start / pauze / game over
+  function overlay(ctx, W, H, title, lines = [], hint = '') {
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(10, 11, 14, 0.55)'); g.addColorStop(1, 'rgba(4, 5, 7, 0.85)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 40, 400), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const x = (W - pw) / 2, y = (H - ph) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    const cg = ctx.createLinearGradient(0, y, 0, y + ph);
+    cg.addColorStop(0, 'rgba(32, 35, 42, 0.97)'); cg.addColorStop(1, 'rgba(18, 20, 24, 0.97)');
+    ctx.fillStyle = cg;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.stroke();
+    ctx.fillStyle = '#e8282f';
+    rr(ctx, W / 2 - 24, y + 78, 48, 3, 1.5); ctx.fill();
+    text(ctx, title, W / 2, y + 48, 32, '#fff', 'center', '900');
+    lines.forEach((l, i) => {
+      const s = typeof l === 'string' ? { t: l } : l;
+      text(ctx, s.t, W / 2, y + 108 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+    });
+    if (hint) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 450)); text(ctx, hint, W / 2, y + ph - 30, 15, '#ffffff', 'center', '700'); ctx.globalAlpha = 1; }
+  }
+  // Achtergrond met diepte: zacht licht in het midden + vignet
+  function backdrop(ctx, W, H, top = '#15171c', bottom = '#0a0b0e') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.035)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+
+  return {
+    load, save, beep, noise, makeFx, backdrop, ui, fmtTime,
+    get muted() { return !ArcadeCore.sfx(); },
+    best: (game) => load('best_' + game, 0),
+    // Slaat een nieuwe topscore op; geeft true terug als het een record is
+    record: (game, score, lowerIsBetter = false) => {
+      const b = load('best_' + game, 0);
+      if (!b || (lowerIsBetter ? score < b : score > b)) { save('best_' + game, score); return true; }
+      return false;
+    },
+    canvas, onSwipe, rr, text, overlay,
+    touch: matchMedia('(hover: none) and (pointer: coarse)').matches,
+  };
+})();
+
+ArcadeCore.music.play('patience');
+
+// ================= PATIENCE (Klondike) =================
+const W = 720, H = 660;
+const { c, ctx, view } = Arcade.canvas('c', W, H);
+const GAME = 'patience';
+const CW = 86, CH = 122, GAP = 12, X0 = (W - (7 * CW + 6 * GAP)) / 2, TOPY = 72, TABY = 214;
+const SUITS = ['♠', '♥', '♦', '♣'], RANKS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'B', 'V', 'H'];
+const red = (s) => s === 1 || s === 2;
+const ui = Arcade.ui(ctx), fx = Arcade.makeFx();
+let drawThree = Arcade.load('patience_draw3', false);
+let stats = Arcade.load('patience_stats', { wins: 0, best: null });
+let P, cards, history, moves, time, won, autoT, autoRun = false, drag = null, winAnim = null, started = false;
+
+// ----- Kaarten tekenen (één keer vooraf, scherp) -----
+const SC = 2, faces = {}, backImg = (() => {
+  const k = document.createElement('canvas'); k.width = CW * SC; k.height = CH * SC;
+  const g = k.getContext('2d'); g.scale(SC, SC);
+  Arcade.rr(g, 0.5, 0.5, CW - 1, CH - 1, 8); g.fillStyle = '#f2f3f5'; g.fill();
+  const gr = g.createLinearGradient(0, 0, CW, CH); gr.addColorStop(0, '#b8262d'); gr.addColorStop(1, '#7a161b');
+  Arcade.rr(g, 5, 5, CW - 10, CH - 10, 5); g.fillStyle = gr; g.fill();
+  g.save(); g.clip();
+  g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 1;
+  for (let i = -CH; i < CW + CH; i += 8) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + CH, CH); g.stroke(); g.beginPath(); g.moveTo(i + CH, 0); g.lineTo(i, CH); g.stroke(); }
+  g.restore();
+  g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 1.5; Arcade.rr(g, 10, 10, CW - 20, CH - 20, 4); g.stroke();
+  return k;
+})();
+function faceImg(s, r) {
+  const key = s * 20 + r;
+  if (faces[key]) return faces[key];
+  const k = document.createElement('canvas'); k.width = CW * SC; k.height = CH * SC;
+  const g = k.getContext('2d'); g.scale(SC, SC);
+  const col = red(s) ? '#d4232b' : '#15171b';
+  const bgr = g.createLinearGradient(0, 0, 0, CH); bgr.addColorStop(0, '#ffffff'); bgr.addColorStop(1, '#eceef1');
+  Arcade.rr(g, 0.5, 0.5, CW - 1, CH - 1, 8); g.fillStyle = bgr; g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 1; g.stroke();
+  const corner = () => { Arcade.text(g, RANKS[r], 13, 15, r === 10 ? 15 : 17, col, 'center', '800'); Arcade.text(g, SUITS[s], 13, 33, 15, col, 'center', '700'); };
+  corner();
+  g.save(); g.translate(CW, CH); g.rotate(Math.PI); corner(); g.restore();
+  if (r > 10) {
+    // plaatjeskaart: lijst + grote letter
+    g.fillStyle = red(s) ? 'rgba(212,35,43,0.08)' : 'rgba(21,23,27,0.07)'; Arcade.rr(g, 24, 22, CW - 48, CH - 44, 6); g.fill();
+    g.strokeStyle = col; g.lineWidth = 1.5; g.stroke();
+    Arcade.text(g, RANKS[r], CW / 2, CH / 2 - 8, 34, col, 'center', '900');
+    Arcade.text(g, SUITS[s], CW / 2, CH / 2 + 22, 20, col, 'center', '700');
+    Arcade.text(g, ['', '', '', '', '', '', '', '', '', '', '', '♞', '♛', '♚'][r], CW / 2, 34, 14, col, 'center', '700');
+  } else if (r === 1) Arcade.text(g, SUITS[s], CW / 2, CH / 2 + 2, 52, col, 'center', '700');
+  else {
+    // pips zoals op een echte kaart
+    const L = { 2: [[0.5, 0.2], [0.5, 0.8]], 3: [[0.5, 0.2], [0.5, 0.5], [0.5, 0.8]], 4: [[0.3, 0.2], [0.7, 0.2], [0.3, 0.8], [0.7, 0.8]], 5: [[0.3, 0.2], [0.7, 0.2], [0.5, 0.5], [0.3, 0.8], [0.7, 0.8]], 6: [[0.3, 0.2], [0.7, 0.2], [0.3, 0.5], [0.7, 0.5], [0.3, 0.8], [0.7, 0.8]], 7: [[0.3, 0.2], [0.7, 0.2], [0.5, 0.35], [0.3, 0.5], [0.7, 0.5], [0.3, 0.8], [0.7, 0.8]], 8: [[0.3, 0.2], [0.7, 0.2], [0.5, 0.35], [0.3, 0.5], [0.7, 0.5], [0.5, 0.65], [0.3, 0.8], [0.7, 0.8]], 9: [[0.3, 0.18], [0.7, 0.18], [0.3, 0.39], [0.7, 0.39], [0.5, 0.5], [0.3, 0.61], [0.7, 0.61], [0.3, 0.82], [0.7, 0.82]], 10: [[0.3, 0.18], [0.7, 0.18], [0.5, 0.29], [0.3, 0.39], [0.7, 0.39], [0.3, 0.61], [0.7, 0.61], [0.5, 0.71], [0.3, 0.82], [0.7, 0.82]] }[r];
+    for (const [px, py] of L) {
+      g.save(); g.translate(22 + px * (CW - 44), 14 + py * (CH - 28)); if (py > 0.55) g.rotate(Math.PI);
+      Arcade.text(g, SUITS[s], 0, 0, 17, col, 'center', '700'); g.restore();
+    }
+  }
+  return (faces[key] = k);
+}
+
+// ----- Spel -----
+function newGame() {
+  cards = [];
+  for (let s = 0; s < 4; s++) for (let r = 1; r <= 13; r++) cards.push({ s, r, up: false, ax: X0, ay: TOPY, id: s * 13 + r });
+  const deck = cards.slice().sort(() => Math.random() - 0.5);
+  P = { stock: [], waste: [], found: [[], [], [], []], tab: [[], [], [], [], [], [], []] };
+  let k = 0;
+  for (let i = 0; i < 7; i++) for (let j = i; j < 7; j++) { const cd = deck[k++]; P.tab[j].push(cd); }
+  for (const t of P.tab) t[t.length - 1].up = true;
+  P.stock = deck.slice(k);
+  history = []; moves = 0; time = 0; won = false; autoT = 0; autoRun = false; winAnim = null; started = false; drag = null;
+  cards.forEach((cd, i) => { cd.ax = X0; cd.ay = TOPY; cd.delay = i * 0.012; });
+  fx.clear();
+}
+function snapshot() { return JSON.stringify({ P: { stock: P.stock.map((q) => q.id), waste: P.waste.map((q) => q.id), found: P.found.map((f) => f.map((q) => q.id)), tab: P.tab.map((t) => t.map((q) => q.id)) }, up: cards.map((q) => q.up), moves }); }
+function restoreSnap(sn) {
+  const o = JSON.parse(sn), byId = (id) => cards.find((q) => q.id === id);
+  P = { stock: o.P.stock.map(byId), waste: o.P.waste.map(byId), found: o.P.found.map((f) => f.map(byId)), tab: o.P.tab.map((t) => t.map(byId)) };
+  cards.forEach((q, i) => (q.up = o.up[i])); moves = o.moves;
+}
+function push() { history.push(snapshot()); if (history.length > 200) history.shift(); started = true; }
+function undo() { if (!history.length || won) return; restoreSnap(history.pop()); click(500); }
+function click(f = 900) { Arcade.noise(0.05, 0.05, f * 4, f * 2, 'bandpass'); }
+function flipTops() { for (const t of P.tab) if (t.length && !t[t.length - 1].up) { t[t.length - 1].up = true; } }
+function drawStock() {
+  if (won) return;
+  push();
+  if (!P.stock.length) { if (!P.waste.length) { history.pop(); return; } P.stock = P.waste.reverse().map((q) => ((q.up = false), q)); P.waste = []; click(400); }
+  else { for (let i = 0; i < (drawThree ? 3 : 1) && P.stock.length; i++) { const q = P.stock.pop(); q.up = true; P.waste.push(q); } click(1100); }
+  moves++;
+}
+function canFound(q, f) { const top = f[f.length - 1]; return top ? top.s === q.s && top.r === q.r - 1 : q.r === 1; }
+function canTab(q, t) { const top = t[t.length - 1]; return top ? top.up && red(top.s) !== red(q.s) && top.r === q.r + 1 : q.r === 13; }
+function pileOf(q) {
+  if (P.waste.includes(q)) return P.waste;
+  for (const f of P.found) if (f.includes(q)) return f;
+  for (const t of P.tab) if (t.includes(q)) return t;
+  return null;
+}
+function moveRun(from, idx, to) {
+  push();
+  const run = from.splice(idx);
+  to.push(...run);
+  flipTops(); moves++;
+  click(P.found.includes(to) ? 1500 : 900);
+  if (P.found.includes(to)) { const q = run[0]; fx.burst(q.ax + CW / 2, q.ay + CH / 2, 6, ['#ffffff', '#ffd23f'], 100, 0.4, 2.5, 0); }
+  checkWin();
+}
+function tryAuto(q) {   // slim klikken: eerst naar de stapels bovenaan, anders naar een kolom
+  const from = pileOf(q); if (!from) return false;
+  const idx = from.indexOf(q);
+  if (idx === from.length - 1 && !P.found.includes(from)) for (const f of P.found) if (canFound(q, f)) { moveRun(from, idx, f); return true; }
+  const order = P.tab.filter((t) => t !== from).sort((a, b) => (b.length > 0) - (a.length > 0));
+  for (const t of order) if (canTab(q, t)) { if (q.r === 13 && idx === 0 && P.tab.includes(from)) continue; moveRun(from, idx, t); return true; }
+  return false;
+}
+function checkWin() {
+  if (P.found.every((f) => f.length === 13) && !won) {
+    won = true;
+    const t = Math.floor(time);
+    stats.wins++;
+    const rec = stats.best == null || t < stats.best;
+    if (rec) stats.best = t;
+    Arcade.save('patience_stats', stats);
+    Arcade.save('best_patience', Arcade.fmtTime(stats.best));
+    winAnim = { list: [], next: 0, rec };
+    [523, 659, 784, 1046, 1318].forEach((f, i) => Arcade.beep(f, 0.18, 'triangle', 0.04, 0, i * 0.09));
+  }
+}
+const canAutoFinish = () => !won && !P.stock.length && !P.waste.length && P.tab.every((t) => t.every((q) => q.up)) && P.tab.some((t) => t.length);
+
+// ----- Posities -----
+function tabStep(t) {
+  const downs = t.filter((q) => !q.up).length, ups = t.length - downs;
+  const room = H - 16 - CH - TABY;
+  let up = 28, dn = 12;
+  const need = downs * dn + Math.max(0, ups - 1) * up;
+  if (need > room) up = Math.max(14, (room - downs * dn) / Math.max(1, ups - 1));
+  return { up, dn };
+}
+function layout() {
+  const pos = new Map();
+  P.stock.forEach((q, i) => pos.set(q, [X0 - Math.min(i, 6) * 0.3, TOPY - Math.min(i, 6) * 0.3]));
+  const wx = X0 + CW + GAP, wn = P.waste.length, show = drawThree ? 3 : 1;
+  P.waste.forEach((q, i) => { const k = Math.max(0, i - (wn - show)); pos.set(q, [wx + (i >= wn - show ? k * 18 : 0), TOPY]); });
+  P.found.forEach((f, j) => f.forEach((q) => pos.set(q, [X0 + (3 + j) * (CW + GAP), TOPY])));
+  P.tab.forEach((t, j) => { const st = tabStep(t); let y = TABY; t.forEach((q) => { pos.set(q, [X0 + j * (CW + GAP), y]); y += q.up ? st.up : st.dn; }); });
+  return pos;
+}
+function cardAt(q) {
+  const pos = layout();
+  let hit = null;
+  const test = (cd) => { const p = pos.get(cd); if (p && q.x >= p[0] && q.x <= p[0] + CW && q.y >= p[1] && q.y <= p[1] + CH) hit = cd; };
+  P.tab.forEach((t) => t.forEach(test));
+  if (P.waste.length) test(P.waste[P.waste.length - 1]);
+  P.found.forEach((f) => f.length && test(f[f.length - 1]));
+  return hit;
+}
+function dropTarget(q) {
+  const piles = [...P.found.map((f, j) => ({ pile: f, x: X0 + (3 + j) * (CW + GAP), y: TOPY, found: true })), ...P.tab.map((t, j) => ({ pile: t, x: X0 + j * (CW + GAP), y: TABY, h: H }))];
+  return piles.filter((p) => q.x > p.x - 20 && q.x < p.x + CW + 20 && q.y > p.y - 30 && q.y < (p.h || p.y + CH + 30));
+}
+
+// ----- Invoer -----
+c.addEventListener('pointermove', (e) => {
+  const q = view.toGame(e); ui.hover(q);
+  if (drag) { drag.mx = q.x; drag.my = q.y; if (Math.hypot(q.x - drag.sx, q.y - drag.sy) > 6) drag.moved = true; }
+});
+c.addEventListener('pointerdown', (e) => {
+  const q = view.toGame(e);
+  if (ui.hit(q) || won) return;
+  if (q.x >= X0 && q.x <= X0 + CW && q.y >= TOPY && q.y <= TOPY + CH) { drawStock(); return; }
+  const cd = cardAt(q);
+  if (!cd || !cd.up) return;
+  const from = pileOf(cd), idx = from.indexOf(cd);
+  if (P.found.includes(from) && idx !== from.length - 1) return;
+  drag = { from, idx, run: from.slice(idx), sx: q.x, sy: q.y, mx: q.x, my: q.y, ox: q.x - cd.ax, oy: q.y - cd.ay, moved: false };
+});
+addEventListener('pointerup', () => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.moved) { if (!tryAuto(d.run[0])) { d.run[0].shake = 0.25; } return; }
+  const head = d.run[0];
+  const cx = d.mx - d.ox + CW / 2, cy = d.my - d.oy + 20;
+  for (const tg of dropTarget({ x: cx, y: cy })) {
+    if (tg.pile === d.from) continue;
+    if (tg.found ? d.run.length === 1 && canFound(head, tg.pile) : canTab(head, tg.pile)) { moveRun(d.from, d.idx, tg.pile); return; }
+  }
+});
+addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); drawStock(); }
+  if (e.code === 'KeyZ' || (e.ctrlKey && e.code === 'KeyZ')) undo();
+  if (e.code === 'KeyN') newGame();
+});
+
+// ----- Tekenen -----
+function slot(x, y, label) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]);
+  Arcade.rr(ctx, x + 1, y + 1, CW - 2, CH - 2, 8); ctx.stroke(); ctx.setLineDash([]);
+  if (label) Arcade.text(ctx, label, x + CW / 2, y + CH / 2, 26, 'rgba(255,255,255,0.14)', 'center', '800');
+}
+function drawCardAt(cd, x, y) {
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+  ctx.drawImage(cd.up ? faceImg(cd.s, cd.r) : backImg, x, y, CW, CH);
+  ctx.restore();
+}
+function draw(dt) {
+  view.begin(); ui.clear();
+  // vilt-achtige tafel (donker, neutraal)
+  const g = ctx.createRadialGradient(W / 2, H * 0.45, 60, W / 2, H / 2, W * 0.75);
+  g.addColorStop(0, '#2a3a33'); g.addColorStop(1, '#121a17');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  fx.update(dt);
+  Arcade.text(ctx, 'PATIENCE', X0, 30, 24, '#ffffff', 'left', '900');
+  Arcade.text(ctx, `Zetten ${moves} · ${Arcade.fmtTime(time)}${stats.best != null ? ` · record ${Arcade.fmtTime(stats.best)}` : ''}`, X0 + 136, 31, 13, '#c9ced6', 'left', '700');
+  ui.btn('Nieuw', W - X0 - 76, 12, 76, 34, newGame, false, false, 14);
+  ui.btn('↶', W - X0 - 120, 12, 38, 34, undo, false, false, 16);
+  ui.btn(drawThree ? '3 kaarten' : '1 kaart', W - X0 - 214, 12, 88, 34, () => { drawThree = !drawThree; Arcade.save('patience_draw3', drawThree); if (!started) newGame(); else fx.text(W / 2, 60, 'Geldt vanaf het volgende spel', '#ffd23f', 13); }, false, drawThree, 13);
+
+  slot(X0, TOPY, P.stock.length ? '' : '↻');
+  slot(X0 + CW + GAP, TOPY);
+  for (let j = 0; j < 4; j++) slot(X0 + (3 + j) * (CW + GAP), TOPY, SUITS[j]);
+  for (let j = 0; j < 7; j++) slot(X0 + j * (CW + GAP), TABY, 'H');
+
+  const pos = layout();
+  const order = [...P.stock, ...P.found.flat(), ...P.waste, ...P.tab.flat()];
+  const dragging = new Set(drag && drag.moved ? drag.run : []);
+  for (const cd of order) {
+    const p = pos.get(cd);
+    if (cd.delay > 0) { cd.delay -= dt; continue; }
+    const k = Math.min(1, dt * 18);
+    cd.ax += (p[0] - cd.ax) * k; cd.ay += (p[1] - cd.ay) * k;
+    if (dragging.has(cd) || (winAnim && winAnim.list.includes(cd))) continue;
+    let x = cd.ax;
+    if (cd.shake > 0) { cd.shake -= dt; x += Math.sin(cd.shake * 60) * 4; }
+    drawCardAt(cd, x, cd.ay);
+  }
+  if (drag && drag.moved) drag.run.forEach((cd, i) => { cd.ax = drag.mx - drag.ox; cd.ay = drag.my - drag.oy + i * 28; ctx.save(); ctx.translate(0, -4); drawCardAt(cd, cd.ax, cd.ay); ctx.restore(); });
+
+  // automatisch afmaken
+  if (canAutoFinish() && !autoRun) ui.btn('⚡ Automatisch afmaken', W / 2 - 110, H - 56, 220, 40, () => { autoRun = true; autoT = 0; }, true);
+  if (autoRun) {
+    autoT -= dt;
+    if (autoT <= 0) {
+      autoT = 0.09;
+      let any = false;
+      for (const t of P.tab) { const q = t[t.length - 1]; if (!q) continue; const f = P.found.find((ff) => canFound(q, ff)); if (f) { moveRun(t, t.length - 1, f); any = true; break; } }
+      if (!any || won) autoRun = false;
+    }
+  }
+  // winst: kaarten stuiteren van de stapels
+  if (winAnim) {
+    winAnim.next -= dt;
+    if (winAnim.next <= 0 && winAnim.list.length < 52) {
+      winAnim.next = 0.12;
+      const f = P.found[winAnim.list.length % 4], cd = f[f.length - 1 - Math.floor(winAnim.list.length / 4)];
+      if (cd) { cd.bx = cd.ax; cd.by = cd.ay; cd.vx = (Math.random() < 0.5 ? -1 : 1) * (120 + Math.random() * 200); cd.vy = -Math.random() * 200; winAnim.list.push(cd); }
+    }
+    for (const cd of winAnim.list) {
+      cd.vy += 900 * dt; cd.bx += cd.vx * dt; cd.by += cd.vy * dt;
+      if (cd.by > H - CH) { cd.by = H - CH; cd.vy *= -0.75; }
+      drawCardAt(cd, cd.bx, cd.by);
+    }
+    ctx.fillStyle = 'rgba(11,12,16,0.75)'; Arcade.rr(ctx, W / 2 - 170, 250, 340, 150, 16); ctx.fill();
+    Arcade.text(ctx, 'Gewonnen! 🎉', W / 2, 286, 30, '#ffffff', 'center', '900');
+    Arcade.text(ctx, winAnim.rec ? `🏆 Nieuw record: ${Arcade.fmtTime(time)}` : `${moves} zetten in ${Arcade.fmtTime(time)}`, W / 2, 322, 15, winAnim.rec ? '#5fd38a' : '#c9ced6', 'center', '700');
+    ui.btn('Nieuw spel', W / 2 - 75, 344, 150, 40, newGame, true);
+  }
+  fx.draw(ctx);
+  if (!started && !won) Arcade.text(ctx, Arcade.touch ? 'Tik op een kaart om hem slim te verplaatsen · sleep kan ook' : 'Klik op een kaart = slim verplaatsen · slepen kan ook · spatie = kaart pakken · Z = terug', W / 2, H - 14, 12, 'rgba(255,255,255,0.45)', 'center', '600');
+}
+
+newGame();
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (started && !won && !ArcadeCore.isOpen()) time += dt;
+  draw(dt);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+  </script>
+</body>
+</html>

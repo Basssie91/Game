@@ -56,6 +56,11 @@ const ArcadeCore = (() => {
     blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
     overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
     td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    mijnen:   { bpm: 80,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], kick: 'x.........x.....', snare: '................', hat: '........x.......', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 81, density: 0.25, pad: 'triangle' },
+    sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
+    memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
+    vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
     stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
   };
   // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
@@ -487,6 +492,27 @@ const Arcade = (() => {
     ctx.textBaseline = 'middle';
     ctx.fillText(t, x, y);
   }
+  // Knoppen op het canvas (zelfde stijl overal). btn() elke frame opnieuw tekenen; hit() bij klikken.
+  function ui(ctx) {
+    let list = [], hover = null;
+    return {
+      clear() { list = []; },
+      btn(label, x, y, w, h, fn, primary = false, active = false, size = 0) {
+        const on = hover && hover.x >= x && hover.x <= x + w && hover.y >= y && hover.y <= y + h;
+        const g = ctx.createLinearGradient(0, y, 0, y + h);
+        if (primary || active) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe2e6'); }
+        else { g.addColorStop(0, on ? '#30343c' : '#262930'); g.addColorStop(1, on ? '#24272d' : '#1b1d22'); }
+        ctx.fillStyle = g; rr(ctx, x, y, w, h, Math.min(10, h / 3)); ctx.fill();
+        ctx.strokeStyle = primary || active ? 'rgba(255,255,255,0.6)' : on ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, label, x + w / 2, y + h / 2 + 1, size || Math.min(16, h * 0.4), primary || active ? '#111214' : '#ffffff', 'center', '800');
+        list.push({ x, y, w, h, fn });
+      },
+      hit(q) { for (let i = list.length - 1; i >= 0; i--) { const b = list[i]; if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return true; } } return false; },
+      hover(q) { hover = q; },
+    };
+  }
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   // Standaard scherm voor start / pauze / game over
   function overlay(ctx, W, H, title, lines = [], hint = '') {
     const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
@@ -527,7 +553,7 @@ const Arcade = (() => {
   }
 
   return {
-    load, save, beep, noise, makeFx, backdrop,
+    load, save, beep, noise, makeFx, backdrop, ui, fmtTime,
     get muted() { return !ArcadeCore.sfx(); },
     best: (game) => load('best_' + game, 0),
     // Slaat een nieuwe topscore op; geeft true terug als het een record is

@@ -82,11 +82,12 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
     </header>
     <div class="bar">
       <button class="chip on" data-f="">Alles</button>
+      <button class="chip" data-f="RUSTIG">🤫 Rustig (in de les)</button>
       <button class="chip" data-f="ACTIE">Actie</button>
       <button class="chip" data-f="3D">3D</button>
       <button class="chip" data-f="PUZZEL">Puzzel</button>
       <button class="chip" data-f="STRATEGIE">Strategie</button>
-      <span class="stats">Records gezet: <b id="nRec">0</b>/9</span>
+      <span class="stats">Records gezet: <b id="nRec">0</b>/14</span>
     </div>
     <div class="grid">
       <a class="card feature" href="race/" data-cat="RACE · 3D" style="background-image:url(race/banner.png)">
@@ -157,6 +158,46 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
         <p>Stapel de blokken precies op elkaar. Hoe hoog kom jij?</p>
         <div class="meta"><span>Record: <b data-best="stack">–</b></span><span class="play">Spelen ▶</span></div>
         </div>
+      </a><a class="card" href="patience/" data-cat="RUSTIG · KAARTEN" style="animation-delay:0.40s">
+        <div class="thumb"><span class="cat">RUSTIG · KAARTEN</span><img src="patience/preview.jpg?v=3" alt="" loading="lazy"></div>
+        <div class="body">
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="11" y="15" width="24" height="34" rx="4" fill="#fff" transform="rotate(-12 23 32)"/><text x="23" y="37" font-family="Arial" font-size="15" fill="#d4232b" text-anchor="middle" transform="rotate(-12 23 32)">♥</text><rect x="29" y="14" width="24" height="34" rx="4" fill="#fff" transform="rotate(10 41 31)"/><text x="41" y="28" font-family="Arial" font-weight="900" font-size="11" fill="#15171b" text-anchor="middle" transform="rotate(10 41 31)">A</text><text x="41" y="41" font-family="Arial" font-size="13" fill="#15171b" text-anchor="middle" transform="rotate(10 41 31)">♠</text></svg></div>
+        <h2>Patience</h2>
+        <p>Het bekende kaartspel: leg alle kaarten op volgorde op de vier stapels.</p>
+        <div class="meta"><span>Record: <b data-best="patience">–</b></span><span class="play">Spelen ▶</span></div>
+        </div>
+      </a><a class="card" href="sudoku/" data-cat="RUSTIG · PUZZEL" style="animation-delay:0.44s">
+        <div class="thumb"><span class="cat">RUSTIG · PUZZEL</span><img src="sudoku/preview.jpg?v=3" alt="" loading="lazy"></div>
+        <div class="body">
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="10" y="10" width="44" height="44" rx="5" fill="#22252c" stroke="#9aa1ab" stroke-width="1.5"/><path d="M24.7 10 V54 M39.3 10 V54 M10 24.7 H54 M10 39.3 H54" stroke="#9aa1ab" stroke-width="1.2"/><text x="17.3" y="21.5" font-family="Arial" font-weight="800" font-size="10" fill="#fff" text-anchor="middle">5</text><text x="32" y="36" font-family="Arial" font-weight="800" font-size="10" fill="#7cc4ff" text-anchor="middle">3</text><text x="46.7" y="50.5" font-family="Arial" font-weight="800" font-size="10" fill="#fff" text-anchor="middle">9</text></svg></div>
+        <h2>Sudoku</h2>
+        <p>Vul de cijfers 1 t/m 9 in. Je puzzel wordt bewaard, dus je kunt later verder.</p>
+        <div class="meta"><span>Record: <b data-best="sudoku">–</b></span><span class="play">Spelen ▶</span></div>
+        </div>
+      </a><a class="card" href="mijnen/" data-cat="RUSTIG · PUZZEL" style="animation-delay:0.48s">
+        <div class="thumb"><span class="cat">RUSTIG · PUZZEL</span><img src="mijnen/preview.jpg?v=3" alt="" loading="lazy"></div>
+        <div class="body">
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><g fill="#3a3f48"><rect x="10" y="10" width="13" height="13" rx="2.5"/><rect x="25" y="10" width="13" height="13" rx="2.5"/><rect x="40" y="10" width="13" height="13" rx="2.5"/><rect x="10" y="25" width="13" height="13" rx="2.5"/><rect x="25" y="25" width="13" height="13" rx="2.5"/><rect x="40" y="25" width="13" height="13" rx="2.5"/><rect x="10" y="40" width="13" height="13" rx="2.5"/><rect x="25" y="40" width="13" height="13" rx="2.5"/><rect x="40" y="40" width="13" height="13" rx="2.5"/></g><rect x="25" y="25" width="13" height="13" rx="2.5" fill="#1b1e23"/><text x="31.5" y="35" font-family="Arial" font-weight="900" font-size="11" fill="#6cb4ff" text-anchor="middle">2</text><rect x="44" y="12" width="2" height="10" fill="#c9ced6"/><path d="M46 12 L52 15 L46 18 Z" fill="#e8282f"/><circle cx="17" cy="47" r="4" fill="#0b0c10" stroke="#9aa1ab" stroke-width="1"/></svg></div>
+        <h2>Mijnenveger</h2>
+        <p>Zoek alle veilige vakjes zonder op een mijn te klikken.</p>
+        <div class="meta"><span>Record: <b data-best="mijnen">–</b></span><span class="play">Spelen ▶</span></div>
+        </div>
+      </a><a class="card" href="memory/" data-cat="RUSTIG · 2 SPELERS" style="animation-delay:0.52s">
+        <div class="thumb"><span class="cat">RUSTIG · 2 SPELERS</span><img src="memory/preview.jpg?v=3" alt="" loading="lazy"></div>
+        <div class="body">
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="9" y="14" width="20" height="27" rx="4" fill="#fff" transform="rotate(-10 19 27)"/><text x="19" y="33" font-size="14" text-anchor="middle" transform="rotate(-10 19 27)">⭐</text><rect x="34" y="22" width="20" height="27" rx="4" fill="#3a3f48" stroke="#e8282f" stroke-width="1.5" transform="rotate(8 44 35)"/><text x="44" y="40" font-family="Arial" font-weight="900" font-size="13" fill="#9aa1ab" text-anchor="middle" transform="rotate(8 44 35)">?</text></svg></div>
+        <h2>Memory</h2>
+        <p>Zoek de paren. Alleen of samen met je buurman of buurvrouw.</p>
+        <div class="meta"><span>Record: <b data-best="memory">–</b></span><span class="play">Spelen ▶</span></div>
+        </div>
+      </a><a class="card" href="vier/" data-cat="RUSTIG · 2 SPELERS" style="animation-delay:0.56s">
+        <div class="thumb"><span class="cat">RUSTIG · 2 SPELERS</span><img src="vier/preview.jpg?v=3" alt="" loading="lazy"></div>
+        <div class="body">
+        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="9" y="16" width="46" height="38" rx="5" fill="#2f4f8f"/><circle cx="17" cy="24" r="3.7" fill="#0b0c10"/><circle cx="27" cy="24" r="3.7" fill="#0b0c10"/><circle cx="37" cy="24" r="3.7" fill="#0b0c10"/><circle cx="47" cy="24" r="3.7" fill="#0b0c10"/><circle cx="17" cy="34" r="3.7" fill="#0b0c10"/><circle cx="27" cy="34" r="3.7" fill="#ff6b6b"/><circle cx="37" cy="34" r="3.7" fill="#0b0c10"/><circle cx="47" cy="34" r="3.7" fill="#0b0c10"/><circle cx="17" cy="44" r="3.7" fill="#ffd23f"/><circle cx="27" cy="44" r="3.7" fill="#ff6b6b"/><circle cx="37" cy="44" r="3.7" fill="#ff6b6b"/><circle cx="47" cy="44" r="3.7" fill="#ff6b6b"/><circle cx="17" cy="54" r="3.7" fill="#ffd23f"/><circle cx="27" cy="54" r="3.7" fill="#ffd23f"/><circle cx="37" cy="54" r="3.7" fill="#ffd23f"/><circle cx="47" cy="54" r="3.7" fill="#ff6b6b"/><circle cx="47" cy="10" r="4" fill="#ff6b6b"/></svg></div>
+        <h2>Vier op een rij</h2>
+        <p>Tegen de computer of met z'n tweeën: wie heeft er als eerste vier op een rij?</p>
+        <div class="meta"><span>Record: <b data-best="vier">–</b></span><span class="play">Spelen ▶</span></div>
+        </div>
       </a>
     </div>
     <footer>Gemaakt door Bas · alle games werken op pc en telefoon · je records worden in je browser bewaard</footer>
@@ -193,6 +234,11 @@ const ArcadeCore = (() => {
     blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
     overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
     td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    mijnen:   { bpm: 80,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], kick: 'x.........x.....', snare: '................', hat: '........x.......', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 81, density: 0.25, pad: 'triangle' },
+    sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
+    memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
+    vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
     stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
   };
   // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
@@ -474,7 +520,7 @@ ArcadeCore.music.play('menu');
     const race = load('tt2_bests2');
     document.getElementById('raceDone').textContent = race ? Object.keys(race).length + '/12' : '0/12';
     let n = race && Object.keys(race).length ? 1 : 0;
-    ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack'].forEach((g) => { if (load('arcade_best_' + g)) n++; });
+    ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'patience', 'sudoku', 'mijnen', 'memory', 'vier'].forEach((g) => { if (load('arcade_best_' + g)) n++; });
     document.getElementById('nRec').textContent = n;
     document.querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => {
       document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === b));
