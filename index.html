@@ -28,7 +28,7 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; opa
 @keyframes drift { to { transform: translate3d(0, 30px, 0) scale(1.05); } }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .wrap { position: relative; max-width: 1140px; margin: 0 auto; padding: 44px 20px 40px; }
-header { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; animation: rise 0.5s ease both; }
+header { position: relative; z-index: 30; display: flex; align-items: center; gap: 18px; margin-bottom: 22px; animation: rise 0.5s ease both; }
 header img { width: 64px; height: 64px; border-radius: 16px; box-shadow: 0 10px 30px rgba(232,40,47,0.25); }
 h1 { margin: 0; font-size: clamp(34px, 6vw, 56px); font-style: italic; font-weight: 900; letter-spacing: 0.5px; line-height: 1; }
 h1 span { color: #e8282f; text-shadow: 0 0 30px rgba(232,40,47,0.45); }
@@ -69,7 +69,34 @@ a.feature .tag.new { background: #fff; color: #111214; }
 a.feature .meta { max-width: 400px; }
 @media (max-width: 620px) { a.feature { grid-column: 1 / -1; } .stats { margin-left: 0; width: 100%; } }
 footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; }
-.syncbtn { margin-left: auto; align-self: center; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color: #fff; padding: 10px 14px; border-radius: 12px; font: 800 14px system-ui, sans-serif; cursor: pointer; margin-right: 56px; }
+.hbtns { margin-left: auto; margin-right: 56px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.acct { position: relative; }
+#acctMenu { display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 260px; background: #15171d; border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; padding: 14px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+#acctMenu.open { display: block; }
+#acctMenu p { margin: 6px 0 12px; color: #aab; font-size: 13px; line-height: 1.4; }
+#acctMenu .astate { font-weight: 800; font-size: 14px; } #acctMenu .aerr { color: #ff8a8f; font-size: 13px; font-weight: 700; }
+#acctOut { width: 100%; border: 0; border-radius: 10px; padding: 10px; background: #e8282f; color: #fff; font: 800 14px system-ui, sans-serif; cursor: pointer; }
+#authGate { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.88); backdrop-filter: blur(6px); overflow-y: auto; }
+#authGate.open { display: flex; }
+.abox { width: min(400px, 100%); background: #15171d; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 26px 24px 20px; box-shadow: 0 30px 80px rgba(0,0,0,0.6); text-align: center; animation: rise 0.35s ease both; margin: auto; }
+.abox img { width: 56px; height: 56px; border-radius: 14px; }
+.abox h2 { margin: 10px 0 6px; font-size: 24px; font-style: italic; font-weight: 900; } .abox h2 span { color: #e8282f; }
+.abox .lead { margin: 0 0 16px; color: #aab; font-size: 14px; line-height: 1.45; }
+.abox .tabs { display: flex; background: rgba(255,255,255,0.06); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
+.abox .tab { flex: 1; border: 0; background: none; color: #aab; padding: 9px; border-radius: 9px; font: 800 14px system-ui, sans-serif; cursor: pointer; }
+.abox .tab.on { background: #fff; color: #0b0c10; }
+.abox label { display: block; text-align: left; font-size: 13px; font-weight: 700; color: #ccd; margin-bottom: 10px; }
+.abox input { display: block; width: 100%; margin-top: 5px; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: #0b0c10; color: #fff; font: 600 16px system-ui, sans-serif; outline: none; -webkit-user-select: text; user-select: text; }
+.abox input:focus { border-color: #e8282f; }
+.abox .go { width: 100%; margin-top: 4px; border: 0; border-radius: 12px; padding: 13px; background: #e8282f; color: #fff; font: 900 16px system-ui, sans-serif; cursor: pointer; }
+.abox .go:disabled { opacity: 0.6; }
+.abox .link { border: 0; background: none; color: #aab; font: 700 13px system-ui, sans-serif; margin-top: 10px; cursor: pointer; text-decoration: underline; }
+#aMsg { min-height: 18px; margin-top: 8px; font-size: 14px; font-weight: 700; } #aMsg.ok { color: #5fd38a; } #aMsg.err { color: #ff8a8f; }
+.abox .or { display: flex; align-items: center; gap: 10px; color: #667; font-size: 12px; margin: 10px 0; } .abox .or::before, .abox .or::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,0.12); }
+.ghostbtn { width: 100%; border: 1px solid rgba(255,255,255,0.2); background: none; color: #fff; border-radius: 12px; padding: 11px; font: 800 14px system-ui, sans-serif; cursor: pointer; }
+.ghostbtn:hover { background: rgba(255,255,255,0.08); }
+.abox .small { margin: 8px 0 0; color: #778; font-size: 12px; }
+.syncbtn { align-self: center; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color: #fff; padding: 10px 14px; border-radius: 12px; font: 800 14px system-ui, sans-serif; cursor: pointer; }
 .syncbtn:hover { background: rgba(255,255,255,0.14); }
 #syncModal { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.75); backdrop-filter: blur(4px); }
 #syncModal.open { display: flex; }
@@ -83,7 +110,7 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 .sbox button.ghost { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.16); }
 #syncMsg { min-height: 20px; margin-top: 12px; font-size: 14px; font-weight: 700; }
 #syncMsg.ok { color: #5fd38a; } #syncMsg.err { color: #ff8a8f; }
-@media (max-width: 620px) { .syncbtn { margin: 10px 0 0; } header { flex-wrap: wrap; } }
+@media (max-width: 620px) { .hbtns { margin: 10px 0 0; justify-content: flex-start; } header { flex-wrap: wrap; } #acctMenu { left: 0; right: auto; } }
 </style>
 </head>
 <body>
@@ -94,8 +121,36 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
         <h1>GAME <span>ARCADE</span></h1>
         <p class="sub">Kies een game en verbeter je record</p>
       </div>
-      <button class="syncbtn" id="syncOpen">🔄 Records overzetten</button>
+      <div class="hbtns">
+        <button class="syncbtn" id="syncOpen">🔄 Records overzetten</button>
+        <div class="acct">
+          <button class="syncbtn" id="acctBtn">🔑 Inloggen</button>
+          <div id="acctMenu">
+            <div class="astate" id="acctState"></div>
+            <div class="aerr" id="acctErr"></div>
+            <p>Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.</p>
+            <button id="acctOut">Uitloggen</button>
+          </div>
+        </div>
+      </div>
     </header>
+    <div id="authGate">
+      <form class="abox" id="authForm" autocomplete="on">
+        <img src="arcade-icon.svg" alt="">
+        <h2>Welkom bij <span>Game Arcade</span></h2>
+        <p class="lead">Log in, dan worden je records en je PC Tycoon-winkel opgeslagen. Op elk apparaat heb je alles terug.</p>
+        <div class="tabs"><button type="button" class="tab on" data-m="login">Inloggen</button><button type="button" class="tab" data-m="signup">Account maken</button></div>
+        <label>E-mailadres<input id="aEmail" type="email" autocomplete="email" required></label>
+        <label>Wachtwoord<input id="aPass" type="password" autocomplete="current-password" required minlength="6"></label>
+        <label id="aPass2Row">Herhaal wachtwoord<input id="aPass2" type="password" autocomplete="new-password"></label>
+        <button type="submit" id="aGo" class="go">Inloggen</button>
+        <button type="button" id="aForgot" class="link">Wachtwoord vergeten?</button>
+        <div id="aMsg"></div>
+        <div class="or"><span>of</span></div>
+        <button type="button" id="aGuest" class="ghostbtn">Zonder account spelen</button>
+        <p class="small">Zonder account blijven je records alleen in deze browser.</p>
+      </form>
+    </div>
     <div id="syncModal">
       <div class="sbox">
         <h2>🔄 Records overzetten</h2>
@@ -238,7 +293,7 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
         </div>
       </a>
     </div>
-    <footer>Alle games werken op pc en telefoon · je records worden in je browser bewaard</footer>
+    <footer>Alle games werken op pc en telefoon · log in om je records op elk apparaat te bewaren</footer>
   </div>
   <script>
 // ================= Game Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
@@ -552,6 +607,7 @@ const ArcadeCore = (() => {
 
 ArcadeCore.music.play('menu');
     const load = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+    window.renderRecords = () => {
     document.querySelectorAll('[data-best]').forEach((el) => {
       const v = load('arcade_best_' + el.dataset.best);
       el.textContent = v ? (el.dataset.best === 'tycoon' ? 'Level ' + v : v) : '–';
@@ -561,6 +617,8 @@ ArcadeCore.music.play('menu');
     let n = race && Object.keys(race).length ? 1 : 0;
     ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'patience', 'sudoku', 'mijnen', 'memory', 'vier', 'tycoon'].forEach((g) => { if (load('arcade_best_' + g)) n++; });
     document.getElementById('nRec').textContent = n;
+    };
+    renderRecords();
     document.querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => {
       document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === b));
       document.querySelectorAll('a.card').forEach((cd) => cd.classList.toggle('hide', !!b.dataset.f && !cd.dataset.cat.includes(b.dataset.f)));
@@ -568,17 +626,7 @@ ArcadeCore.music.play('menu');
   </script>
   <script>// ================= Records overzetten met een code (geen account nodig) =================
 (() => {
-  const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
-  const KEEP = /^(arcade_|tt2_)/;
-  const SKIP = /^tt2_ghost|^arcade_settings$/;          // spook-ritten zijn te groot; instellingen horen bij het apparaat
-  function collect() {
-    const o = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (KEEP.test(k) && !SKIP.test(k)) o[k] = localStorage.getItem(k);
-    }
-    return o;
-  }
+  const collect = () => window.ArcadeStore.collect();   // opslag-logica staat in auth.js
   const b64u = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
   async function pack(obj) {
     let bytes = new TextEncoder().encode(JSON.stringify(obj)), z = 0;
@@ -601,47 +649,7 @@ ArcadeCore.music.play('menu');
     if (!o || typeof o !== 'object') throw new Error('Code is beschadigd.');
     return o;
   }
-  // Samenvoegen: per game blijft altijd het beste resultaat bewaard
-  const LOWER = ['arcade_mijnen_bests', 'arcade_sudoku_bests', 'arcade_memory_bests'];   // lagere tijd/zetten = beter
-  const HIGHER = ['arcade_overval_bests', 'arcade_td_bests'];
-  const pickObj = (a, b, better) => { const o = Object.assign({}, a); for (const k in b) if (o[k] == null || better(b[k], o[k])) o[k] = b[k]; return o; };
-  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-  function merge(imp) {
-    let changed = 0;
-    for (const k in imp) {
-      if (!KEEP.test(k) || SKIP.test(k)) continue;
-      const cur = localStorage.getItem(k), v = imp[k];
-      let out = v;
-      if (cur != null) {
-        const a = J(cur), b = J(v);
-        if (k.startsWith('tt2_bests') && a && b) {
-          const o = Object.assign({}, a);
-          for (const l in b) {
-            const bt = b[l] && typeof b[l] === 'object' ? b[l].t : b[l], at = o[l] && typeof o[l] === 'object' ? o[l].t : o[l];
-            if (o[l] == null || bt < at) { o[l] = b[l]; localStorage.removeItem('tt2_ghost2_' + l); }   // oude spookrit hoort niet bij de nieuwe tijd
-          }
-          out = JSON.stringify(o);
-        } else if (LOWER.includes(k) && a && b) out = JSON.stringify(pickObj(a, b, (x, y) => x < y));
-        else if (HIGHER.includes(k) && a && b) out = JSON.stringify(pickObj(a, b, (x, y) => x > y));
-        else if (k === 'arcade_patience_stats' && a && b) out = JSON.stringify({ wins: Math.max(a.wins || 0, b.wins || 0), best: a.best == null ? b.best : b.best == null ? a.best : Math.min(a.best, b.best) });
-        else if (k === 'arcade_vier_stats' && a && b) out = JSON.stringify((b.w + b.l + b.d) > (a.w + a.l + a.d) ? b : a);
-        else if (k.startsWith('arcade_best_') && typeof a === 'number' && typeof b === 'number') out = JSON.stringify(Math.max(a, b));
-        else out = cur;   // overige dingen (opgeslagen spel, voorkeuren): wat hier al staat blijft staan
-      }
-      if (out !== cur) { localStorage.setItem(k, out); changed++; }
-    }
-    // tekst-records op de startpagina opnieuw uitrekenen
-    const g = (k) => J(localStorage.getItem('arcade_' + k));
-    const lv = ['Makkelijk', 'Normaal', 'Moeilijk'];
-    const top = (o) => (o ? [2, 1, 0].find((i) => o[i] != null) : undefined);
-    let o = g('mijnen_bests'), t = top(o); if (t != null) localStorage.setItem('arcade_best_mijnen', JSON.stringify(`${lv[t]} ${fmt(o[t])}`));
-    o = g('sudoku_bests'); t = top(o); if (t != null) localStorage.setItem('arcade_best_sudoku', JSON.stringify(`${lv[t]} ${fmt(o[t])}`));
-    o = g('memory_bests'); t = top(o); if (t != null) localStorage.setItem('arcade_best_memory', JSON.stringify(`${['Klein', 'Middel', 'Groot'][t]}: ${o[t]} zetten`));
-    o = g('patience_stats'); if (o && o.best != null) localStorage.setItem('arcade_best_patience', JSON.stringify(fmt(o.best)));
-    o = g('vier_stats'); if (o) localStorage.setItem('arcade_best_vier', JSON.stringify(`${o.w} gewonnen`));
-    o = g('overval_bests'); if (o && Object.keys(o).length) localStorage.setItem('arcade_best_overval', JSON.stringify(Object.values(o).reduce((s, x) => s + x, 0)));
-    return changed;
-  }
+  const merge = (o) => window.ArcadeStore.merge(o);
 
   // ----- Venster -----
   const modal = document.getElementById('syncModal');
@@ -670,5 +678,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
+  <script type="module" src="auth.js?v=1"></script>
 </body>
 </html>
