@@ -145,8 +145,9 @@ function setMode(m) {
 }
 function acctUI() {
   const b = $('acctBtn'); if (!b) return;
-  if (user) { b.textContent = '👤 ' + (user.email || 'Account'); b.title = 'Account'; }
-  else { b.textContent = '🔑 Inloggen'; setStatus(''); }
+  const p = $('acctMenu').querySelector('p');
+  if (user) { b.textContent = '👤 ' + (user.email || 'Account'); $('acctOut').textContent = 'Uitloggen'; p.textContent = 'Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.'; }
+  else { b.textContent = '🔑 Inloggen'; setStatus(''); $('acctOut').textContent = 'Inloggen'; p.textContent = 'Je speelt als gast: je records staan alleen in deze browser. Log in om ze overal te bewaren.'; }
 }
 function hubUI() {
   document.querySelectorAll('#authGate .tab').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.m)));
@@ -171,11 +172,11 @@ function hubUI() {
   });
   $('aGuest').addEventListener('click', () => { localStorage.setItem(GUEST_KEY, '1'); gate(false); });
   $('acctBtn').addEventListener('click', () => {
-    if (!user) { setMode('login'); gate(true); return; }
     $('acctMenu').classList.toggle('open');
   });
   $('acctOut').addEventListener('click', async () => {
     $('acctMenu').classList.remove('open');
+    if (!user) { setMode('login'); gate(true); return; }
     await push(true);
     // records staan veilig in je account; haal ze van deze browser zodat iemand anders hier opnieuw kan beginnen
     Object.keys(collect()).forEach((k) => localStorage.removeItem(k));
@@ -184,7 +185,7 @@ function hubUI() {
     await fb.signOut(fb.auth);
     location.reload();
   });
-  document.addEventListener('click', (e) => { const m = $('acctMenu'); if (m && !m.contains(e.target) && e.target !== $('acctBtn')) m.classList.remove('open'); });
+  document.addEventListener('click', (e) => { const m = $('acctMenu'); if (m && (!m.contains(e.target) || e.target.id === 'syncOpen') && e.target !== $('acctBtn')) m.classList.remove('open'); });
   setMode('login');
 }
 
