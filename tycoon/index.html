@@ -635,8 +635,8 @@ const LEVELS = [
 function levelCfg(n) {   // na level 3 begint het rondje opnieuw, maar alles is meer waard
   const base = LEVELS[(n - 1) % LEVELS.length], cycle = Math.floor((n - 1) / LEVELS.length);
   const m = Math.pow(30, cycle);
-  const sc = (a) => a.map((v) => Math.round(v * m));
-  return { ...base, n, mult: base.mult * m, cost: { prod: sc(base.cost.prod), reg: sc(base.cost.reg), cashier: sc(base.cost.cashier), stocker: sc(base.cost.stocker), desk: Math.round(base.cost.desk * m), next: Math.round(base.cost.next * m) }, naam: base.naam + (cycle ? ' ' + '★'.repeat(cycle) : '') };
+  const sc = (a) => a.map((v) => Math.round(v * m * 0.6));
+  return { ...base, n, mult: base.mult * m, cost: { prod: sc(base.cost.prod), reg: sc(base.cost.reg), cashier: sc(base.cost.cashier), stocker: sc(base.cost.stocker), desk: Math.round(base.cost.desk * m * 0.6), next: Math.round(base.cost.next * m * 0.6) }, naam: base.naam + (cycle ? ' ' + '★'.repeat(cycle) : '') };
 }
 const UPGR = [
   { id: 'speed', naam: 'Hardlopen', emoji: '👟', desc: 'Je loopt sneller', max: 8, base: 40 },
@@ -1019,13 +1019,13 @@ function showStock() {
 }
 // ================= PC TYCOON · spelregels =================
 const up = (id) => (SV.up[id] || 0);
-const playerSpeed = () => 4.3 + 0.45 * up('speed');
-const playerCap = () => 4 + 2 * up('cap');
+const playerSpeed = () => 4.8 + 0.5 * up('speed');
+const playerCap = () => 5 + 2 * up('cap');
 const staffSpeed = () => 3.0 + 0.4 * up('sspeed');
 const staffCap = () => 3 + up('scap');
-const prodTime = (id) => PRODUCTS[id].tijd / (1 + 0.18 * up('prod'));
-const itemPrice = (id) => Math.round(PRODUCTS[id].prijs * LV.mult * (1 + 0.1 * up('price')));
-const upCost = (u) => Math.round(u.base * levelCfg(SV.level).mult * Math.pow(1.85, up(u.id)));
+const prodTime = (id) => PRODUCTS[id].tijd * 0.65 / (1 + 0.2 * up('prod'));
+const itemPrice = (id) => Math.round(PRODUCTS[id].prijs * 1.6 * LV.mult * (1 + 0.12 * up('price')));
+const upCost = (u) => Math.round(u.base * 0.6 * levelCfg(SV.level).mult * Math.pow(1.6, up(u.id)));
 const lineIds = () => LV.lines.map((l) => l.id).filter((id) => E.shelves[id]);
 
 let PL = null;
@@ -1119,7 +1119,7 @@ function updatePlayer(dt) {
     if (p !== onPad || PL.padT < 1) continue;
     const left = p.u.price - (SV.paid[p.u.id] || 0);
     if (left <= 0 || SV.money <= 0) continue;
-    const amount = Math.min(left, SV.money, Math.max(p.u.price / 1.3, 25) * dt);
+    const amount = Math.min(left, SV.money, Math.max(p.u.price / 1.0, 30) * dt);
     SV.money -= amount; SV.paid[p.u.id] = (SV.paid[p.u.id] || 0) + amount;
     if (Math.random() < dt * 14) Sfx.pay();
     if (SV.paid[p.u.id] >= p.u.price - 0.001) { unlock(p.u); break; }
@@ -1187,7 +1187,7 @@ function bubbleFor(c2) {
 function updateCustomers(dt) {
   const maxC = 3 + lineIds().length * 2 + E.regs.filter(Boolean).length;
   spawnT -= dt;
-  if (spawnT <= 0) { spawnT = Math.max(1.1, 4.5 / (1 + 0.35 * lineIds().length)) * rand(0.7, 1.3); if (E.customers.length < maxC) spawnCustomer(); }
+  if (spawnT <= 0) { spawnT = Math.max(0.8, 3.2 / (1 + 0.35 * lineIds().length)) * rand(0.7, 1.3); if (E.customers.length < maxC) spawnCustomer(); }
   for (let i = E.customers.length - 1; i >= 0; i--) {
     const c2 = E.customers[i];
     let sp = 0;
@@ -1195,7 +1195,7 @@ function updateCustomers(dt) {
     else if (c2.state === 'take') {
       const w = c2.wants[0], s = E.shelves[w.id];
       c2.t += dt;
-      if (c2.t > 0.35 && s.n > 0) {
+      if (c2.t > 0.25 && s.n > 0) {
         c2.t = 0; s.n--; w.n--; c2.basket.push(w.id); Sfx.take();
         if (w.n <= 0) {
           c2.wants.shift();
@@ -1231,7 +1231,7 @@ function updateRegisters(dt) {
     const front = r.queue[0];
     if (!manned || !front || !front.ready) { r.t = 0; continue; }
     r.t += dt;
-    if (r.t >= 0.7 / (1 + 0.3 * up('cash'))) {
+    if (r.t >= 0.5 / (1 + 0.3 * up('cash'))) {
       r.t = 0;
       const total = front.basket.reduce((a, id) => a + itemPrice(id), 0);
       r.cash += total; r.bills += Math.max(1, front.basket.length / 2);
