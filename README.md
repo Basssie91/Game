@@ -4,7 +4,7 @@
 
 Gratis browsergames die je meteen kunt spelen, op pc en op je telefoon.
 
-**Spelen:** https://basjonker2009-lab.github.io/Game/
+**Spelen:** https://basssie91.github.io/Game/
 
 | Game | Map | Wat is het? |
 |---|---|---|

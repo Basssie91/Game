@@ -12,12 +12,12 @@
   <meta property="og:site_name" content="Bas Arcade">
   <meta property="og:title" content="Bas Arcade">
   <meta name="twitter:title" content="Bas Arcade">
-  <meta name="twitter:image" content="https://basjonker2009-lab.github.io/Game/bas-arcade-share.png">
+  <meta name="twitter:image" content="https://basssie91.github.io/Game/bas-arcade-share.png">
   <meta property="og:description" content="9 gratis browsergames: racen, schieten, overvallen, verdedigen en puzzelen.">
-  <meta property="og:image" content="https://basjonker2009-lab.github.io/Game/bas-arcade-share.png">
+  <meta property="og:image" content="https://basssie91.github.io/Game/bas-arcade-share.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:url" content="https://basjonker2009-lab.github.io/Game/">
+  <meta property="og:url" content="https://basssie91.github.io/Game/">
   <meta name="twitter:card" content="summary_large_image">
   <style>
 * { box-sizing: border-box; }
@@ -69,6 +69,21 @@ a.feature .tag.new { background: #fff; color: #111214; }
 a.feature .meta { max-width: 400px; }
 @media (max-width: 620px) { a.feature { grid-column: 1 / -1; } .stats { margin-left: 0; width: 100%; } }
 footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; }
+.syncbtn { margin-left: auto; align-self: center; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color: #fff; padding: 10px 14px; border-radius: 12px; font: 800 14px system-ui, sans-serif; cursor: pointer; margin-right: 56px; }
+.syncbtn:hover { background: rgba(255,255,255,0.14); }
+#syncModal { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.75); backdrop-filter: blur(4px); }
+#syncModal.open { display: flex; }
+.sbox { width: min(560px, 100%); max-height: 92vh; overflow: auto; background: linear-gradient(180deg, #20232a, #15171c); border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 22px; box-shadow: 0 30px 80px rgba(0,0,0,0.6); }
+.sbox h2 { margin: 0 0 4px; font-size: 22px; }
+.sbox p { margin: 0 0 14px; color: #aab0b9; font-size: 14px; line-height: 1.45; }
+.sbox h3 { margin: 16px 0 6px; font-size: 15px; }
+.sbox textarea { width: 100%; height: 76px; resize: vertical; background: #0e0f13; color: #e6e9ee; border: 1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 10px; font: 12px ui-monospace, Consolas, monospace; word-break: break-all; }
+.sbox .row { display: flex; gap: 8px; margin-top: 8px; }
+.sbox button { border: 0; border-radius: 10px; padding: 10px 14px; font: 800 14px system-ui, sans-serif; cursor: pointer; background: #fff; color: #111214; }
+.sbox button.ghost { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.16); }
+#syncMsg { min-height: 20px; margin-top: 12px; font-size: 14px; font-weight: 700; }
+#syncMsg.ok { color: #5fd38a; } #syncMsg.err { color: #ff8a8f; }
+@media (max-width: 620px) { .syncbtn { margin: 10px 0 0; } header { flex-wrap: wrap; } }
 </style>
 </head>
 <body>
@@ -79,7 +94,22 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
         <h1>BAS <span>ARCADE</span></h1>
         <p class="sub">Kies een game en verbeter je record</p>
       </div>
+      <button class="syncbtn" id="syncOpen">🔄 Records overzetten</button>
     </header>
+    <div id="syncModal">
+      <div class="sbox">
+        <h2>🔄 Records overzetten</h2>
+        <p>Records worden in je browser bewaard. Met een code neem je ze mee naar een ander apparaat, een andere browser of je school-laptop. Je beste score blijft altijd bewaard, er gaat niets verloren.</p>
+        <h3>1. Jouw code (op het apparaat mét je records)</h3>
+        <textarea id="syncCode" readonly></textarea>
+        <div class="row"><button id="syncCopy">📋 Kopieer code</button></div>
+        <p style="margin-top:8px">Stuur de code naar jezelf (bijvoorbeeld via WhatsApp, Discord of mail) of zet hem in je notities als back-up.</p>
+        <h3>2. Code plakken (op het nieuwe apparaat)</h3>
+        <textarea id="syncIn" placeholder="Plak hier de code die begint met BAS…"></textarea>
+        <div class="row"><button id="syncGo">Overzetten</button><button class="ghost" data-close>Sluiten</button></div>
+        <div id="syncMsg"></div>
+      </div>
+    </div>
     <div class="bar">
       <button class="chip on" data-f="">Alles</button>
       <button class="chip" data-f="RUSTIG">🤫 Rustig (in de les)</button>
@@ -527,5 +557,109 @@ ArcadeCore.music.play('menu');
       document.querySelectorAll('a.card').forEach((cd) => cd.classList.toggle('hide', !!b.dataset.f && !cd.dataset.cat.includes(b.dataset.f)));
     }));
   </script>
+  <script>// ================= Records overzetten met een code (geen account nodig) =================
+(() => {
+  const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
+  const KEEP = /^(arcade_|tt2_)/;
+  const SKIP = /^tt2_ghost|^arcade_settings$/;          // spook-ritten zijn te groot; instellingen horen bij het apparaat
+  function collect() {
+    const o = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (KEEP.test(k) && !SKIP.test(k)) o[k] = localStorage.getItem(k);
+    }
+    return o;
+  }
+  const b64u = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  async function pack(obj) {
+    let bytes = new TextEncoder().encode(JSON.stringify(obj)), z = 0;
+    if (window.CompressionStream) {
+      try { bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer()); z = 1; } catch (e) { z = 0; }
+    }
+    return 'BAS' + z + '-' + b64u(bytes);
+  }
+  async function unpack(code) {
+    const m = /^BAS([01])-([A-Za-z0-9_-]+)$/.exec(code.replace(/\s+/g, ''));
+    if (!m) throw new Error('Dit is geen geldige code. Een code begint met BAS0- of BAS1-.');
+    let b = m[2].replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4) b += '=';
+    let bytes = Uint8Array.from(atob(b), (ch) => ch.charCodeAt(0));
+    if (m[1] === '1') {
+      if (!window.DecompressionStream) throw new Error('Deze browser is te oud om de code te lezen.');
+      bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    }
+    const o = JSON.parse(new TextDecoder().decode(bytes));
+    if (!o || typeof o !== 'object') throw new Error('Code is beschadigd.');
+    return o;
+  }
+  // Samenvoegen: per game blijft altijd het beste resultaat bewaard
+  const LOWER = ['arcade_mijnen_bests', 'arcade_sudoku_bests', 'arcade_memory_bests'];   // lagere tijd/zetten = beter
+  const HIGHER = ['arcade_overval_bests', 'arcade_td_bests'];
+  const pickObj = (a, b, better) => { const o = Object.assign({}, a); for (const k in b) if (o[k] == null || better(b[k], o[k])) o[k] = b[k]; return o; };
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  function merge(imp) {
+    let changed = 0;
+    for (const k in imp) {
+      if (!KEEP.test(k) || SKIP.test(k)) continue;
+      const cur = localStorage.getItem(k), v = imp[k];
+      let out = v;
+      if (cur != null) {
+        const a = J(cur), b = J(v);
+        if (k.startsWith('tt2_bests') && a && b) {
+          const o = Object.assign({}, a);
+          for (const l in b) {
+            const bt = b[l] && typeof b[l] === 'object' ? b[l].t : b[l], at = o[l] && typeof o[l] === 'object' ? o[l].t : o[l];
+            if (o[l] == null || bt < at) { o[l] = b[l]; localStorage.removeItem('tt2_ghost2_' + l); }   // oude spookrit hoort niet bij de nieuwe tijd
+          }
+          out = JSON.stringify(o);
+        } else if (LOWER.includes(k) && a && b) out = JSON.stringify(pickObj(a, b, (x, y) => x < y));
+        else if (HIGHER.includes(k) && a && b) out = JSON.stringify(pickObj(a, b, (x, y) => x > y));
+        else if (k === 'arcade_patience_stats' && a && b) out = JSON.stringify({ wins: Math.max(a.wins || 0, b.wins || 0), best: a.best == null ? b.best : b.best == null ? a.best : Math.min(a.best, b.best) });
+        else if (k === 'arcade_vier_stats' && a && b) out = JSON.stringify((b.w + b.l + b.d) > (a.w + a.l + a.d) ? b : a);
+        else if (k.startsWith('arcade_best_') && typeof a === 'number' && typeof b === 'number') out = JSON.stringify(Math.max(a, b));
+        else out = cur;   // overige dingen (opgeslagen spel, voorkeuren): wat hier al staat blijft staan
+      }
+      if (out !== cur) { localStorage.setItem(k, out); changed++; }
+    }
+    // tekst-records op de startpagina opnieuw uitrekenen
+    const g = (k) => J(localStorage.getItem('arcade_' + k));
+    const lv = ['Makkelijk', 'Normaal', 'Moeilijk'];
+    const top = (o) => (o ? [2, 1, 0].find((i) => o[i] != null) : undefined);
+    let o = g('mijnen_bests'), t = top(o); if (t != null) localStorage.setItem('arcade_best_mijnen', JSON.stringify(`${lv[t]} ${fmt(o[t])}`));
+    o = g('sudoku_bests'); t = top(o); if (t != null) localStorage.setItem('arcade_best_sudoku', JSON.stringify(`${lv[t]} ${fmt(o[t])}`));
+    o = g('memory_bests'); t = top(o); if (t != null) localStorage.setItem('arcade_best_memory', JSON.stringify(`${['Klein', 'Middel', 'Groot'][t]}: ${o[t]} zetten`));
+    o = g('patience_stats'); if (o && o.best != null) localStorage.setItem('arcade_best_patience', JSON.stringify(fmt(o.best)));
+    o = g('vier_stats'); if (o) localStorage.setItem('arcade_best_vier', JSON.stringify(`${o.w} gewonnen`));
+    o = g('overval_bests'); if (o && Object.keys(o).length) localStorage.setItem('arcade_best_overval', JSON.stringify(Object.values(o).reduce((s, x) => s + x, 0)));
+    return changed;
+  }
+
+  // ----- Venster -----
+  const modal = document.getElementById('syncModal');
+  const out = document.getElementById('syncCode'), inp = document.getElementById('syncIn'), msg = document.getElementById('syncMsg');
+  const say = (t, ok) => { msg.textContent = t; msg.className = ok ? 'ok' : 'err'; };
+  document.getElementById('syncOpen').addEventListener('click', async () => {
+    modal.classList.add('open'); msg.textContent = ''; inp.value = '';
+    const n = Object.keys(collect()).filter((k) => /best|stats/.test(k)).length;
+    out.value = n ? await pack(collect()) : '';
+    out.placeholder = 'Je hebt nog geen records op dit apparaat.';
+  });
+  modal.addEventListener('click', (e) => { if (e.target === modal || e.target.dataset.close != null) modal.classList.remove('open'); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') modal.classList.remove('open'); });
+  document.getElementById('syncCopy').addEventListener('click', async () => {
+    if (!out.value) return say('Er is nog niets om te kopiëren.');
+    try { await navigator.clipboard.writeText(out.value); } catch (e) { out.select(); document.execCommand('copy'); }
+    say('Gekopieerd! Plak de code op je andere apparaat (stuur hem bijvoorbeeld naar jezelf).', true);
+  });
+  document.getElementById('syncGo').addEventListener('click', async () => {
+    if (!inp.value.trim()) return say('Plak eerst een code in het vak.');
+    try {
+      const n = merge(await unpack(inp.value));
+      say(n ? `Gelukt! ${n} dingen bijgewerkt. De pagina wordt ververst…` : 'Gelukt, maar je had hier al dezelfde of betere records.', true);
+      if (n) setTimeout(() => location.reload(), 1400);
+    } catch (e) { say(e.message && !/JSON|atob|Unexpected/.test(e.message) ? e.message : 'Deze code klopt niet. Kopieer hem nog een keer helemaal.'); }
+  });
+})();
+</script>
 </body>
 </html>
