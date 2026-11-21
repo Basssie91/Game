@@ -1394,7 +1394,7 @@ c.addEventListener('pointerup', endDrag); c.addEventListener('pointercancel', en
 
 // ----- Admin (alleen met de geheime code) -----
 // In de code staat alleen een 'vingerafdruk' (SHA-256) van de code, niet de code zelf.
-const ADMIN_HASH = 'f166ea529aed72fc1fefd3a7e96f7e4e1e6e4318a0ac649ca871a7949c6cc4b4';
+const ADMIN_HASH = '3caffc05c7f0e2906e518b7c96b1a3bab9ae1ed894b83d31ca651e93a0b19a15';
 async function sha256(t) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join(''); }
 let adminOk = sessionStorage.getItem('tyc_admin') === ADMIN_HASH;
 let moneyTaps = [];
@@ -1406,7 +1406,7 @@ function openAdmin() {
   for (const k in keys) keys[k] = false;
   $('admin').classList.remove('hide');
   if (!adminOk) {
-    $('adminBody').innerHTML = `<p>Voer de admincode in:</p><input id="aCode" type="password" autocomplete="off" placeholder="Code"><button id="aGo" class="pri">OK</button><p id="aMsg" class="muted"></p>`;
+    $('adminBody').innerHTML = `<p>Voer de admincode in:</p><input id="aCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Code"><button id="aGo" class="pri">OK</button><p id="aMsg" class="muted"></p>`;
     const go = async () => {
       const h = await sha256($('aCode').value.trim().toUpperCase());
       if (h === ADMIN_HASH) { adminOk = true; sessionStorage.setItem('tyc_admin', h); openAdmin(); }
@@ -1418,13 +1418,13 @@ function openAdmin() {
   }
   $('adminBody').innerHTML = `<p>Geld geven:</p>
     <div class="arow">${[1e3, 1e5, 1e7, 1e9].map((v) => `<button data-add="${v}">+€${fmt(v)}</button>`).join('')}</div>
-    <div class="arow"><input id="aAmount" type="number" min="0" placeholder="Eigen bedrag"><button id="aAdd" class="pri">Geven</button></div>
+    <p>Saldo instellen (je geld wordt precies dit bedrag):</p><div class="arow"><input id="aAmount" type="number" min="0" placeholder="Nieuw saldo"><button id="aAdd" class="pri">Instellen</button></div>
     <p>Snel vooruit:</p>
     <div class="arow"><button id="aAll">Alles in deze winkel ontgrendelen</button><button id="aUp">Upgrades max</button><button id="aNext">Volgende level</button></div>
     <p class="muted" id="aMsg"></p>`;
   const done = (t) => { $('aMsg').textContent = t; save(); };
   $('adminBody').querySelectorAll('[data-add]').forEach((b) => (b.onclick = () => { SV.money += +b.dataset.add; done(`+€${fmt(+b.dataset.add)} gegeven`); }));
-  $('aAdd').onclick = () => { const v = Math.max(0, +$('aAmount').value || 0); SV.money += v; done(`+€${fmt(v)} gegeven`); };
+  $('aAdd').onclick = () => { if ($('aAmount').value === '') return; const v = Math.max(0, +$('aAmount').value || 0); SV.money = v; done(`Saldo is nu €${fmt(v)}`); };
   $('aAll').onclick = () => { for (const u of LV.unlocks) if (u.kind !== 'next' && !SV.unlocked[u.id]) { SV.unlocked[u.id] = 1; delete SV.paid[u.id]; spawnUnlock(u, true); } buildNav(); refreshPads(); done('Alles ontgrendeld'); };
   $('aUp').onclick = () => { for (const u of UPGR) SV.up[u.id] = u.max; done('Alle upgrades op max'); };
   $('aNext').onclick = () => { $('admin').classList.add('hide'); const u = LV.unlocks.find((x) => x.kind === 'next'); unlock(u); };
