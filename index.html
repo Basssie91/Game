@@ -43,6 +43,16 @@ h1 span { color: #e8282f; text-shadow: 0 0 30px rgba(232,40,47,0.45); }
 .sect { grid-column: 1 / -1; margin: 14px 0 -4px; font-size: 13px; font-weight: 800; letter-spacing: 1.5px; color: #8a919b; text-transform: uppercase; display: flex; align-items: center; gap: 12px; }
 .sect::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,0.08); }
 .sect.hide { display: none; }
+.recent { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.recent:empty, .recent.hide { display: none; }
+.rc { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 14px; text-decoration: none; color: #fff; background: linear-gradient(180deg, #1a1d23, #14161b); border: 1px solid rgba(255,255,255,0.08); transition: transform 0.15s, border-color 0.15s; animation: rise 0.4s ease both; }
+.rc:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.3); }
+.rc img { width: 76px; height: 48px; object-fit: cover; border-radius: 9px; flex: none; background: #0e0f13; }
+.rc div { min-width: 0; flex: 1; }
+.rc b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc small { color: #8a919b; font-size: 12px; }
+.rc .go { flex: none; width: 32px; height: 32px; border-radius: 50%; background: #fff; color: #111214; display: grid; place-items: center; font-size: 12px; font-weight: 900; }
+.rc:hover .go { background: #e8282f; color: #fff; }
 a.card { position: relative; display: flex; flex-direction: column; border-radius: 18px; text-decoration: none; color: #fff; overflow: hidden;
   background: linear-gradient(180deg, #1a1d23, #14161b); border: 1px solid rgba(255,255,255,0.08);
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; animation: rise 0.5s ease both; }
@@ -78,7 +88,7 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 #acctMenu.open { display: block; }
 #acctMenu p { margin: 6px 0 12px; color: #aab; font-size: 13px; line-height: 1.4; }
 #acctMenu .astate { font-weight: 800; font-size: 14px; } #acctMenu .aerr { color: #ff8a8f; font-size: 13px; font-weight: 700; }
-#acctMenu .ghostbtn { margin-bottom: 8px; font-size: 13px; padding: 9px; }
+#acctMenu .ghostbtn { display: block; box-sizing: border-box; text-align: center; text-decoration: none; margin-bottom: 8px; font-size: 13px; padding: 9px; }
 #acctOut { width: 100%; border: 0; border-radius: 10px; padding: 10px; background: #e8282f; color: #fff; font: 800 14px system-ui, sans-serif; cursor: pointer; }
 #authGate { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.88); backdrop-filter: blur(6px); overflow-y: auto; }
 #authGate.open { display: flex; }
@@ -132,6 +142,7 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
             <div class="astate" id="acctState"></div>
             <div class="aerr" id="acctErr"></div>
             <p>Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.</p>
+            <a id="acctAdmin" class="ghostbtn" href="admin/" style="display:none">🛠️ Admin-pagina</a>
             <button id="syncOpen" class="ghostbtn">🔄 Records overzetten met code</button>
             <button id="acctOut">Uitloggen</button>
           </div>
@@ -178,6 +189,8 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
       <span class="stats">Records gezet: <b id="nRec">0</b>/15</span>
     </div>
     <div class="grid">
+      <div class="sect hide" id="recentTitle">Verder spelen</div>
+      <div class="recent" id="recent"></div>
       <div class="sect">Uitgelicht</div>
       <a class="card feature" href="race/" data-cat="RACE · 3D" style="background-image:url(race/banner.png)">
         <span class="tag">3D · 12 LEVELS</span>
@@ -622,12 +635,22 @@ ArcadeCore.music.play('menu');
     let n = race && Object.keys(race).length ? 1 : 0;
     ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'patience', 'sudoku', 'mijnen', 'memory', 'vier', 'tycoon'].forEach((g) => { if (load('arcade_best_' + g)) n++; });
     document.getElementById('nRec').textContent = n;
+    renderRecent();
     };
+    const INFO = {"overval": ["Robo Overval", "overval/preview.jpg?v=3"], "tycoon": ["PC Tycoon", "tycoon/preview.jpg?v=3"], "td": ["Robo Defense", "td/preview.jpg?v=3"], "meteoren": ["Meteorenregen 2.0", "meteoren/preview.jpg?v=3"], "runner": ["Neon Runner", "runner/preview.jpg?v=3"], "snake": ["Snake 2.0", "snake/preview.jpg?v=3"], "2048": ["2048", "2048/preview.jpg?v=3"], "blokken": ["Blokken", "blokken/preview.jpg?v=3"], "stack": ["Stack Tower", "stack/preview.jpg?v=3"], "patience": ["Patience", "patience/preview.jpg?v=3"], "sudoku": ["Sudoku", "sudoku/preview.jpg?v=3"], "mijnen": ["Mijnenveger", "mijnen/preview.jpg?v=3"], "memory": ["Memory", "memory/preview.jpg?v=3"], "vier": ["Vier op een rij", "vier/preview.jpg?v=3"], "race": ["Turbo Tijdrit", "race/banner.png"]};
+    const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'zojuist' : m < 60 ? m + ' min geleden' : m < 1440 ? Math.round(m / 60) + ' uur geleden' : Math.round(m / 1440) === 1 ? 'gisteren' : Math.round(m / 1440) + ' dagen geleden'; };
+    function renderRecent() {
+      const r = (load('arcade_recent') || []).filter((x) => INFO[x.id]).slice(0, 4), box = document.getElementById('recent');
+      box.innerHTML = r.map((x, i) => `<a class="rc" href="${x.id}/" style="animation-delay:${i * 0.04}s"><img src="${INFO[x.id][1]}" alt=""><div><b>${INFO[x.id][0]}</b><small>${ago(x.t)}</small></div><span class="go">▶</span></a>`).join('');
+      document.getElementById('recentTitle').classList.toggle('hide', !r.length || !!(document.querySelector('.chip.on') || {}).dataset?.f);
+    }
     renderRecords();
     document.querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => {
       document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === b));
       document.querySelectorAll('a.card').forEach((cd) => cd.classList.toggle('hide', !!b.dataset.f && !cd.dataset.cat.includes(b.dataset.f)));
       document.querySelectorAll('.sect').forEach((x) => x.classList.toggle('hide', !!b.dataset.f));
+      document.getElementById('recent').classList.toggle('hide', !!b.dataset.f);
+      if (!b.dataset.f) renderRecent();
     }));
   </script>
   <script>// ================= Records overzetten met een code (geen account nodig) =================
@@ -684,6 +707,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=2"></script>
+  <script type="module" src="auth.js?v=3"></script>
 </body>
 </html>

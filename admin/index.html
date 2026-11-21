@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin · Game Arcade</title>
+  <link rel="icon" href="../arcade-icon.svg">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: #0b0c10; color: #fff; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { background: radial-gradient(1200px 600px at 50% -10%, #262a33 0%, #0b0c10 60%) fixed; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 60px; }
+header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+header img { width: 48px; height: 48px; border-radius: 12px; }
+h1 { margin: 0; font-size: 34px; font-style: italic; font-weight: 900; } h1 span { color: #e8282f; }
+.back { margin-left: auto; color: #fff; text-decoration: none; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); padding: 9px 14px; border-radius: 11px; font-weight: 800; font-size: 14px; }
+.box { background: #15171d; border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; padding: 22px; }
+.center { max-width: 380px; margin: 60px auto; text-align: center; }
+.center h2 { margin: 0 0 8px; } .center p { color: #aab; margin: 0 0 16px; line-height: 1.45; }
+input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: #0b0c10; color: #fff; font: 700 18px system-ui, sans-serif; outline: none; text-align: center; letter-spacing: 4px; }
+input:focus { border-color: #e8282f; }
+#search { text-align: left; letter-spacing: 0; font-size: 15px; font-weight: 600; max-width: 320px; }
+button, .btn { border: 0; border-radius: 10px; padding: 10px 14px; background: #fff; color: #111214; font: 800 14px system-ui, sans-serif; cursor: pointer; }
+button.red { background: #e8282f; color: #fff; } button.ghost { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.16); }
+button.full { width: 100%; margin-top: 10px; padding: 13px; }
+.msg { min-height: 20px; margin-top: 10px; font-weight: 700; font-size: 14px; } .err { color: #ff8a8f; } .ok { color: #5fd38a; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.tile { background: #15171d; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 16px 18px; }
+.tile small { color: #8a919b; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+.tile b { display: block; font-size: 32px; margin-top: 4px; font-family: ui-monospace, Consolas, monospace; }
+h3 { margin: 26px 0 12px; font-size: 13px; letter-spacing: 1.5px; color: #8a919b; text-transform: uppercase; }
+.bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.bar .sp { flex: 1; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; color: #8a919b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+td { padding: 11px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); vertical-align: middle; }
+tr:hover td { background: rgba(255,255,255,0.03); }
+td.num { font-family: ui-monospace, Consolas, monospace; }
+td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { padding: 7px 11px; font-size: 13px; }
+.me { background: #e8282f; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
+.scroll { overflow-x: auto; }
+#modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.8); backdrop-filter: blur(4px); z-index: 10; }
+#modal.open { display: flex; }
+#modal .box { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; }
+#modal h2 { margin: 0 0 4px; font-size: 20px; word-break: break-all; } #modal .sub { color: #8a919b; font-size: 13px; margin-bottom: 14px; }
+.rows div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 14px; }
+.rows b { font-family: ui-monospace, Consolas, monospace; }
+.mbtns { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.hidden { display: none !important; }
+@media (max-width: 700px) { .hide-sm { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img src="../arcade-icon.svg" alt="">
+      <h1>GAME <span>ADMIN</span></h1>
+      <a class="back" href="../">← Terug naar games</a>
+    </header>
+
+    <div id="gate" class="box center">
+      <h2 id="gTitle">Laden…</h2>
+      <p id="gText"></p>
+      <form id="codeForm" class="hidden">
+        <input id="code" type="password" inputmode="numeric" autocomplete="off" placeholder="••••">
+        <button class="red full" type="submit">Openen</button>
+      </form>
+      <div class="msg err" id="gMsg"></div>
+    </div>
+
+    <div id="panel" class="hidden">
+      <div class="tiles">
+        <div class="tile"><small>Accounts</small><b id="tAcc">0</b></div>
+        <div class="tile"><small>Actief vandaag</small><b id="tDay">0</b></div>
+        <div class="tile"><small>Actief deze week</small><b id="tWeek">0</b></div>
+        <div class="tile"><small>Records totaal</small><b id="tRec">0</b></div>
+      </div>
+
+      <h3>Accounts</h3>
+      <div class="bar">
+        <input id="search" placeholder="Zoek op e-mail…">
+        <span class="sp"></span>
+        <button class="ghost" id="refresh">🔄 Vernieuwen</button>
+      </div>
+      <div class="box scroll" style="padding:6px 10px">
+        <table>
+          <thead><tr><th>E-mail</th><th>Laatst actief</th><th class="hide-sm">Records</th><th class="hide-sm">PC Tycoon</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <h3>Beste per game</h3>
+      <div class="box scroll" style="padding:6px 10px">
+        <table>
+          <thead><tr><th>Game</th><th>Record</th><th>Van</th></tr></thead>
+          <tbody id="bests"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal"><div class="box">
+    <h2 id="mTitle"></h2>
+    <div class="sub" id="mSub"></div>
+    <div class="rows" id="mRows"></div>
+    <div class="mbtns">
+      <button class="red" id="mWipe">🗑️ Records wissen</button>
+      <button class="ghost" id="mClose">Sluiten</button>
+    </div>
+    <div class="msg" id="mMsg"></div>
+  </div></div>
+
+  <script type="module">
+const firebaseConfig = {
+  apiKey: 'AIzaSyAANDdhYuISmIhyN_lbiO_-7R3wCt9bQGA',
+  authDomain: 'game-arcade-7f5a8.firebaseapp.com',
+  projectId: 'game-arcade-7f5a8',
+  storageBucket: 'game-arcade-7f5a8.firebasestorage.app',
+  messagingSenderId: '780565589564',
+  appId: '1:780565589564:web:1046aab17911e304e5dd39',
+};
+const ADMIN_EMAIL = 'basjonker2009@gmail.com';
+const ADMIN_HASH = '3caffc05c7f0e2906e518b7c96b1a3bab9ae1ed894b83d31ca651e93a0b19a15';
+const GAMES = [["race", "Turbo Tijdrit"], ["overval", "Robo Overval"], ["tycoon", "PC Tycoon"], ["td", "Robo Defense"], ["meteoren", "Meteorenregen 2.0"], ["runner", "Neon Runner"], ["snake", "Snake 2.0"], ["2048", "2048"], ["blokken", "Blokken"], ["stack", "Stack Tower"], ["patience", "Patience"], ["sudoku", "Sudoku"], ["mijnen", "Mijnenveger"], ["memory", "Memory"], ["vier", "Vier op een rij"]];   // [id, naam]
+const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
+const $ = (id) => document.getElementById(id);
+const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const gate = (title, text, showCode) => { $('gTitle').textContent = title; $('gText').textContent = text; $('codeForm').classList.toggle('hidden', !showCode); $('gate').classList.remove('hidden'); $('panel').classList.add('hidden'); if (showCode) setTimeout(() => $('code').focus(), 50); };
+async function sha256(t) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join(''); }
+
+let fb, me, users = [], open = null;
+try {
+  const [app, auth, fs] = await Promise.all([import(FB + 'firebase-app.js'), import(FB + 'firebase-auth.js'), import(FB + 'firebase-firestore.js')]);
+  const a = app.initializeApp(firebaseConfig);
+  fb = { ...auth, ...fs, auth: auth.getAuth(a), db: fs.getFirestore(a) };
+} catch (e) { gate('Geen verbinding', 'Firebase kon niet geladen worden. Probeer het later opnieuw.'); throw e; }
+
+fb.onAuthStateChanged(fb.auth, (u) => {
+  me = u;
+  if (!u) return gate('Niet ingelogd', 'Log eerst in op de startpagina met je admin-account.');
+  if ((u.email || '').toLowerCase() !== ADMIN_EMAIL) return gate('Geen toegang', 'Deze pagina is alleen voor de beheerder.');
+  gate('🔒 Admin-code', 'Vul je code in om de admin-pagina te openen.', true);   // elke keer opnieuw
+});
+$('codeForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (await sha256($('code').value.trim().toUpperCase()) !== ADMIN_HASH) { $('gMsg').textContent = 'Verkeerde code.'; $('code').value = ''; return; }
+  $('gMsg').textContent = ''; $('code').value = '';
+  $('gate').classList.add('hidden'); $('panel').classList.remove('hidden');
+  load();
+});
+
+// ---------- gegevens ----------
+const ms = (ts) => (ts && ts.toMillis ? ts.toMillis() : 0);
+function ago(t) {
+  if (!t) return '–';
+  const m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? 'zojuist' : m < 60 ? m + ' min geleden' : m < 1440 ? Math.round(m / 60) + ' uur geleden' : Math.round(m / 1440) === 1 ? 'gisteren' : Math.round(m / 1440) + ' dagen geleden';
+}
+function recordsOf(d) {   // [[id, naam, waarde]]
+  const out = [];
+  for (const [id, naam] of GAMES) {
+    let v = null;
+    if (id === 'race') { const r = J(d.tt2_bests2); v = r && Object.keys(r).length ? Object.keys(r).length + '/12 levels' : null; }
+    else { v = J(d['arcade_best_' + id]); if (id === 'tycoon' && v) v = 'Level ' + v; }
+    out.push([id, naam, v]);
+  }
+  return out;
+}
+async function load() {
+  $('rows').innerHTML = '<tr><td colspan="5">Laden…</td></tr>';
+  try {
+    const snap = await fb.getDocs(fb.collection(fb.db, 'users'));
+    users = snap.docs.map((s) => { const x = s.data(); return { uid: s.id, email: x.email || '(geen e-mail)', t: ms(x.updated), data: x.data || {} }; });
+    users.sort((a, b) => b.t - a.t);
+    render();
+  } catch (e) {
+    $('rows').innerHTML = `<tr><td colspan="5" class="err">${e.code === 'permission-denied' ? 'Geen toestemming: zet de nieuwe Firestore-regels erin (zie uitleg).' : 'Fout: ' + esc(e.message)}</td></tr>`;
+  }
+}
+function render() {
+  const now = Date.now(), q = $('search').value.trim().toLowerCase();
+  let total = 0;
+  const rows = users.map((u) => { const r = recordsOf(u.data).filter((x) => x[2] != null); total += r.length; return { u, n: r.length }; });
+  $('tAcc').textContent = users.length;
+  $('tDay').textContent = users.filter((u) => now - u.t < 864e5).length;
+  $('tWeek').textContent = users.filter((u) => now - u.t < 7 * 864e5).length;
+  $('tRec').textContent = total;
+  $('rows').innerHTML = rows.filter(({ u }) => u.email.toLowerCase().includes(q)).map(({ u, n }) => {
+    const ty = J(u.data.arcade_best_tycoon);
+    return `<tr><td>${esc(u.email)}${me && u.uid === me.uid ? '<span class="me">JIJ</span>' : ''}</td><td>${ago(u.t)}</td><td class="num hide-sm">${n}/${GAMES.length}</td><td class="num hide-sm">${ty ? 'Level ' + ty : '–'}</td>
+      <td><div class="acts"><button data-v="${u.uid}">Bekijk</button></div></td></tr>`;
+  }).join('') || '<tr><td colspan="5">Geen accounts gevonden.</td></tr>';
+  // beste per game (alleen games met een getal als score)
+  $('bests').innerHTML = GAMES.map(([id, naam]) => {
+    let best = null;
+    for (const u of users) {
+      const v = id === 'race' ? (J(u.data.tt2_bests2) ? Object.keys(J(u.data.tt2_bests2)).length : null) : J(u.data['arcade_best_' + id]);
+      if (typeof v === 'number' && v > 0 && (!best || v > best.v)) best = { v, email: u.email };
+    }
+    const show = best ? (id === 'race' ? best.v + '/12 levels' : id === 'tycoon' ? 'Level ' + best.v : best.v.toLocaleString('nl-NL')) : '–';
+    return `<tr><td>${esc(naam)}</td><td class="num">${show}</td><td>${best ? esc(best.email) : '–'}</td></tr>`;
+  }).join('');
+}
+$('search').addEventListener('input', render);
+$('refresh').addEventListener('click', load);
+
+// ---------- details ----------
+$('rows').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-v]'); if (!b) return;
+  open = users.find((u) => u.uid === b.dataset.v); if (!open) return;
+  $('mTitle').textContent = open.email;
+  $('mSub').textContent = 'Laatst actief: ' + ago(open.t);
+  $('mRows').innerHTML = recordsOf(open.data).map(([, naam, v]) => `<div><span>${esc(naam)}</span><b>${v == null ? '–' : esc(v)}</b></div>`).join('');
+  $('mWipe').textContent = '🗑️ Records wissen'; $('mWipe').dataset.sure = ''; $('mWipe').disabled = false; $('mMsg').textContent = '';
+  $('modal').classList.add('open');
+});
+const closeM = () => $('modal').classList.remove('open');
+$('mClose').addEventListener('click', closeM);
+$('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeM(); });
+$('mWipe').addEventListener('click', async () => {
+  const b = $('mWipe');
+  if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = '⚠️ Zeker weten? Klik nog een keer'; return; }
+  b.disabled = true;
+  try {
+    await fb.setDoc(fb.doc(fb.db, 'users', open.uid), { data: {}, email: open.email, updated: fb.serverTimestamp(), resetAt: fb.serverTimestamp() });
+    $('mMsg').className = 'msg ok'; $('mMsg').textContent = 'Gewist. Ook op hun apparaten verdwijnen de records zodra ze de site openen.';
+    b.textContent = '✔ Gewist';
+    load();
+  } catch (e) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (e.code || e.message); b.disabled = false; }
+});
+  </script>
+</body>
+</html>

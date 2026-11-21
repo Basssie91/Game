@@ -12,6 +12,17 @@ const firebaseConfig = {
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const IS_HUB = !!document.getElementById('authGate');
 const GUEST_KEY = 'ga_guest';
+const ADMIN_EMAIL = 'basjonker2009@gmail.com';
+
+// ---------- Laatst gespeeld (alleen in games) ----------
+if (!IS_HUB) {
+  const id = location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '').split('/').pop();
+  if (id) {
+    let r; try { r = JSON.parse(localStorage.getItem('arcade_recent')) || []; } catch (e) { r = []; }
+    r = r.filter((x) => x.id !== id); r.unshift({ id, t: Date.now() });
+    try { localStorage.setItem('arcade_recent', JSON.stringify(r.slice(0, 8))); } catch (e) { /* vol */ }
+  }
+}
 
 // ---------- Opslag: verzamelen + slim samenvoegen (ook gebruikt door 'Records overzetten') ----------
 const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
@@ -47,6 +58,10 @@ function mergeVal(k, cur, v, ghosts) {
   if (HIGHER.includes(k) && a && b) return JSON.stringify(pickObj(a, b, (x, y) => x > y));
   if (k === 'arcade_patience_stats' && a && b) return JSON.stringify({ wins: Math.max(a.wins || 0, b.wins || 0), best: a.best == null ? b.best : b.best == null ? a.best : Math.min(a.best, b.best) });
   if (k === 'arcade_vier_stats' && a && b) return JSON.stringify((b.w + b.l + b.d) > (a.w + a.l + a.d) ? b : a);
+  if (k === 'arcade_recent' && Array.isArray(a) && Array.isArray(b)) {   // beide lijsten samen, nieuwste eerst
+    const m = {}; a.concat(b).forEach((x) => { if (x && x.id && (!m[x.id] || x.t > m[x.id].t)) m[x.id] = x; });
+    return JSON.stringify(Object.values(m).sort((x, y) => y.t - x.t).slice(0, 8));
+  }
   if (k === 'arcade_tycoon2_save' && a && b) {   // de winkel waar je het verst mee bent
     const pa = (a.stats && a.stats.earned) || 0, pb = (b.stats && b.stats.earned) || 0;
     return pb > pa ? v : cur;
@@ -95,9 +110,17 @@ async function loadFb() {
   return fb;
 }
 const ref = () => fb.doc(fb.db, 'users', user.uid);
+function wipeLocal() {
+  Object.keys(collect()).forEach((k) => localStorage.removeItem(k));
+  for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('tt2_ghost')) localStorage.removeItem(k); }
+}
 async function pull() {
   const snap = await fb.getDoc(ref());
-  remote = (snap.exists() && snap.data().data) || {};
+  const d = snap.exists() ? snap.data() : {};
+  remote = d.data || {};
+  // heeft de admin de records van dit account gewist? Dan ook hier wissen (één keer)
+  const ra = d.resetAt && d.resetAt.toMillis ? d.resetAt.toMillis() : 0;
+  if (ra && ra > (+localStorage.getItem('ga_reset_seen') || 0)) { wipeLocal(); localStorage.setItem('ga_reset_seen', ra); lastSent = ''; }
   return remote;
 }
 async function push(force) {
@@ -106,7 +129,7 @@ async function push(force) {
   const s = JSON.stringify(data);
   if (!force && s === lastSent) return;
   try {
-    await fb.setDoc(ref(), { data, email: user.email, updated: fb.serverTimestamp() });
+    await fb.setDoc(ref(), { data, email: user.email, updated: fb.serverTimestamp() }, { merge: true });
     lastSent = s; remote = data; setStatus('saved');
   } catch (e) { setStatus('error', e); }
 }
@@ -146,6 +169,7 @@ function setMode(m) {
 function acctUI() {
   const b = $('acctBtn'); if (!b) return;
   const p = $('acctMenu').querySelector('p');
+  $('acctAdmin').style.display = user && (user.email || '').toLowerCase() === ADMIN_EMAIL ? '' : 'none';
   if (user) { b.textContent = '👤 ' + (user.email || 'Account'); $('acctOut').textContent = 'Uitloggen'; p.textContent = 'Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.'; }
   else { b.textContent = '🔑 Inloggen'; setStatus(''); $('acctOut').textContent = 'Inloggen'; p.textContent = 'Je speelt als gast: je records staan alleen in deze browser. Log in om ze overal te bewaren.'; }
 }
@@ -179,8 +203,7 @@ function hubUI() {
     if (!user) { setMode('login'); gate(true); return; }
     await push(true);
     // records staan veilig in je account; haal ze van deze browser zodat iemand anders hier opnieuw kan beginnen
-    Object.keys(collect()).forEach((k) => localStorage.removeItem(k));
-    for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('tt2_ghost')) localStorage.removeItem(k); }
+    wipeLocal();
     localStorage.removeItem(GUEST_KEY);
     await fb.signOut(fb.auth);
     location.reload();
@@ -202,7 +225,7 @@ function hubUI() {
       await pull();
       if (IS_HUB) {
         const n = applyIn(remote);      // beste van account + deze browser samenvoegen
-        if (n && window.renderRecords) window.renderRecords();
+        if (window.renderRecords) window.renderRecords();
       }
       ready = true;
       await push(true);
