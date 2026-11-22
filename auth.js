@@ -162,6 +162,7 @@ async function setName(n) {
   await fb.setDoc(ref(), { name: n }, { merge: true });
   myName = n; acctUI();
   await pushBoard(null, true);
+  if (IS_HUB) loadBoard();
 }
 
 // ---------- UI (alleen startpagina) ----------
@@ -257,13 +258,49 @@ function hubUI() {
   setMode('login');
 }
 
+// ---------- Ranglijst op de startpagina ----------
+const SHOW = { race: (v) => v + '/12', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins' };
+let boardPlayers = null;
+async function loadBoard() {
+  if (!fb) return;
+  try {
+    const snap = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
+    boardPlayers = snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => p.name);
+  } catch (e) { console.warn('Ranglijst laden mislukt:', e); if (!boardPlayers) boardPlayers = []; }
+  renderBoard();
+}
+function renderBoard() {
+  const list = $('bList'); if (!list || !boardPlayers) return;
+  const g = $('bGame').value;
+  let rows;
+  if (!g) {   // klassement: 🥇 3, 🥈 2, 🥉 1 punt per game
+    const pts = new Map();
+    for (const id of [...BOARD, 'race', 'vier']) {
+      boardPlayers.filter((p) => p.scores && p.scores[id] > 0).sort((a, b) => b.scores[id] - a.scores[id]).slice(0, 3)
+        .forEach((p, i) => pts.set(p.uid, (pts.get(p.uid) || 0) + 3 - i));
+    }
+    rows = boardPlayers.filter((p) => pts.has(p.uid)).map((p) => ({ p, v: pts.get(p.uid), s: pts.get(p.uid) + ' pt' })).sort((a, b) => b.v - a.v);
+  } else {
+    rows = boardPlayers.filter((p) => p.scores && p.scores[g] > 0).map((p) => ({ p, v: p.scores[g], s: (SHOW[g] || ((v) => v.toLocaleString('nl-NL')))(p.scores[g]) })).sort((a, b) => b.v - a.v);
+  }
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  list.innerHTML = rows.slice(0, 10).map(({ p, s }, i) => `<li class="${user && p.uid === user.uid ? 'me' : ''}"><span class="rk">${i + 1}</span><span class="nm">${esc(p.name)}</span><span class="sc">${esc(s)}</span></li>`).join('')
+    || '<li class="empty">Nog niemand op deze ranglijst. Wees de eerste!</li>';
+  $('bCount').textContent = boardPlayers.length ? boardPlayers.length + (boardPlayers.length === 1 ? ' speler' : ' spelers') : '';
+  const note = $('bNote');
+  if (!user) note.innerHTML = '<a id="bLogin">Log in</a> en kies een spelersnaam om mee te doen.';
+  else if (!myName) note.textContent = 'Kies rechtsboven een spelersnaam om op de ranglijst te komen.';
+  else { const pos = rows.findIndex((r) => r.p.uid === user.uid); note.textContent = pos >= 10 ? `Jij staat op plek ${pos + 1}.` : ''; }
+  const l = $('bLogin'); if (l) l.onclick = () => { setMode('login'); gate(true); };
+}
+
 // ---------- Start ----------
 (async () => {
-  if (IS_HUB) hubUI();
+  if (IS_HUB) { hubUI(); $('bGame').addEventListener('change', renderBoard); }
   try { await loadFb(); } catch (e) { console.warn('Firebase niet geladen (offline?)', e); return; }
   fb.onAuthStateChanged(fb.auth, async (u) => {
     user = u; ready = false; acctUI();
-    if (!u) { if (IS_HUB && localStorage.getItem(GUEST_KEY) !== '1') gate(true); return; }
+    if (!u) { if (IS_HUB) renderBoard(); if (IS_HUB && localStorage.getItem(GUEST_KEY) !== '1') gate(true); return; }
     localStorage.removeItem(GUEST_KEY);
     if (IS_HUB) { gate(false); setStatus('busy'); }
     try {
@@ -277,11 +314,13 @@ function hubUI() {
       pendingName = '';
       if (IS_HUB) acctUI();
       await push(true);
+      if (IS_HUB) loadBoard();
     } catch (e) {
       setStatus('error', e);
       if (IS_HUB) { const m = $('acctMenu'); if (m) $('acctErr').textContent = errText(e); }
     }
   });
+  if (IS_HUB) { loadBoard(); setInterval(loadBoard, 60000); }
   // regelmatig en bij weggaan opslaan
   setInterval(() => push(false), 15000);
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') push(false); });

@@ -82,6 +82,23 @@ a.feature .tag.new { background: #fff; color: #111214; }
 a.feature .meta { max-width: 400px; }
 @media (max-width: 620px) { a.feature { grid-column: 1 / -1; } .stats { margin-left: 0; width: 100%; } }
 footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; }
+#board { margin-top: 36px; background: linear-gradient(180deg, #1a1d23, #14161b); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 18px; animation: rise 0.5s 0.1s ease both; }
+@media (min-width: 1800px) { #board { position: absolute; top: 210px; left: calc(100% + 8px); width: 300px; margin: 0; } }
+.bhead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.bhead h2 { margin: 0; font-size: 18px; font-weight: 900; font-style: italic; } #bCount { color: #8a919b; font-size: 12px; font-weight: 700; }
+#bGame { width: 100%; appearance: none; -webkit-appearance: none; background: #0b0c10 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23aab' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 12px center; color: #fff; border: 1px solid rgba(255,255,255,0.14); border-radius: 11px; padding: 10px 34px 10px 12px; font: 700 14px system-ui, sans-serif; cursor: pointer; outline: none; margin-bottom: 10px; }
+#bGame:focus { border-color: #e8282f; } #bGame option { background: #15171d; }
+#bList { list-style: none; margin: 0; padding: 0; }
+#bList li { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 10px; font-size: 14px; }
+#bList li + li { border-top: 1px solid rgba(255,255,255,0.05); }
+#bList li.me { background: rgba(232,40,47,0.12); box-shadow: inset 3px 0 0 #e8282f; }
+#bList .rk { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 900 12px ui-monospace, Consolas, monospace; color: #9aa1ab; background: rgba(255,255,255,0.06); }
+#bList li:nth-child(1) .rk { background: #f5c542; color: #1a1400; } #bList li:nth-child(2) .rk { background: #cfd5dd; color: #15171d; } #bList li:nth-child(3) .rk { background: #d08a4e; color: #1c0f04; }
+#bList .nm { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#bList .sc { flex: none; font: 800 13px ui-monospace, Consolas, monospace; color: #fff; }
+#bList li.empty { color: #8a919b; justify-content: center; padding: 20px 8px; font-size: 13px; }
+.bnote { margin: 10px 0 0; color: #8a919b; font-size: 12px; line-height: 1.45; text-align: center; } .bnote:empty { display: none; }
+.bnote a { color: #fff; font-weight: 800; cursor: pointer; text-decoration: underline; }
 .hbtns { margin-left: auto; margin-right: 56px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .acct { position: relative; }
 #acctMenu { display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 260px; background: #15171d; border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; padding: 14px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
@@ -321,6 +338,25 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
         </div>
       </a>
     </div>
+    <aside id="board">
+      <div class="bhead"><h2>🏆 Ranglijst</h2><span id="bCount"></span></div>
+      <select id="bGame" aria-label="Kies een ranglijst">
+        <option value="">👑 Klassement</option>
+        <option value="race">🏎️ Turbo Tijdrit</option>
+        <option value="overval">🤖 Robo Overval</option>
+        <option value="tycoon">💻 PC Tycoon</option>
+        <option value="td">🛡️ Robo Defense</option>
+        <option value="meteoren">☄️ Meteorenregen</option>
+        <option value="runner">🏃 Neon Runner</option>
+        <option value="snake">🐍 Snake 2.0</option>
+        <option value="2048">🔢 2048</option>
+        <option value="blokken">🧱 Blokken</option>
+        <option value="stack">🏗️ Stack Tower</option>
+        <option value="vier">🔴 Vier op een rij</option>
+      </select>
+      <ol id="bList"><li class="empty">Laden…</li></ol>
+      <p class="bnote" id="bNote"></p>
+    </aside>
     <footer>Alle games werken op pc en telefoon · log in om je records op elk apparaat te bewaren</footer>
   </div>
   <script>
@@ -717,6 +753,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=4"></script>
+  <script type="module" src="auth.js?v=5"></script>
 </body>
 </html>
