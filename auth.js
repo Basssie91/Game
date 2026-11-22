@@ -161,13 +161,21 @@ function scoresOf(d) {
   const vier = J(d.arcade_vier_stats); if (vier && vier.w > 0) o.vier = vier.w;
   return o;
 }
+// records die geen score zijn (tijden/zetten), alleen om te laten zien op je profiel
+function extraOf(d) {
+  const o = {};
+  for (const g of ['sudoku', 'mijnen', 'memory', 'patience']) { const v = J(d['arcade_best_' + g]); if (typeof v === 'string' && v) o[g] = v; }
+  return o;
+}
 async function pushBoard(data, force) {
   if (!user || !myName) return;
-  const scores = scoresOf(data || mergeObjs(collect(), remote));
-  const s = JSON.stringify([myName, scores]);
+  const d = data || mergeObjs(collect(), remote);
+  const scores = scoresOf(d), extra = extraOf(d);
+  const since = (user.metadata && user.metadata.creationTime) || '';
+  const s = JSON.stringify([myName, scores, extra]);
   if (!force && s === lastBoard) return;
   try {
-    await fb.setDoc(fb.doc(fb.db, 'leaderboard', user.uid), { name: myName, scores, updated: fb.serverTimestamp() });
+    await fb.setDoc(fb.doc(fb.db, 'leaderboard', user.uid), { name: myName, scores, extra, since, updated: fb.serverTimestamp() });
     lastBoard = s;
   } catch (e) { console.warn('Ranglijst bijwerken mislukt:', e); }
 }
@@ -219,6 +227,7 @@ function acctUI() {
   const p = $('acctMenu').querySelector('p');
   $('acctAdmin').style.display = user && (user.email || '').toLowerCase() === ADMIN_EMAIL ? '' : 'none';
   $('nameBox').style.display = user ? '' : 'none';
+  $('acctProfile').style.display = user && myName ? '' : 'none';
   if (user && document.activeElement !== $('nameIn')) $('nameIn').value = myName;
   $('nameMsg').textContent = user && !myName ? 'Kies een naam om op de ranglijst te komen.' : ''; $('nameMsg').className = '';
   if (user) { b.textContent = '👤 ' + (myName || user.email || 'Account'); $('acctOut').textContent = 'Uitloggen'; p.textContent = 'Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.'; }
@@ -300,7 +309,7 @@ function renderBoard() {
     rows = boardPlayers.filter((p) => p.scores && p.scores[g] > 0).map((p) => ({ p, v: p.scores[g], s: (SHOW[g] || ((v) => v.toLocaleString('nl-NL')))(p.scores[g]) })).sort((a, b) => b.v - a.v);
   }
   const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  list.innerHTML = rows.slice(0, 10).map(({ p, s }, i) => `<li class="${user && p.uid === user.uid ? 'me' : ''}"><span class="rk">${i + 1}</span><span class="nm">${esc(p.name)}</span><span class="sc">${esc(s)}</span></li>`).join('')
+  list.innerHTML = rows.slice(0, 10).map(({ p, s }, i) => `<li data-uid="${esc(p.uid)}" title="Bekijk profiel" class="${user && p.uid === user.uid ? 'me' : ''}"><span class="rk">${i + 1}</span><span class="nm">${esc(p.name)}</span><span class="sc">${esc(s)}</span></li>`).join('')
     || '<li class="empty">Nog niemand op deze ranglijst. Wees de eerste!</li>';
   $('bCount').textContent = boardPlayers.length ? boardPlayers.length + (boardPlayers.length === 1 ? ' speler' : ' spelers') : '';
   const note = $('bNote');
@@ -308,6 +317,65 @@ function renderBoard() {
   else if (!myName) note.textContent = 'Kies rechtsboven een spelersnaam om op de ranglijst te komen.';
   else { const pos = rows.findIndex((r) => r.p.uid === user.uid); note.textContent = pos >= 10 ? `Jij staat op plek ${pos + 1}.` : ''; }
   const l = $('bLogin'); if (l) l.onclick = () => { setMode('login'); gate(true); };
+}
+
+// ---------- Profiel ----------
+const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['blokken', '🧱', 'Blokken'], ['stack', '🏗️', 'Stack Tower'], ['vier', '🔴', 'Vier op een rij'], ['sudoku', '🔢', 'Sudoku'], ['mijnen', '💣', 'Mijnenveger'], ['memory', '🧠', 'Memory'], ['patience', '🃏', 'Patience']];
+function klassement() {
+  const pts = new Map();
+  for (const id of [...BOARD, 'race', 'vier']) {
+    boardPlayers.filter((p) => p.scores && p.scores[id] > 0).sort((a, b) => b.scores[id] - a.scores[id]).slice(0, 3)
+      .forEach((p, i) => pts.set(p.uid, (pts.get(p.uid) || 0) + 3 - i));
+  }
+  return [...pts.entries()].sort((a, b) => b[1] - a[1]);
+}
+async function openProfile(uid) {
+  if (!boardPlayers) await loadBoard();
+  const p = (boardPlayers || []).find((x) => x.uid === uid); if (!p) return;
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const kl = klassement(), kpos = kl.findIndex(([u]) => u === uid);
+  const sc = p.scores || {}, ex = p.extra || {};
+  let n = 0;
+  const rows = PGAMES.map(([id, ic, naam]) => {
+    let val = null, rank = '';
+    if (sc[id] > 0) {
+      val = (SHOW[id] || ((v) => v.toLocaleString('nl-NL')))(sc[id]);
+      const all = boardPlayers.filter((x) => x.scores && x.scores[id] > 0).sort((a, b) => b.scores[id] - a.scores[id]);
+      const r = all.findIndex((x) => x.uid === uid) + 1;
+      rank = `<span class="prk ${r <= 3 ? 'm' + r : ''}">#${r}<small> van ${all.length}</small></span>`;
+    } else if (ex[id]) val = ex[id];
+    if (val != null) n++;
+    return `<div class="pg ${val == null ? 'none' : ''}"><span class="pic">${ic}</span><span class="pn">${naam}</span><b>${val == null ? '–' : esc(val)}</b>${rank}</div>`;
+  }).join('');
+  const since = p.since ? new Date(p.since) : null;
+  $('profBody').innerHTML = `
+    <div class="phead"><div class="pav">${esc(p.name.slice(0, 1).toUpperCase())}</div>
+      <div><h2>${esc(p.name)}${user && uid === user.uid ? ' <span class="pme">JIJ</span>' : ''}</h2>
+      <p>${since && !isNaN(since) ? 'Speler sinds ' + since.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' }) : 'Game Arcade-speler'}</p></div></div>
+    <div class="pstats">
+      <div><b>${kpos >= 0 ? '#' + (kpos + 1) : '–'}</b><small>Klassement</small></div>
+      <div><b>${kpos >= 0 ? kl[kpos][1] : 0}</b><small>Punten</small></div>
+      <div><b>${n}/${PGAMES.length}</b><small>Records</small></div>
+    </div>
+    <div class="pgrid">${rows}</div>`;
+  $('profModal').classList.add('open');
+}
+
+// ---------- Mededeling bovenaan de startpagina (instellen via de admin-pagina) ----------
+async function loadAnnouncement() {
+  const bar = $('annBar'); if (!bar || !fb) return;
+  try {
+    const snap = await fb.getDoc(fb.doc(fb.db, 'site', 'announcement'));
+    const a = snap.exists() ? snap.data() : null;
+    const key = a ? (a.updated && a.updated.toMillis ? a.updated.toMillis() : 0) + '|' + a.text : '';
+    if (!a || !a.on || !a.text || localStorage.getItem('ga_ann_closed') === key) { bar.hidden = true; return; }
+    bar.className = 'ann ' + (a.color || 'red');
+    $('annText').textContent = a.text;
+    const l = $('annLink');
+    if (a.link) { l.href = a.link; l.target = /^https?:/i.test(a.link) ? '_blank' : '_self'; l.hidden = false; } else l.hidden = true;
+    $('annClose').onclick = () => { bar.hidden = true; localStorage.setItem('ga_ann_closed', key); };
+    bar.hidden = false;
+  } catch (e) { console.warn('Mededeling laden mislukt:', e); }
 }
 
 // ---------- Admin-voordelen in games (alleen voor het admin-account) ----------
@@ -352,7 +420,13 @@ function adminTools() {
 
 // ---------- Start ----------
 (async () => {
-  if (IS_HUB) { hubUI(); $('bGame').addEventListener('change', renderBoard); }
+  if (IS_HUB) {
+    hubUI(); $('bGame').addEventListener('change', renderBoard);
+    $('bList').addEventListener('click', (e) => { const li = e.target.closest('[data-uid]'); if (li) openProfile(li.dataset.uid); });
+    $('profModal').addEventListener('click', (e) => { if (e.target.id === 'profModal' || e.target.closest('#profClose')) $('profModal').classList.remove('open'); });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape') $('profModal').classList.remove('open'); });
+    $('acctProfile').addEventListener('click', () => { $('acctMenu').classList.remove('open'); if (user) openProfile(user.uid); });
+  }
   try { await loadFb(); } catch (e) { console.warn('Firebase niet geladen (offline?)', e); return; }
   fb.onAuthStateChanged(fb.auth, async (u) => {
     user = u; ready = false; acctUI();
@@ -377,7 +451,7 @@ function adminTools() {
       if (IS_HUB) { const m = $('acctMenu'); if (m) $('acctErr').textContent = errText(e); }
     }
   });
-  if (IS_HUB) { loadBoard(); setInterval(loadBoard, 60000); }
+  if (IS_HUB) { loadBoard(); setInterval(loadBoard, 60000); loadAnnouncement(); }
   // regelmatig en bij weggaan opslaan
   setInterval(() => push(false), 15000);
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') push(false); });

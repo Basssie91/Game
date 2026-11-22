@@ -82,6 +82,33 @@ a.feature .tag.new { background: #fff; color: #111214; }
 a.feature .meta { max-width: 400px; }
 @media (max-width: 620px) { a.feature { grid-column: 1 / -1; } .stats { margin-left: 0; width: 100%; } }
 footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; }
+.ann { display: flex; align-items: center; gap: 12px; margin: -20px 0 24px; padding: 12px 14px 12px 16px; border-radius: 14px; font-weight: 700; font-size: 15px; animation: rise 0.4s ease both; }
+.ann[hidden] { display: none; }
+.ann.red { background: linear-gradient(90deg, rgba(232,40,47,0.22), rgba(232,40,47,0.08)); border: 1px solid rgba(232,40,47,0.5); }
+.ann.grey { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16); }
+.ann.green { background: linear-gradient(90deg, rgba(61,220,132,0.2), rgba(61,220,132,0.06)); border: 1px solid rgba(61,220,132,0.45); }
+.ann #annText { flex: 1; line-height: 1.4; } .annIc { font-size: 18px; }
+.ann a { flex: none; color: #111214; background: #fff; text-decoration: none; padding: 6px 11px; border-radius: 9px; font-size: 13px; font-weight: 800; }
+.ann button { flex: none; border: 0; background: none; color: #aab; font-size: 16px; cursor: pointer; padding: 4px 6px; } .ann button:hover { color: #fff; }
+#bList li[data-uid] { cursor: pointer; } #bList li[data-uid]:hover { background: rgba(255,255,255,0.05); } #bList li.me[data-uid]:hover { background: rgba(232,40,47,0.18); }
+#profModal { position: fixed; inset: 0; z-index: 55; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.8); backdrop-filter: blur(5px); overflow-y: auto; }
+#profModal.open { display: flex; }
+.pbox { position: relative; width: min(520px, 100%); margin: auto; background: #15171d; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 24px; box-shadow: 0 30px 80px rgba(0,0,0,0.6); animation: rise 0.3s ease both; }
+#profClose { position: absolute; top: 14px; right: 14px; border: 0; background: rgba(255,255,255,0.08); color: #fff; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; } #profClose:hover { background: #e8282f; }
+.phead { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.pav { width: 60px; height: 60px; flex: none; border-radius: 18px; background: linear-gradient(135deg, #e8282f, #8e1418); display: grid; place-items: center; font-size: 28px; font-weight: 900; box-shadow: 0 10px 30px rgba(232,40,47,0.3); }
+.phead h2 { margin: 0; font-size: 24px; font-weight: 900; font-style: italic; } .phead p { margin: 4px 0 0; color: #8a919b; font-size: 13px; }
+.pme { font-style: normal; font-size: 11px; background: #e8282f; padding: 2px 7px; border-radius: 99px; vertical-align: middle; }
+.pstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.pstats div { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px; text-align: center; }
+.pstats b { display: block; font: 900 22px ui-monospace, Consolas, monospace; } .pstats small { color: #8a919b; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; }
+.pgrid { display: grid; gap: 2px; }
+.pg { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-radius: 9px; font-size: 14px; } .pg:nth-child(odd) { background: rgba(255,255,255,0.025); }
+.pg.none { opacity: 0.4; } .pic { width: 22px; text-align: center; } .pn { flex: 1; font-weight: 600; }
+.pg b { font: 800 13px ui-monospace, Consolas, monospace; }
+.prk { flex: none; min-width: 68px; text-align: right; font: 900 12px ui-monospace, Consolas, monospace; color: #aab; } .prk small { font-weight: 600; color: #6f7680; }
+.prk.m1 { color: #f5c542; } .prk.m2 { color: #cfd5dd; } .prk.m3 { color: #d08a4e; }
+@media (max-width: 480px) { .prk small { display: none; } .prk { min-width: 30px; } }
 #board { margin-top: 36px; background: linear-gradient(180deg, #1a1d23, #14161b); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 18px; animation: rise 0.5s 0.1s ease both; }
 @media (min-width: 1800px) { #board { position: absolute; top: 210px; left: calc(100% + 8px); width: 300px; margin: 0; } }
 .bhead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
@@ -150,6 +177,8 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 </head>
 <body>
   <div class="wrap">
+    <div id="annBar" class="ann" hidden><span class="annIc">📢</span><span id="annText"></span><a id="annLink" target="_blank" rel="noopener" hidden>Bekijk →</a><button id="annClose" aria-label="Sluiten">✕</button></div>
+    <div id="profModal"><div class="pbox"><button id="profClose" aria-label="Sluiten">✕</button><div id="profBody"></div></div></div>
     <header>
       <img src="arcade-icon.svg" alt="">
       <div>
@@ -168,6 +197,7 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
               <small id="nameMsg"></small>
             </div>
             <p>Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.</p>
+            <button id="acctProfile" class="ghostbtn" style="display:none">👤 Mijn profiel</button>
             <a id="acctAdmin" class="ghostbtn" href="admin/" style="display:none">🛠️ Admin-pagina</a>
             <button id="syncOpen" class="ghostbtn">🔄 Records overzetten met code</button>
             <button id="acctOut">Uitloggen</button>
@@ -758,6 +788,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=11"></script>
+  <script type="module" src="auth.js?v=12"></script>
 </body>
 </html>

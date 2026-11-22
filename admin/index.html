@@ -58,6 +58,16 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
 .rows button:disabled { opacity: 0.5; }
 .mbtns { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .hidden { display: none !important; }
+.annbox { display: grid; gap: 10px; }
+.annbox textarea { width: 100%; min-height: 70px; resize: vertical; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: #0b0c10; color: #fff; font: 600 15px system-ui, sans-serif; outline: none; }
+.annbox textarea:focus, .annrow input:focus { border-color: #e8282f; }
+.annrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .annrow .sp { flex: 1; }
+.annrow select, .annrow input { flex: 1; min-width: 180px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: #0b0c10; color: #fff; font: 600 14px system-ui, sans-serif; outline: none; text-align: left; letter-spacing: 0; }
+.chk { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; cursor: pointer; } .chk input { width: 18px; height: 18px; accent-color: #e8282f; min-width: 0; flex: none; }
+.annprev { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 12px; font-weight: 700; font-size: 15px; background: linear-gradient(90deg, rgba(232,40,47,0.22), rgba(232,40,47,0.08)); border: 1px solid rgba(232,40,47,0.5); }
+.annprev.grey { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }
+.annprev.green { background: linear-gradient(90deg, rgba(61,220,132,0.2), rgba(61,220,132,0.06)); border-color: rgba(61,220,132,0.45); }
+.annprev.off { opacity: 0.45; }
 @media (max-width: 700px) { .hide-sm { display: none; } }
   </style>
 </head>
@@ -85,6 +95,22 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
         <div class="tile"><small>Actief vandaag</small><b id="tDay">0</b></div>
         <div class="tile"><small>Actief deze week</small><b id="tWeek">0</b></div>
         <div class="tile"><small>Records totaal</small><b id="tRec">0</b></div>
+      </div>
+
+      <h3>📢 Mededeling op de site</h3>
+      <div class="box annbox">
+        <div class="annprev" id="annPrev"><span>📢</span><span id="annPrevText">Typ hieronder je mededeling…</span></div>
+        <textarea id="annIn" maxlength="160" placeholder="Bijv. 🎉 Nieuwe game: Robo Overval! Wie haalt de hoogste score?"></textarea>
+        <div class="annrow">
+          <select id="annColor"><option value="red">🔴 Rood (opvallend)</option><option value="grey">⚪ Neutraal</option><option value="green">🟢 Groen</option></select>
+          <input id="annLinkIn" placeholder="Link (optioneel), bijv. overval/">
+        </div>
+        <div class="annrow">
+          <label class="chk"><input type="checkbox" id="annOn"> Tonen op de startpagina</label>
+          <span class="sp"></span>
+          <button class="red" id="annSave">Opslaan</button>
+        </div>
+        <div class="msg" id="annMsg"></div>
       </div>
 
       <h3>Accounts</h3>
@@ -164,7 +190,7 @@ fb.onAuthStateChanged(fb.auth, (u) => {
   if (!u) return gate('Niet ingelogd', 'Log eerst in op de startpagina met je admin-account.');
   if ((u.email || '').toLowerCase() !== ADMIN_EMAIL) return gate('Geen toegang', 'Deze pagina is alleen voor de beheerder.');
   $('gate').classList.add('hidden'); $('panel').classList.remove('hidden');
-  load();
+  load(); loadAnn();
 });
 $('codeForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -261,12 +287,36 @@ $('mRows').addEventListener('click', async (e) => {
     // ook van de openbare ranglijst halen
     const lb = fb.doc(fb.db, 'leaderboard', open.uid);
     const ls = await fb.getDoc(lb).catch(() => null);
-    if (ls && ls.exists()) { const x = ls.data(); const sc = Object.assign({}, x.scores || {}); delete sc[id]; await fb.setDoc(lb, Object.assign({}, x, { scores: sc })); }
+    if (ls && ls.exists()) { const x = ls.data(); const sc = Object.assign({}, x.scores || {}), ex = Object.assign({}, x.extra || {}); delete sc[id]; delete ex[id]; await fb.setDoc(lb, Object.assign({}, x, { scores: sc, extra: ex })); }
     open.data = data; open.raw = Object.assign({}, raw, { data, resets });
     $('mMsg').className = 'msg ok'; $('mMsg').textContent = `${naam} is gereset. Ook op hun apparaten verdwijnt dit record zodra ze de site openen.`;
     showRows(); render();
   } catch (err) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (err.code || err.message); b.disabled = false; }
 });
+// ---------- Mededeling ----------
+function annPreview() {
+  $('annPrevText').textContent = $('annIn').value.trim() || 'Typ hieronder je mededeling…';
+  $('annPrev').className = 'annprev ' + $('annColor').value + ($('annOn').checked ? '' : ' off');
+}
+['annIn', 'annColor', 'annOn'].forEach((id) => $(id).addEventListener('input', annPreview));
+$('annOn').addEventListener('change', annPreview);
+async function loadAnn() {
+  try {
+    const s = await fb.getDoc(fb.doc(fb.db, 'site', 'announcement'));
+    const a = s.exists() ? s.data() : {};
+    $('annIn').value = a.text || ''; $('annColor').value = a.color || 'red'; $('annLinkIn').value = a.link || ''; $('annOn').checked = !!a.on;
+    annPreview();
+  } catch (e) { console.warn(e); }
+}
+$('annSave').addEventListener('click', async () => {
+  const m = $('annMsg'), text = $('annIn').value.trim(), on = $('annOn').checked;
+  if (on && !text) { m.className = 'msg err'; m.textContent = 'Typ eerst een mededeling.'; return; }
+  try {
+    await fb.setDoc(fb.doc(fb.db, 'site', 'announcement'), { text, color: $('annColor').value, link: $('annLinkIn').value.trim(), on, updated: fb.serverTimestamp() });
+    m.className = 'msg ok'; m.textContent = on ? 'Opgeslagen! De mededeling staat nu op de startpagina.' : 'Opgeslagen. De mededeling is uitgezet.';
+  } catch (e) { m.className = 'msg err'; m.textContent = e.code === 'permission-denied' ? 'Geen toestemming: zet de nieuwe Firestore-regels erin (met het stuk voor "site").' : 'Lukt niet: ' + (e.code || e.message); }
+});
+
 // ---------- Reset iedereen ----------
 const allM = $('allModal');
 $('resetAll').addEventListener('click', () => { $('allIn').value = ''; $('allGo').disabled = true; $('allMsg').textContent = ''; allM.classList.add('open'); setTimeout(() => $('allIn').focus(), 50); });
@@ -286,7 +336,7 @@ $('allGo').addEventListener('click', async () => {
       n++; m.textContent = `Bezig… ${n}/${us.docs.length} accounts`;
     }
     const lb = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
-    for (const d of lb.docs) await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, d.data(), { scores: {} }));
+    for (const d of lb.docs) await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, d.data(), { scores: {}, extra: {} }));
     m.className = 'msg ok'; m.textContent = `Klaar! ${n} accounts gereset. Op ieders apparaat verdwijnen de records zodra ze de site openen.`;
     load();
   } catch (e) { m.className = 'msg err'; m.textContent = `Gestopt na ${n} accounts: ` + (e.code || e.message); }
@@ -305,7 +355,7 @@ $('mNameSave').addEventListener('click', async () => {
     const ls = await fb.getDoc(lb).catch(() => null);
     if (ls && ls.exists()) {
       if (n) await fb.setDoc(lb, Object.assign({}, ls.data(), { name: n }));
-      else await fb.setDoc(lb, Object.assign({}, ls.data(), { name: null, scores: {} }));
+      else await fb.setDoc(lb, Object.assign({}, ls.data(), { name: null, scores: {}, extra: {} }));
     }
     open.raw = raw;
     m.className = 'msg ok'; m.textContent = n ? `Naam veranderd in "${n}".` : 'Naam weggehaald: deze speler staat niet meer op de ranglijst.';
@@ -325,7 +375,7 @@ $('mWipe').addEventListener('click', async () => {
     await fb.setDoc(fb.doc(fb.db, 'users', open.uid), Object.assign({}, raw, { data: {}, resets: {}, email: open.email, updated: fb.serverTimestamp(), resetAt: fb.serverTimestamp() }));
     const lb = fb.doc(fb.db, 'leaderboard', open.uid);
     const ls = await fb.getDoc(lb).catch(() => null);
-    if (ls && ls.exists()) await fb.setDoc(lb, Object.assign({}, ls.data(), { scores: {} }));
+    if (ls && ls.exists()) await fb.setDoc(lb, Object.assign({}, ls.data(), { scores: {}, extra: {} }));
     $('mMsg').className = 'msg ok'; $('mMsg').textContent = 'Gewist. Ook op hun apparaten verdwijnen de records zodra ze de site openen.';
     b.textContent = '✔ Gewist';
     load();
