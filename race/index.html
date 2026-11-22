@@ -1897,6 +1897,10 @@ boot();
 const P_ORIG = { max: P.max, accel: P.accel, boostMax: P.boostMax };
 let turbo = false;
 ArcadeCore.cheat('🔓 Alle levels ontgrendelen', () => store.set('unlockall', true));
+ArcadeCore.cheat('🏁 Alle levels gehaald (gouden tijd)', () => {
+  LEVELS.forEach((lv, i) => { const gold = lv.medals[0]; if (!bests[i] || bests[i].t > gold) bests[i] = { t: gold, splits: [] }; });
+  store.set('bests2', bests);
+});
 ArcadeCore.toggle('🚀 Turbo (veel sneller)', () => turbo, (v) => {
   turbo = v;
   P.max = P_ORIG.max * (v ? 1.6 : 1); P.accel = P_ORIG.accel * (v ? 2.2 : 1); P.boostMax = P_ORIG.boostMax * (v ? 1.5 : 1);
