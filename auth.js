@@ -139,10 +139,13 @@ async function pull() {
 }
 async function push(force) {
   if (!user || !ready) return;
-  const data = mergeObjs(collect(), remote);
-  const s = JSON.stringify(data);
+  let data = mergeObjs(collect(), remote);
+  let s = JSON.stringify(data);
   if (!force && s === lastSent) return;
   try {
+    // eerst de nieuwste versie ophalen: zo verwerken we resets van de admin voordat we iets terugzetten
+    await pull();
+    data = mergeObjs(collect(), remote); s = JSON.stringify(data);
     await fb.setDoc(ref(), { data, email: user.email, updated: fb.serverTimestamp() }, { merge: true });
     lastSent = s; remote = data; setStatus('saved');
     await pushBoard(data);
