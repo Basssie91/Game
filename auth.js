@@ -317,15 +317,15 @@ function adminTools() {
   const list = (typeof ArcadeCore !== 'undefined' && ArcadeCore.cheats) || [];
   if (!list.length) return;
   const css = document.createElement('style');
-  css.textContent = `#cheatBtn{position:fixed;left:12px;bottom:12px;z-index:9998;border:1px solid rgba(255,255,255,.22);background:rgba(20,22,27,.85);color:#fff;font:800 13px system-ui,sans-serif;padding:8px 12px;border-radius:10px;cursor:pointer;backdrop-filter:blur(6px)}
-#cheatBtn:hover{background:#e8282f;border-color:#e8282f}
-#cheatBox{position:fixed;left:12px;bottom:56px;z-index:9999;width:min(290px,calc(100vw - 24px));max-height:70vh;overflow-y:auto;background:#15171d;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;box-shadow:0 20px 50px rgba(0,0,0,.55);display:none;font-family:system-ui,sans-serif;color:#fff}
+  css.textContent = `#cheatBtn{position:fixed;right:66px;top:12px;z-index:9998;border:1px solid rgba(255,255,255,.22);background:rgba(20,22,27,.85);color:#fff;font:800 13px system-ui,sans-serif;padding:8px 12px;border-radius:10px;cursor:pointer;backdrop-filter:blur(6px)}
+#cheatBtn:hover{background:#e8282f;border-color:#e8282f}@media (max-width:600px){#cheatBtn .lbl{display:none}#cheatBtn{padding:8px 10px}}
+#cheatBox{position:fixed;right:12px;top:58px;z-index:9999;width:min(290px,calc(100vw - 24px));max-height:70vh;overflow-y:auto;background:#15171d;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;box-shadow:0 20px 50px rgba(0,0,0,.55);display:none;font-family:system-ui,sans-serif;color:#fff}
 #cheatBox.open{display:block}#cheatBox h3{margin:2px 4px 10px;font-size:14px;font-style:italic;font-weight:900}#cheatBox h3 span{color:#e8282f}
 #cheatBox button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;text-align:left;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font:700 13px system-ui,sans-serif;padding:9px 10px;border-radius:9px;margin-bottom:6px;cursor:pointer}
 #cheatBox button:hover{background:rgba(255,255,255,.12)}#cheatBox .sw{flex:none;font-size:11px;font-weight:900;padding:2px 7px;border-radius:99px;background:rgba(255,255,255,.12);color:#aab}
 #cheatBox .sw.on{background:#e8282f;color:#fff}#cheatBox .ok{background:#2f8f55!important;border-color:#2f8f55!important}`;
   document.head.appendChild(css);
-  const btn = document.createElement('button'); btn.id = 'cheatBtn'; btn.textContent = '🛠️ Admin';
+  const btn = document.createElement('button'); btn.id = 'cheatBtn'; btn.innerHTML = '🛠️<span class="lbl"> Admin</span>'; btn.title = 'Admin-voordelen';
   const box = document.createElement('div'); box.id = 'cheatBox';
   const render = () => {
     box.innerHTML = '<h3>ADMIN <span>VOORDELEN</span></h3>';
