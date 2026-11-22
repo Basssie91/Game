@@ -129,7 +129,7 @@ async function pull() {
     const t = ts && ts.toMillis ? ts.toMillis() : 0;
     if (t && t > (seen[id] || 0)) {
       const local = collect();
-      Object.keys(local).filter((k) => id === 'race' ? k.startsWith('tt2_bests') : new RegExp(`^arcade_(best_)?${id}(_|2_|$)`).test(k)).forEach((k) => localStorage.removeItem(k));
+      Object.keys(local).filter((k) => id === 'race' ? (k.startsWith('tt2_bests') || k === 'tt2_unlockall') : new RegExp(`^arcade_(best_)?${id}(_|2_|$)`).test(k)).forEach((k) => localStorage.removeItem(k));
       if (id === 'race') for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('tt2_ghost')) localStorage.removeItem(k); }
       seen[id] = t; changedSeen = true; lastSent = ''; lastBoard = '';
     }

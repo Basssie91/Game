@@ -245,7 +245,7 @@ function showRows() {
   $('mRows').innerHTML = recordsOf(open.data).map(([id, naam, v]) => `<div><span>${esc(naam)}</span><b>${v == null ? '–' : esc(v)}</b>${v == null ? '<button style="visibility:hidden">Reset</button>' : `<button data-g="${id}" title="Alleen deze game resetten">Reset</button>`}</div>`).join('');
 }
 // Sleutels die bij één game horen (record, beste tijden, statistieken, opgeslagen spel)
-const gameKeys = (id, data) => Object.keys(data).filter((k) => id === 'race' ? k.startsWith('tt2_bests') : new RegExp(`^arcade_(best_)?${id}(_|2_|$)`).test(k));
+const gameKeys = (id, data) => Object.keys(data).filter((k) => id === 'race' ? (k.startsWith('tt2_bests') || k === 'tt2_unlockall') : new RegExp(`^arcade_(best_)?${id}(_|2_|$)`).test(k));
 $('mRows').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-g]'); if (!b || !open) return;
   const id = b.dataset.g, naam = (GAMES.find((g) => g[0] === id) || [, id])[1];
