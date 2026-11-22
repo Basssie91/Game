@@ -40,6 +40,9 @@ td.num { font-family: ui-monospace, Consolas, monospace; }
 td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { padding: 7px 11px; font-size: 13px; }
 .me { background: #e8282f; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
 .scroll { overflow-x: auto; }
+.cmodal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.85); backdrop-filter: blur(4px); z-index: 11; }
+.cmodal.open { display: flex; } .cmodal .box { width: min(440px, 100%); } .cmodal h2 { margin: 0 0 10px; font-size: 20px; } .cmodal p { color: #c5cad2; line-height: 1.5; font-size: 14px; margin: 0 0 10px; }
+.cmodal code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 6px; color: #fff; } .cmodal button:disabled { opacity: 0.45; cursor: not-allowed; }
 #modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.8); backdrop-filter: blur(4px); z-index: 10; }
 #modal.open { display: flex; }
 #modal .box { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; }
@@ -86,6 +89,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
       <div class="bar">
         <input id="search" placeholder="Zoek op e-mail…">
         <span class="sp"></span>
+        <button class="red" id="resetAll">🗑️ Reset iedereen</button>
         <button class="ghost" id="refresh">🔄 Vernieuwen</button>
       </div>
       <div class="box scroll" style="padding:6px 10px">
@@ -114,6 +118,15 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
       <button class="ghost" id="mClose">Sluiten</button>
     </div>
     <div class="msg" id="mMsg"></div>
+  </div></div>
+
+  <div id="allModal" class="cmodal"><div class="box">
+    <h2>⚠️ Iedereen resetten?</h2>
+    <p>Hiermee worden <b>alle records van alle spelers</b> gewist, ook de PC Tycoon-winkels. De ranglijst begint weer leeg. Accounts en spelersnamen blijven bestaan.</p>
+    <p><b>Dit kun je niet ongedaan maken.</b> Typ <code>RESET</code> om te bevestigen.</p>
+    <input id="allIn" autocomplete="off" placeholder="RESET">
+    <div class="mbtns"><button class="red" id="allGo" disabled>Alles van iedereen wissen</button><button class="ghost" id="allClose">Annuleren</button></div>
+    <div class="msg" id="allMsg"></div>
   </div></div>
 
   <script type="module">
@@ -247,6 +260,32 @@ $('mRows').addEventListener('click', async (e) => {
     showRows(); render();
   } catch (err) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (err.code || err.message); b.disabled = false; }
 });
+// ---------- Reset iedereen ----------
+const allM = $('allModal');
+$('resetAll').addEventListener('click', () => { $('allIn').value = ''; $('allGo').disabled = true; $('allMsg').textContent = ''; allM.classList.add('open'); setTimeout(() => $('allIn').focus(), 50); });
+$('allClose').addEventListener('click', () => allM.classList.remove('open'));
+allM.addEventListener('click', (e) => { if (e.target === allM) allM.classList.remove('open'); });
+$('allIn').addEventListener('input', () => { $('allGo').disabled = $('allIn').value.trim().toUpperCase() !== 'RESET'; });
+$('allGo').addEventListener('click', async () => {
+  const b = $('allGo'), m = $('allMsg');
+  b.disabled = true; $('allClose').disabled = true;
+  m.className = 'msg'; m.textContent = 'Bezig…';
+  let n = 0;
+  try {
+    const us = await fb.getDocs(fb.collection(fb.db, 'users'));
+    for (const d of us.docs) {
+      const raw = d.data();
+      await fb.setDoc(d.ref || fb.doc(fb.db, 'users', d.id), Object.assign({}, raw, { data: {}, resets: {}, updated: fb.serverTimestamp(), resetAt: fb.serverTimestamp() }));
+      n++; m.textContent = `Bezig… ${n}/${us.docs.length} accounts`;
+    }
+    const lb = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
+    for (const d of lb.docs) await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, d.data(), { scores: {} }));
+    m.className = 'msg ok'; m.textContent = `Klaar! ${n} accounts gereset. Op ieders apparaat verdwijnen de records zodra ze de site openen.`;
+    load();
+  } catch (e) { m.className = 'msg err'; m.textContent = `Gestopt na ${n} accounts: ` + (e.code || e.message); }
+  $('allClose').disabled = false; $('allClose').textContent = 'Sluiten';
+});
+
 const closeM = () => $('modal').classList.remove('open');
 $('mClose').addEventListener('click', closeM);
 $('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeM(); });
