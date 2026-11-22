@@ -20,7 +20,7 @@ h1 { margin: 0; font-size: 34px; font-style: italic; font-weight: 900; } h1 span
 .center h2 { margin: 0 0 8px; } .center p { color: #aab; margin: 0 0 16px; line-height: 1.45; }
 input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: #0b0c10; color: #fff; font: 700 18px system-ui, sans-serif; outline: none; text-align: center; letter-spacing: 4px; }
 input:focus { border-color: #e8282f; }
-#search { text-align: left; letter-spacing: 0; font-size: 15px; font-weight: 600; max-width: 320px; }
+#search, .srch { text-align: left; letter-spacing: 0; font-size: 15px; font-weight: 600; max-width: 320px; }
 button, .btn { border: 0; border-radius: 10px; padding: 10px 14px; background: #fff; color: #111214; font: 800 14px system-ui, sans-serif; cursor: pointer; }
 button.red { background: #e8282f; color: #fff; } button.ghost { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.16); }
 button.full { width: 100%; margin-top: 10px; padding: 13px; }
@@ -38,6 +38,8 @@ td { padding: 11px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); vertic
 tr:hover td { background: rgba(255,255,255,0.03); }
 td.num { font-family: ui-monospace, Consolas, monospace; }
 td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { padding: 7px 11px; font-size: 13px; }
+.dim { color: #6f7680; font-style: italic; }
+.rename { display: flex; gap: 8px; margin: 4px 0 14px; } .rename input { text-align: left; letter-spacing: 0; font-size: 15px; padding: 9px 12px; }
 .me { background: #e8282f; color: #fff; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 99px; margin-left: 6px; }
 .scroll { overflow-x: auto; }
 .cmodal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.85); backdrop-filter: blur(4px); z-index: 11; }
@@ -88,13 +90,14 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
       <h3>Accounts</h3>
       <div class="bar">
         <input id="search" placeholder="Zoek op e-mail…">
+        <input id="searchName" class="srch" placeholder="Zoek op naam…">
         <span class="sp"></span>
         <button class="red" id="resetAll">🗑️ Reset iedereen</button>
         <button class="ghost" id="refresh">🔄 Vernieuwen</button>
       </div>
       <div class="box scroll" style="padding:6px 10px">
         <table>
-          <thead><tr><th>E-mail</th><th>Laatst actief</th><th class="hide-sm">Records</th><th class="hide-sm">PC Tycoon</th><th></th></tr></thead>
+          <thead><tr><th>E-mail</th><th>Naam</th><th>Laatst actief</th><th class="hide-sm">Records</th><th class="hide-sm">PC Tycoon</th><th></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
@@ -112,6 +115,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
   <div id="modal"><div class="box">
     <h2 id="mTitle"></h2>
     <div class="sub" id="mSub"></div>
+    <div class="rename"><input id="mName" maxlength="16" placeholder="Spelersnaam"><button class="ghost" id="mNameSave">Naam opslaan</button></div>
     <div class="rows" id="mRows"></div>
     <div class="mbtns">
       <button class="red" id="mWipe">🗑️ Alles wissen</button>
@@ -187,41 +191,42 @@ function recordsOf(d) {   // [[id, naam, waarde]]
   return out;
 }
 async function load() {
-  $('rows').innerHTML = '<tr><td colspan="5">Laden…</td></tr>';
+  $('rows').innerHTML = '<tr><td colspan="6">Laden…</td></tr>';
   try {
     const snap = await fb.getDocs(fb.collection(fb.db, 'users'));
     users = snap.docs.map((s) => { const x = s.data(); return { uid: s.id, email: x.email || '(geen e-mail)', t: ms(x.updated), data: x.data || {}, raw: x }; });
     users.sort((a, b) => b.t - a.t);
     render();
   } catch (e) {
-    $('rows').innerHTML = `<tr><td colspan="5" class="err">${e.code === 'permission-denied' ? 'Geen toestemming: zet de nieuwe Firestore-regels erin (zie uitleg).' : 'Fout: ' + esc(e.message)}</td></tr>`;
+    $('rows').innerHTML = `<tr><td colspan="6" class="err">${e.code === 'permission-denied' ? 'Geen toestemming: zet de nieuwe Firestore-regels erin (zie uitleg).' : 'Fout: ' + esc(e.message)}</td></tr>`;
   }
 }
 function render() {
-  const now = Date.now(), q = $('search').value.trim().toLowerCase();
+  const now = Date.now(), q = $('search').value.trim().toLowerCase(), qn = $('searchName').value.trim().toLowerCase();
   let total = 0;
   const rows = users.map((u) => { const r = recordsOf(u.data).filter((x) => x[2] != null); total += r.length; return { u, n: r.length }; });
   $('tAcc').textContent = users.length;
   $('tDay').textContent = users.filter((u) => now - u.t < 864e5).length;
   $('tWeek').textContent = users.filter((u) => now - u.t < 7 * 864e5).length;
   $('tRec').textContent = total;
-  $('rows').innerHTML = rows.filter(({ u }) => u.email.toLowerCase().includes(q)).map(({ u, n }) => {
+  $('rows').innerHTML = rows.filter(({ u }) => u.email.toLowerCase().includes(q) && (!qn || (u.raw.name || '').toLowerCase().includes(qn))).map(({ u, n }) => {
     const ty = J(u.data.arcade_best_tycoon);
-    return `<tr><td>${esc(u.email)}${me && u.uid === me.uid ? '<span class="me">JIJ</span>' : ''}</td><td>${ago(u.t)}</td><td class="num hide-sm">${n}/${GAMES.length}</td><td class="num hide-sm">${ty ? 'Level ' + ty : '–'}</td>
+    return `<tr><td>${esc(u.email)}${me && u.uid === me.uid ? '<span class="me">JIJ</span>' : ''}</td><td>${u.raw.name ? '<b>' + esc(u.raw.name) + '</b>' : '<span class="dim">geen naam</span>'}</td><td>${ago(u.t)}</td><td class="num hide-sm">${n}/${GAMES.length}</td><td class="num hide-sm">${ty ? 'Level ' + ty : '–'}</td>
       <td><div class="acts"><button data-v="${u.uid}">Bekijk</button></div></td></tr>`;
-  }).join('') || '<tr><td colspan="5">Geen accounts gevonden.</td></tr>';
+  }).join('') || '<tr><td colspan="6">Geen accounts gevonden.</td></tr>';
   // beste per game (alleen games met een getal als score)
   $('bests').innerHTML = GAMES.map(([id, naam]) => {
     let best = null;
     for (const u of users) {
       const v = id === 'race' ? (J(u.data.tt2_bests2) ? Object.keys(J(u.data.tt2_bests2)).length : null) : J(u.data['arcade_best_' + id]);
-      if (typeof v === 'number' && v > 0 && (!best || v > best.v)) best = { v, email: u.email };
+      if (typeof v === 'number' && v > 0 && (!best || v > best.v)) best = { v, email: u.email, name: u.raw.name };
     }
     const show = best ? (id === 'race' ? best.v + '/12 levels' : id === 'tycoon' ? 'Level ' + best.v : best.v.toLocaleString('nl-NL')) : '–';
-    return `<tr><td>${esc(naam)}</td><td class="num">${show}</td><td>${best ? esc(best.email) : '–'}</td></tr>`;
+    return `<tr><td>${esc(naam)}</td><td class="num">${show}</td><td>${best ? (best.name ? '<b>' + esc(best.name) + '</b> · ' : '') + '<span class="dim" style="font-style:normal">' + esc(best.email) + '</span>' : '–'}</td></tr>`;
   }).join('');
 }
 $('search').addEventListener('input', render);
+$('searchName').addEventListener('input', render);
 $('refresh').addEventListener('click', load);
 
 // ---------- details ----------
@@ -229,6 +234,7 @@ $('rows').addEventListener('click', (e) => {
   const b = e.target.closest('[data-v]'); if (!b) return;
   open = users.find((u) => u.uid === b.dataset.v); if (!open) return;
   $('mTitle').textContent = open.email;
+  $('mName').value = open.raw.name || '';
   $('mSub').textContent = 'Laatst actief: ' + ago(open.t);
   showRows();
   $('mWipe').textContent = '🗑️ Alles wissen'; $('mWipe').dataset.sure = ''; $('mWipe').disabled = false; $('mMsg').textContent = '';
@@ -284,6 +290,26 @@ $('allGo').addEventListener('click', async () => {
     load();
   } catch (e) { m.className = 'msg err'; m.textContent = `Gestopt na ${n} accounts: ` + (e.code || e.message); }
   $('allClose').disabled = false; $('allClose').textContent = 'Sluiten';
+});
+
+// Naam van een speler aanpassen (bijv. een rare naam)
+$('mNameSave').addEventListener('click', async () => {
+  if (!open) return;
+  const n = $('mName').value.trim().replace(/\s+/g, ' '), m = $('mMsg');
+  if (n && !/^[\p{L}\p{N} _.-]{2,16}$/u.test(n)) { m.className = 'msg err'; m.textContent = 'Gebruik 2 tot 16 letters of cijfers (of laat leeg om de naam weg te halen).'; return; }
+  try {
+    const raw = Object.assign({}, open.raw, { name: n || null });
+    await fb.setDoc(fb.doc(fb.db, 'users', open.uid), raw);
+    const lb = fb.doc(fb.db, 'leaderboard', open.uid);
+    const ls = await fb.getDoc(lb).catch(() => null);
+    if (ls && ls.exists()) {
+      if (n) await fb.setDoc(lb, Object.assign({}, ls.data(), { name: n }));
+      else await fb.setDoc(lb, Object.assign({}, ls.data(), { name: null, scores: {} }));
+    }
+    open.raw = raw;
+    m.className = 'msg ok'; m.textContent = n ? `Naam veranderd in "${n}".` : 'Naam weggehaald: deze speler staat niet meer op de ranglijst.';
+    render();
+  } catch (e) { m.className = 'msg err'; m.textContent = 'Lukt niet: ' + (e.code || e.message); }
 });
 
 const closeM = () => $('modal').classList.remove('open');
