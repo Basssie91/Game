@@ -89,6 +89,10 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 #acctMenu p { margin: 6px 0 12px; color: #aab; font-size: 13px; line-height: 1.4; }
 #acctMenu .astate { font-weight: 800; font-size: 14px; } #acctMenu .aerr { color: #ff8a8f; font-size: 13px; font-weight: 700; }
 #acctMenu .ghostbtn { display: block; box-sizing: border-box; text-align: center; text-decoration: none; margin-bottom: 8px; font-size: 13px; padding: 9px; }
+#nameBox { margin: 10px 0 4px; } .nlabel { display: block; font-size: 12px; font-weight: 800; color: #ccd; margin-bottom: 5px; }
+.nrow { display: flex; gap: 6px; } .nrow input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.16); background: #0b0c10; color: #fff; font: 600 14px system-ui, sans-serif; outline: none; -webkit-user-select: text; user-select: text; }
+.nrow input:focus { border-color: #e8282f; } .nrow button { border: 0; border-radius: 9px; padding: 8px 10px; background: #fff; color: #111; font: 800 13px system-ui, sans-serif; cursor: pointer; }
+#nameMsg { display: block; min-height: 16px; margin-top: 4px; font-size: 12px; font-weight: 700; color: #aab; } #nameMsg.err { color: #ff8a8f; } #nameMsg.ok { color: #5fd38a; }
 #acctOut { width: 100%; border: 0; border-radius: 10px; padding: 10px; background: #e8282f; color: #fff; font: 800 14px system-ui, sans-serif; cursor: pointer; }
 #authGate { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.88); backdrop-filter: blur(6px); overflow-y: auto; }
 #authGate.open { display: flex; }
@@ -141,6 +145,11 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
           <div id="acctMenu">
             <div class="astate" id="acctState"></div>
             <div class="aerr" id="acctErr"></div>
+            <div id="nameBox" style="display:none">
+              <label class="nlabel">Spelersnaam (voor de ranglijst)</label>
+              <div class="nrow"><input id="nameIn" maxlength="16" placeholder="Kies een naam" autocomplete="nickname"><button id="nameSave">Opslaan</button></div>
+              <small id="nameMsg"></small>
+            </div>
             <p>Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.</p>
             <a id="acctAdmin" class="ghostbtn" href="admin/" style="display:none">🛠️ Admin-pagina</a>
             <button id="syncOpen" class="ghostbtn">🔄 Records overzetten met code</button>
@@ -155,6 +164,7 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
         <h2>Welkom bij <span>Game Arcade</span></h2>
         <p class="lead">Log in, dan worden je records en je PC Tycoon-winkel opgeslagen. Op elk apparaat heb je alles terug.</p>
         <div class="tabs"><button type="button" class="tab on" data-m="login">Inloggen</button><button type="button" class="tab" data-m="signup">Account maken</button></div>
+        <label id="aNameRow">Spelersnaam (zie je op de ranglijst)<input id="aName" maxlength="16" autocomplete="nickname" placeholder="bijv. Bas"></label>
         <label>E-mailadres<input id="aEmail" type="email" autocomplete="email" required></label>
         <label>Wachtwoord<input id="aPass" type="password" autocomplete="current-password" required minlength="6"></label>
         <label id="aPass2Row">Herhaal wachtwoord<input id="aPass2" type="password" autocomplete="new-password"></label>
@@ -707,6 +717,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=3"></script>
+  <script type="module" src="auth.js?v=4"></script>
 </body>
 </html>

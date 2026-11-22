@@ -101,7 +101,7 @@ function applyIn(imp) {
 window.ArcadeStore = { collect, merge: applyIn };
 
 // ---------- Firebase ----------
-let fb = null, user = null, remote = {}, lastSent = '', ready = false;
+let fb = null, user = null, remote = {}, lastSent = '', ready = false, myName = '', pendingName = '', lastBoard = '';
 async function loadFb() {
   const [app, auth, fs] = await Promise.all([import(FB + 'firebase-app.js'), import(FB + 'firebase-auth.js'), import(FB + 'firebase-firestore.js')]);
   const a = app.initializeApp(firebaseConfig);
@@ -118,6 +118,7 @@ async function pull() {
   const snap = await fb.getDoc(ref());
   const d = snap.exists() ? snap.data() : {};
   remote = d.data || {};
+  myName = d.name || '';
   // heeft de admin de records van dit account gewist? Dan ook hier wissen (één keer)
   const ra = d.resetAt && d.resetAt.toMillis ? d.resetAt.toMillis() : 0;
   if (ra && ra > (+localStorage.getItem('ga_reset_seen') || 0)) { wipeLocal(); localStorage.setItem('ga_reset_seen', ra); lastSent = ''; }
@@ -131,7 +132,36 @@ async function push(force) {
   try {
     await fb.setDoc(ref(), { data, email: user.email, updated: fb.serverTimestamp() }, { merge: true });
     lastSent = s; remote = data; setStatus('saved');
+    await pushBoard(data);
   } catch (e) { setStatus('error', e); }
+}
+
+// ---------- Openbare ranglijst (ook gelezen door de Discord-bot) ----------
+const BOARD = ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'tycoon'];
+function scoresOf(d) {
+  const o = {};
+  for (const g of BOARD) { const v = J(d['arcade_best_' + g]); if (typeof v === 'number' && v > 0) o[g] = Math.round(v); }
+  const race = J(d.tt2_bests2); if (race && Object.keys(race).length) o.race = Object.keys(race).length;
+  const vier = J(d.arcade_vier_stats); if (vier && vier.w > 0) o.vier = vier.w;
+  return o;
+}
+async function pushBoard(data, force) {
+  if (!user || !myName) return;
+  const scores = scoresOf(data || mergeObjs(collect(), remote));
+  const s = JSON.stringify([myName, scores]);
+  if (!force && s === lastBoard) return;
+  try {
+    await fb.setDoc(fb.doc(fb.db, 'leaderboard', user.uid), { name: myName, scores, updated: fb.serverTimestamp() });
+    lastBoard = s;
+  } catch (e) { console.warn('Ranglijst bijwerken mislukt:', e); }
+}
+const NAME_OK = /^[\p{L}\p{N} _.-]{2,16}$/u;
+async function setName(n) {
+  n = (n || '').trim().replace(/\s+/g, ' ');
+  if (!NAME_OK.test(n)) throw new Error('Gebruik 2 tot 16 letters of cijfers.');
+  await fb.setDoc(ref(), { name: n }, { merge: true });
+  myName = n; acctUI();
+  await pushBoard(null, true);
 }
 
 // ---------- UI (alleen startpagina) ----------
@@ -162,6 +192,7 @@ function setMode(m) {
   mode = m;
   document.querySelectorAll('#authGate .tab').forEach((b) => b.classList.toggle('on', b.dataset.m === m));
   $('aPass2Row').style.display = m === 'signup' ? '' : 'none';
+  $('aNameRow').style.display = m === 'signup' ? '' : 'none';
   $('aGo').textContent = m === 'signup' ? 'Account maken' : 'Inloggen';
   $('aPass').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
   say('');
@@ -170,7 +201,10 @@ function acctUI() {
   const b = $('acctBtn'); if (!b) return;
   const p = $('acctMenu').querySelector('p');
   $('acctAdmin').style.display = user && (user.email || '').toLowerCase() === ADMIN_EMAIL ? '' : 'none';
-  if (user) { b.textContent = '👤 ' + (user.email || 'Account'); $('acctOut').textContent = 'Uitloggen'; p.textContent = 'Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.'; }
+  $('nameBox').style.display = user ? '' : 'none';
+  if (user && document.activeElement !== $('nameIn')) $('nameIn').value = myName;
+  $('nameMsg').textContent = user && !myName ? 'Kies een naam om op de ranglijst te komen.' : ''; $('nameMsg').className = '';
+  if (user) { b.textContent = '👤 ' + (myName || user.email || 'Account'); $('acctOut').textContent = 'Uitloggen'; p.textContent = 'Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.'; }
   else { b.textContent = '🔑 Inloggen'; setStatus(''); $('acctOut').textContent = 'Inloggen'; p.textContent = 'Je speelt als gast: je records staan alleen in deze browser. Log in om ze overal te bewaren.'; }
 }
 function hubUI() {
@@ -180,6 +214,11 @@ function hubUI() {
     const email = $('aEmail').value.trim(), pw = $('aPass').value;
     if (!fb) return say('Kan geen verbinding maken met de server. Probeer het later opnieuw.');
     if (mode === 'signup' && pw !== $('aPass2').value) return say('De wachtwoorden zijn niet hetzelfde.');
+    if (mode === 'signup') {
+      const n = $('aName').value.trim();
+      if (!NAME_OK.test(n)) return say('Kies een spelersnaam van 2 tot 16 letters of cijfers.');
+      pendingName = n;
+    }
     $('aGo').disabled = true; say('Even geduld…', true);
     try {
       if (mode === 'signup') await fb.createUserWithEmailAndPassword(fb.auth, email, pw);
@@ -194,6 +233,12 @@ function hubUI() {
     try { await fb.sendPasswordResetEmail(fb.auth, email); say('Check je mail (ook je spam) voor een link om een nieuw wachtwoord te kiezen.', true); }
     catch (e) { say(errText(e)); }
   });
+  $('nameSave').addEventListener('click', async () => {
+    const m = $('nameMsg');
+    try { await setName($('nameIn').value); m.textContent = 'Opgeslagen! Je staat nu op de ranglijst.'; m.className = 'ok'; }
+    catch (e) { m.textContent = e.message && !e.code ? e.message : errText(e); m.className = 'err'; }
+  });
+  $('nameIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('nameSave').click(); });
   $('aGuest').addEventListener('click', () => { localStorage.setItem(GUEST_KEY, '1'); gate(false); });
   $('acctBtn').addEventListener('click', () => {
     $('acctMenu').classList.toggle('open');
@@ -208,7 +253,7 @@ function hubUI() {
     await fb.signOut(fb.auth);
     location.reload();
   });
-  document.addEventListener('click', (e) => { const m = $('acctMenu'); if (m && (!m.contains(e.target) || e.target.id === 'syncOpen') && e.target !== $('acctBtn')) m.classList.remove('open'); });
+  document.addEventListener('click', (e) => { const m = $('acctMenu'); if (m && (!m.contains(e.target) || e.target.id === 'syncOpen') && e.target !== $('acctBtn') && document.contains(e.target)) m.classList.remove('open'); });
   setMode('login');
 }
 
@@ -228,6 +273,9 @@ function hubUI() {
         if (window.renderRecords) window.renderRecords();
       }
       ready = true;
+      if (pendingName && !myName) { try { await setName(pendingName); } catch (e) { /* later in het menu */ } }
+      pendingName = '';
+      if (IS_HUB) acctUI();
       await push(true);
     } catch (e) {
       setStatus('error', e);
