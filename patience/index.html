@@ -326,13 +326,18 @@ const ArcadeCore = (() => {
   });
   if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
 
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
   return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
     get settings() { return S; },
     set, sfx, musicVol, dprCap, music,
     onChange: (f) => listeners.push(f),
     isOpen: () => !!(ov && ov.classList.contains('open')),
   };
 })();
+
 
 // ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
 const Arcade = (() => {
@@ -850,7 +855,17 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
+// ----- Admin-voordelen -----
+ArcadeCore.cheat('✅ Meteen winnen', () => {
+  if (won || !P) return;
+  push();
+  P.stock = []; P.waste = []; P.tab = [[], [], [], [], [], [], []];
+  P.found = [0, 1, 2, 3].map((s) => cards.filter((q) => q.s === s).sort((a, b) => a.r - b.r));
+  cards.forEach((q) => (q.up = true));
+  checkWin();
+});
+
   </script>
-  <script type="module" src="../auth.js?v=7"></script>
+  <script type="module" src="../auth.js?v=8"></script>
 </body>
 </html>

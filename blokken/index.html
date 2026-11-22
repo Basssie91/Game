@@ -326,13 +326,18 @@ const ArcadeCore = (() => {
   });
   if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
 
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
   return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
     get settings() { return S; },
     set, sfx, musicVol, dprCap, music,
     onChange: (f) => listeners.push(f),
     isOpen: () => !!(ov && ov.classList.contains('open')),
   };
 })();
+
 
 // ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
 const Arcade = (() => {
@@ -647,7 +652,7 @@ function gameOver() {
   best = Arcade.best(GAME);
   Arcade.beep(180, 0.6, 'sawtooth', 0.06, -100);
 }
-const gravity = () => Math.max(0.04, 0.85 * Math.pow(0.82, level - 1));
+const gravity = () => (CHEAT.slow ? 1.2 : Math.max(0.04, 0.85 * Math.pow(0.82, level - 1)));
 
 function tryMove(dx, dy) {
   if (!piece || clearing) return false;
@@ -919,7 +924,13 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
+// ----- Admin-voordelen -----
+var CHEAT = { slow: false };
+ArcadeCore.toggle('🐢 Blokken vallen langzaam', () => CHEAT.slow, (v) => (CHEAT.slow = v));
+ArcadeCore.cheat('🧹 Speelveld leegmaken', () => { if (grid) grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null)); });
+ArcadeCore.cheat('➕ 5.000 punten', () => { if (state === 'play') score += 5000; });
+
   </script>
-  <script type="module" src="../auth.js?v=7"></script>
+  <script type="module" src="../auth.js?v=8"></script>
 </body>
 </html>

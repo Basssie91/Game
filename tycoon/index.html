@@ -366,13 +366,18 @@ const ArcadeCore = (() => {
   });
   if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
 
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
   return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
     get settings() { return S; },
     set, sfx, musicVol, dprCap, music,
     onChange: (f) => listeners.push(f),
     isOpen: () => !!(ov && ov.classList.contains('open')),
   };
 })();
+
 
 // ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
 const Arcade = (() => {
@@ -1392,30 +1397,17 @@ c.addEventListener('pointermove', (e) => {
 const endDrag = (e) => { if (!drag || e.pointerId !== drag.id) return; drag = null; joy.x = joy.z = 0; $('joy').classList.add('hide'); $('joy').firstElementChild.style.transform = ''; };
 c.addEventListener('pointerup', endDrag); c.addEventListener('pointercancel', endDrag);
 
-// ----- Admin (alleen met de geheime code) -----
-// In de code staat alleen een 'vingerafdruk' (SHA-256) van de code, niet de code zelf.
-const ADMIN_HASH = '3caffc05c7f0e2906e518b7c96b1a3bab9ae1ed894b83d31ca651e93a0b19a15';
-async function sha256(t) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join(''); }
-let adminOk = false;   // elke keer opnieuw de code vragen
+// ----- Admin (alleen voor het admin-account, via het 🛠️-menu) -----
+ArcadeCore.cheat('💰 Tycoon-adminpaneel (geld, ontgrendelen, upgrades)', () => openAdmin());
 let moneyTaps = [];
 $('money').style.pointerEvents = 'auto';
 $('money').addEventListener('click', () => { const now = Date.now(); moneyTaps = moneyTaps.filter((t) => now - t < 2000); moneyTaps.push(now); if (moneyTaps.length >= 5) { moneyTaps = []; openAdmin(); } });
 addEventListener('keydown', (e) => { if (e.ctrlKey && e.shiftKey && e.code === 'KeyA') { e.preventDefault(); openAdmin(); } });
-$('adminClose').onclick = () => { $('admin').classList.add('hide'); adminOk = false; };
+$('adminClose').onclick = () => { $('admin').classList.add('hide'); };
 function openAdmin() {
+  if (!window.__arcadeAdmin) return;   // alleen voor het admin-account
   for (const k in keys) keys[k] = false;
   $('admin').classList.remove('hide');
-  if (!adminOk) {
-    $('adminBody').innerHTML = `<p>Voer de admincode in:</p><input id="aCode" type="password" inputmode="numeric" autocomplete="off" placeholder="Code"><button id="aGo" class="pri">OK</button><p id="aMsg" class="muted"></p>`;
-    const go = async () => {
-      const h = await sha256($('aCode').value.trim().toUpperCase());
-      if (h === ADMIN_HASH) { adminOk = true; openAdmin(); }
-      else { $('aMsg').textContent = 'Verkeerde code.'; $('aCode').value = ''; }
-    };
-    $('aGo').onclick = go; $('aCode').onkeydown = (e) => { if (e.key === 'Enter') go(); };
-    setTimeout(() => $('aCode').focus(), 50);
-    return;
-  }
   $('adminBody').innerHTML = `<p>Geld geven:</p>
     <div class="arow">${[1e3, 1e5, 1e7, 1e9].map((v) => `<button data-add="${v}">+€${fmt(v)}</button>`).join('')}</div>
     <p>Saldo instellen (je geld wordt precies dit bedrag):</p><div class="arow"><input id="aAmount" type="number" min="0" placeholder="Nieuw saldo"><button id="aAdd" class="pri">Instellen</button></div>
@@ -1427,7 +1419,7 @@ function openAdmin() {
   $('aAdd').onclick = () => { if ($('aAmount').value === '') return; const v = Math.max(0, +$('aAmount').value || 0); SV.money = v; done(`Saldo is nu €${fmt(v)}`); };
   $('aAll').onclick = () => { for (const u of LV.unlocks) if (u.kind !== 'next' && !SV.unlocked[u.id]) { SV.unlocked[u.id] = 1; delete SV.paid[u.id]; spawnUnlock(u, true); } buildNav(); refreshPads(); done('Alles ontgrendeld'); };
   $('aUp').onclick = () => { for (const u of UPGR) SV.up[u.id] = u.max; done('Alle upgrades op max'); };
-  $('aNext').onclick = () => { $('admin').classList.add('hide'); adminOk = false; const u = LV.unlocks.find((x) => x.kind === 'next'); unlock(u); };
+  $('aNext').onclick = () => { $('admin').classList.add('hide'); const u = LV.unlocks.find((x) => x.kind === 'next'); unlock(u); };
 }
 
 // ----- Opslaan / laden -----
@@ -1505,6 +1497,6 @@ requestAnimationFrame(loop);
 window.__shop = { get SV() { return SV; }, get PL() { return PL; }, E, get LV() { return LV; }, unlock, keys, joy };
 
   </script>
-  <script type="module" src="../auth.js?v=7"></script>
+  <script type="module" src="../auth.js?v=8"></script>
 </body>
 </html>

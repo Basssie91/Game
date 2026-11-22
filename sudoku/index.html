@@ -326,13 +326,18 @@ const ArcadeCore = (() => {
   });
   if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
 
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
   return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
     get settings() { return S; },
     set, sfx, musicVol, dprCap, music,
     onChange: (f) => listeners.push(f),
     isOpen: () => !!(ov && ov.classList.contains('open')),
   };
 })();
+
 
 // ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
 const Arcade = (() => {
@@ -791,7 +796,17 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
+// ----- Admin-voordelen -----
+ArcadeCore.cheat('💡 Eén vakje invullen (telt niet als hint)', () => {
+  if (!G || G.done) return;
+  const empty = [...Array(81).keys()].filter((j) => G.val[j] !== G.sol[j]); if (!empty.length) return;
+  const i = !G.given[sel] && G.val[sel] !== G.sol[sel] ? sel : empty[Math.floor(Math.random() * empty.length)];
+  const m = notesMode; notesMode = false; sel = i; setVal(i, G.sol[i]); notesMode = m;
+});
+ArcadeCore.cheat('🧽 Fouten op 0 zetten', () => { if (G) { G.mistakes = 0; save(); } });
+ArcadeCore.cheat('✅ Puzzel oplossen', () => { if (!G || G.done) return; for (let i = 0; i < 81; i++) if (!G.given[i]) { G.val[i] = G.sol[i]; G.notes[i] = 0; } checkWin(); save(); });
+
   </script>
-  <script type="module" src="../auth.js?v=7"></script>
+  <script type="module" src="../auth.js?v=8"></script>
 </body>
 </html>

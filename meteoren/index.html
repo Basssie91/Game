@@ -326,13 +326,18 @@ const ArcadeCore = (() => {
   });
   if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
 
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
   return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
     get settings() { return S; },
     set, sfx, musicVol, dprCap, music,
     onChange: (f) => listeners.push(f),
     isOpen: () => !!(ov && ov.classList.contains('open')),
   };
 })();
+
 
 // ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
 const Arcade = (() => {
@@ -711,7 +716,7 @@ function destroyMeteor(m) {
   dropPowerup(m.x, m.y, 0.07);
 }
 function hurt() {
-  if (p.inv > 0) return;
+  if (p.inv > 0 || CHEAT.god) return;
   if (p.shield > 0) { p.shield = 0; p.inv = 0.6; Arcade.beep(500, 0.2, 'triangle', 0.05, -200); return; }
   lives--;
   p.inv = 2;
@@ -747,6 +752,7 @@ function applyPowerup(pu) {
 
 // ----- Update -----
 function update(dt) {
+  if (CHEAT.heat && p) { p.heat = 0; p.overheat = false; }
   for (const q of booms) q.life -= dt;
   booms = booms.filter((q) => q.life > 0);
   nebY = (nebY + dt * 8 * (state === 'play' ? speedMul() : 0.5)) % H;
@@ -1054,7 +1060,16 @@ function loop(now) {
 start(); state = 'menu';
 requestAnimationFrame(loop);
 
+// ----- Admin-voordelen -----
+var CHEAT = { god: false, heat: false };
+ArcadeCore.toggle('🛡️ Onkwetsbaar', () => CHEAT.god, (v) => (CHEAT.god = v));
+ArcadeCore.toggle('🔥 Nooit oververhit', () => CHEAT.heat, (v) => (CHEAT.heat = v));
+ArcadeCore.cheat('🔫 Driedubbel schieten (hele potje)', () => { if (p) p.triple = 9999; });
+ArcadeCore.cheat('❤️ Levens vol (5)', () => { if (state === 'play') lives = 5; });
+ArcadeCore.cheat('💥 Alle meteoren opblazen', () => { if (state === 'play' && meteors) meteors.slice().forEach((m) => destroyMeteor(m)); });
+ArcadeCore.cheat('👾 Baas bijna verslagen', () => { if (boss) boss.hp = 1; });
+
   </script>
-  <script type="module" src="../auth.js?v=7"></script>
+  <script type="module" src="../auth.js?v=8"></script>
 </body>
 </html>

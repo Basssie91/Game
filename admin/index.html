@@ -163,7 +163,8 @@ fb.onAuthStateChanged(fb.auth, (u) => {
   me = u;
   if (!u) return gate('Niet ingelogd', 'Log eerst in op de startpagina met je admin-account.');
   if ((u.email || '').toLowerCase() !== ADMIN_EMAIL) return gate('Geen toegang', 'Deze pagina is alleen voor de beheerder.');
-  gate('🔒 Admin-code', 'Vul je code in om de admin-pagina te openen.', true);   // elke keer opnieuw
+  $('gate').classList.add('hidden'); $('panel').classList.remove('hidden');
+  load();
 });
 $('codeForm').addEventListener('submit', async (e) => {
   e.preventDefault();

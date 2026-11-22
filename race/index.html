@@ -109,6 +109,7 @@ const ArcadeCore = (() => {
     sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
     memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
     vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    tycoon:   { bpm: 96,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [-5, -1, 2]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'triangle', seed: 131, density: 0.32, pad: 'triangle' },
     patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
     stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
   };
@@ -374,13 +375,18 @@ const ArcadeCore = (() => {
   });
   if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
 
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
   return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
     get settings() { return S; },
     set, sfx, musicVol, dprCap, music,
     onChange: (f) => listeners.push(f),
     isOpen: () => !!(ov && ov.classList.contains('open')),
   };
 })();
+
 
 // ================= KERN: banen, fysica en race-regels =================
 const S = 24;          // lengte van één baanstuk
@@ -1286,7 +1292,7 @@ function medalFor(lv, t) {
   for (let i = 0; i < 3; i++) if (t <= LEVELS[lv].medals[i]) return i;
   return -1;
 }
-function unlocked(i) { return i === 0 || bests[i - 1] != null; }
+function unlocked(i) { return i === 0 || bests[i - 1] != null || store.get('unlockall', false); }
 
 function fmt(t) {
   if (t == null) return '--:--.---';
@@ -1887,7 +1893,16 @@ async function boot() {
 }
 boot();
 
+// ----- Admin-voordelen (alleen zichtbaar voor het admin-account) -----
+const P_ORIG = { max: P.max, accel: P.accel, boostMax: P.boostMax };
+let turbo = false;
+ArcadeCore.cheat('🔓 Alle levels ontgrendelen', () => store.set('unlockall', true));
+ArcadeCore.toggle('🚀 Turbo (veel sneller)', () => turbo, (v) => {
+  turbo = v;
+  P.max = P_ORIG.max * (v ? 1.6 : 1); P.accel = P_ORIG.accel * (v ? 2.2 : 1); P.boostMax = P_ORIG.boostMax * (v ? 1.5 : 1);
+});
+
   </script>
-  <script type="module" src="../auth.js?v=7"></script>
+  <script type="module" src="../auth.js?v=8"></script>
 </body>
 </html>

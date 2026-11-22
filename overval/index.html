@@ -331,13 +331,18 @@ const ArcadeCore = (() => {
   });
   if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
 
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
   return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
     get settings() { return S; },
     set, sfx, musicVol, dprCap, music,
     onChange: (f) => listeners.push(f),
     isOpen: () => !!(ov && ov.classList.contains('open')),
   };
 })();
+
 
 // ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
 const Arcade = (() => {
@@ -1814,7 +1819,7 @@ const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpV3 = new THREE
 const EYE = 1.62, CROUCH_EYE = 1.08, RADIUS = 0.36, STEP = 0.42;
 function eyeH() { return lerp(EYE, CROUCH_EYE, pl.crouch); }
 function say(text, dur = 2.4, color = '#ffffff') { msg = { text, t: dur, color }; }
-function unlocked(i) { return i === 0 || bests[i - 1] != null; }
+function unlocked(i) { return i === 0 || bests[i - 1] != null || Arcade.load('overval_unlockall', false); }
 
 // ================= Laden van een missie =================
 function loadMission(i) {
@@ -2087,7 +2092,7 @@ function muzzleWorld(out) {
 }
 function fire() {
   const w = WEAPONS[pl.w], st = pl.ws[pl.w];
-  st.mag--; pl.fireT = 60 / w.rpm;
+  if (!CHEAT.ammo) st.mag--; pl.fireT = 60 / w.rpm;
   if (w.id === 'sniper') pl.boltT = 0.85;
   const moving = Math.hypot(pl.vx, pl.vz) / 5.2;
   let spread = lerp(w.hip, w.ads, pl.adsK) + moving * w.move * (1 - pl.adsK * 0.75) + (pl.onGround ? 0 : 0.06);
@@ -2253,7 +2258,7 @@ function botShoot(b) {
   puff(from, 0.35, 0.06, true, 0);
 }
 function hurt(dmg, from) {
-  if (state !== 'play') return;
+  if (state !== 'play' || CHEAT.god) return;
   pl.hp -= dmg; pl.regenT = 4.5;
   dmgDirs.push({ a: Math.atan2(from.x - pl.x, from.z - pl.z), t: 1.2 });
   if (dmgDirs.length > 6) dmgDirs.shift();
@@ -2472,6 +2477,15 @@ function finish() {
   if (document.pointerLockElement) document.exitPointerLock();
   noise({ f0: 900, f1: 300, d: 0.8, v: 0.2, thump: 80, tv: 0.4 });
 }
+
+// ----- Admin-voordelen -----
+var CHEAT = { god: false, ammo: false };
+ArcadeCore.toggle('🛡️ Onsterfelijk', () => CHEAT.god, (v) => (CHEAT.god = v));
+ArcadeCore.toggle('♾️ Oneindig munitie', () => CHEAT.ammo, (v) => (CHEAT.ammo = v));
+ArcadeCore.cheat('💰 +€10.000 buit', () => { if (state === 'play') loot += 10000; });
+ArcadeCore.cheat('💣 +5 granaten', () => { pl.grenades += 5; });
+ArcadeCore.cheat('🤖 Alle robots uitschakelen', () => { if (state === 'play') bots.forEach((b) => damageBot(b, 99999, false, 'Admin')); });
+ArcadeCore.cheat('🔓 Alle missies ontgrendelen', () => Arcade.save('overval_unlockall', true));
 // ================= Besturing =================
 const touch = { mx: 0, my: 0, fire: false, ads: false, crouch: false, sprint: false, jump: false, stick: null, look: null };
 let ui = [];                 // klikbare knoppen van dit frame
@@ -3008,6 +3022,6 @@ if (renderer) {
 requestAnimationFrame(loop);
 
   </script>
-  <script type="module" src="../auth.js?v=7"></script>
+  <script type="module" src="../auth.js?v=8"></script>
 </body>
 </html>

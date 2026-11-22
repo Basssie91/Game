@@ -326,13 +326,18 @@ const ArcadeCore = (() => {
   });
   if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
 
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
   return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
     get settings() { return S; },
     set, sfx, musicVol, dprCap, music,
     onChange: (f) => listeners.push(f),
     isOpen: () => !!(ov && ov.classList.contains('open')),
   };
 })();
+
 
 // ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
 const Arcade = (() => {
@@ -767,7 +772,11 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
+// ----- Admin-voordelen -----
+ArcadeCore.cheat('🏆 Meteen winnen', () => { if (winner !== null || !board) return; winner = 0; winLine = []; endGame(); });
+ArcadeCore.cheat('➕ 10 overwinningen erbij', () => { stats.w += 10; Arcade.save('vier_stats', stats); Arcade.save('best_vier', `${stats.w} gewonnen`); });
+
   </script>
-  <script type="module" src="../auth.js?v=7"></script>
+  <script type="module" src="../auth.js?v=8"></script>
 </body>
 </html>

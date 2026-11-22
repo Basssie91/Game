@@ -310,6 +310,46 @@ function renderBoard() {
   const l = $('bLogin'); if (l) l.onclick = () => { setMode('login'); gate(true); };
 }
 
+// ---------- Admin-voordelen in games (alleen voor het admin-account) ----------
+function adminTools() {
+  if (IS_HUB || document.getElementById('cheatBtn')) return;
+  window.__arcadeAdmin = true;
+  const list = (typeof ArcadeCore !== 'undefined' && ArcadeCore.cheats) || [];
+  if (!list.length) return;
+  const css = document.createElement('style');
+  css.textContent = `#cheatBtn{position:fixed;left:12px;bottom:12px;z-index:9998;border:1px solid rgba(255,255,255,.22);background:rgba(20,22,27,.85);color:#fff;font:800 13px system-ui,sans-serif;padding:8px 12px;border-radius:10px;cursor:pointer;backdrop-filter:blur(6px)}
+#cheatBtn:hover{background:#e8282f;border-color:#e8282f}
+#cheatBox{position:fixed;left:12px;bottom:56px;z-index:9999;width:min(290px,calc(100vw - 24px));max-height:70vh;overflow-y:auto;background:#15171d;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;box-shadow:0 20px 50px rgba(0,0,0,.55);display:none;font-family:system-ui,sans-serif;color:#fff}
+#cheatBox.open{display:block}#cheatBox h3{margin:2px 4px 10px;font-size:14px;font-style:italic;font-weight:900}#cheatBox h3 span{color:#e8282f}
+#cheatBox button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;text-align:left;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font:700 13px system-ui,sans-serif;padding:9px 10px;border-radius:9px;margin-bottom:6px;cursor:pointer}
+#cheatBox button:hover{background:rgba(255,255,255,.12)}#cheatBox .sw{flex:none;font-size:11px;font-weight:900;padding:2px 7px;border-radius:99px;background:rgba(255,255,255,.12);color:#aab}
+#cheatBox .sw.on{background:#e8282f;color:#fff}#cheatBox .ok{background:#2f8f55!important;border-color:#2f8f55!important}`;
+  document.head.appendChild(css);
+  const btn = document.createElement('button'); btn.id = 'cheatBtn'; btn.textContent = '🛠️ Admin';
+  const box = document.createElement('div'); box.id = 'cheatBox';
+  const render = () => {
+    box.innerHTML = '<h3>ADMIN <span>VOORDELEN</span></h3>';
+    list.forEach((ch, i) => {
+      const b = document.createElement('button');
+      const on = ch.get ? !!ch.get() : null;
+      b.innerHTML = `<span>${ch.label}</span>${on === null ? '' : `<span class="sw ${on ? 'on' : ''}">${on ? 'AAN' : 'UIT'}</span>`}`;
+      b.onclick = (e) => {
+        e.stopPropagation();
+        try {
+          if (ch.get) { ch.set(!ch.get()); render(); }
+          else { ch.fn(); b.classList.add('ok'); setTimeout(() => b.classList.remove('ok'), 600); }
+        } catch (err) { console.warn('Admin-voordeel mislukt:', err); }
+        b.blur();
+      };
+      box.appendChild(b);
+    });
+  };
+  render();
+  btn.onclick = (e) => { e.stopPropagation(); render(); box.classList.toggle('open'); btn.blur(); };
+  for (const el of [btn, box]) ['pointerdown', 'mousedown', 'touchstart', 'keydown'].forEach((ev) => el.addEventListener(ev, (e) => e.stopPropagation()));
+  document.body.append(btn, box);
+}
+
 // ---------- Start ----------
 (async () => {
   if (IS_HUB) { hubUI(); $('bGame').addEventListener('change', renderBoard); }
@@ -318,6 +358,7 @@ function renderBoard() {
     user = u; ready = false; acctUI();
     if (!u) { if (IS_HUB) renderBoard(); if (IS_HUB && localStorage.getItem(GUEST_KEY) !== '1') gate(true); return; }
     localStorage.removeItem(GUEST_KEY);
+    if ((u.email || '').toLowerCase() === ADMIN_EMAIL) adminTools();
     if (IS_HUB) { gate(false); setStatus('busy'); }
     try {
       await pull();
