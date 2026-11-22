@@ -122,6 +122,19 @@ async function pull() {
   // heeft de admin de records van dit account gewist? Dan ook hier wissen (één keer)
   const ra = d.resetAt && d.resetAt.toMillis ? d.resetAt.toMillis() : 0;
   if (ra && ra > (+localStorage.getItem('ga_reset_seen') || 0)) { wipeLocal(); localStorage.setItem('ga_reset_seen', ra); lastSent = ''; }
+  // losse games die de admin heeft gereset
+  let seen; try { seen = JSON.parse(localStorage.getItem('ga_resets_seen')) || {}; } catch (e) { seen = {}; }
+  let changedSeen = false;
+  for (const [id, ts] of Object.entries(d.resets || {})) {
+    const t = ts && ts.toMillis ? ts.toMillis() : 0;
+    if (t && t > (seen[id] || 0)) {
+      const local = collect();
+      Object.keys(local).filter((k) => id === 'race' ? k.startsWith('tt2_bests') : new RegExp(`^arcade_(best_)?${id}(_|2_|$)`).test(k)).forEach((k) => localStorage.removeItem(k));
+      if (id === 'race') for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('tt2_ghost')) localStorage.removeItem(k); }
+      seen[id] = t; changedSeen = true; lastSent = ''; lastBoard = '';
+    }
+  }
+  if (changedSeen) localStorage.setItem('ga_resets_seen', JSON.stringify(seen));
   return remote;
 }
 async function push(force) {

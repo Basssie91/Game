@@ -45,7 +45,12 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
 #modal .box { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; }
 #modal h2 { margin: 0 0 4px; font-size: 20px; word-break: break-all; } #modal .sub { color: #8a919b; font-size: 13px; margin-bottom: 14px; }
 .rows div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 14px; }
-.rows b { font-family: ui-monospace, Consolas, monospace; }
+.rows b { font-family: ui-monospace, Consolas, monospace; margin-left: auto; }
+.rows div { align-items: center; gap: 10px; }
+.rows button { padding: 4px 9px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.16); }
+.rows button:hover { background: #e8282f; border-color: #e8282f; }
+.rows button.sure { background: #e8282f; border-color: #e8282f; }
+.rows button:disabled { opacity: 0.5; }
 .mbtns { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .hidden { display: none !important; }
 @media (max-width: 700px) { .hide-sm { display: none; } }
@@ -105,7 +110,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
     <div class="sub" id="mSub"></div>
     <div class="rows" id="mRows"></div>
     <div class="mbtns">
-      <button class="red" id="mWipe">🗑️ Records wissen</button>
+      <button class="red" id="mWipe">🗑️ Alles wissen</button>
       <button class="ghost" id="mClose">Sluiten</button>
     </div>
     <div class="msg" id="mMsg"></div>
@@ -172,7 +177,7 @@ async function load() {
   $('rows').innerHTML = '<tr><td colspan="5">Laden…</td></tr>';
   try {
     const snap = await fb.getDocs(fb.collection(fb.db, 'users'));
-    users = snap.docs.map((s) => { const x = s.data(); return { uid: s.id, email: x.email || '(geen e-mail)', t: ms(x.updated), data: x.data || {} }; });
+    users = snap.docs.map((s) => { const x = s.data(); return { uid: s.id, email: x.email || '(geen e-mail)', t: ms(x.updated), data: x.data || {}, raw: x }; });
     users.sort((a, b) => b.t - a.t);
     render();
   } catch (e) {
@@ -212,9 +217,35 @@ $('rows').addEventListener('click', (e) => {
   open = users.find((u) => u.uid === b.dataset.v); if (!open) return;
   $('mTitle').textContent = open.email;
   $('mSub').textContent = 'Laatst actief: ' + ago(open.t);
-  $('mRows').innerHTML = recordsOf(open.data).map(([, naam, v]) => `<div><span>${esc(naam)}</span><b>${v == null ? '–' : esc(v)}</b></div>`).join('');
-  $('mWipe').textContent = '🗑️ Records wissen'; $('mWipe').dataset.sure = ''; $('mWipe').disabled = false; $('mMsg').textContent = '';
+  showRows();
+  $('mWipe').textContent = '🗑️ Alles wissen'; $('mWipe').dataset.sure = ''; $('mWipe').disabled = false; $('mMsg').textContent = '';
   $('modal').classList.add('open');
+});
+function showRows() {
+  $('mRows').innerHTML = recordsOf(open.data).map(([id, naam, v]) => `<div><span>${esc(naam)}</span><b>${v == null ? '–' : esc(v)}</b>${v == null ? '<button style="visibility:hidden">Reset</button>' : `<button data-g="${id}" title="Alleen deze game resetten">Reset</button>`}</div>`).join('');
+}
+// Sleutels die bij één game horen (record, beste tijden, statistieken, opgeslagen spel)
+const gameKeys = (id, data) => Object.keys(data).filter((k) => id === 'race' ? k.startsWith('tt2_bests') : new RegExp(`^arcade_(best_)?${id}(_|2_|$)`).test(k));
+$('mRows').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-g]'); if (!b || !open) return;
+  const id = b.dataset.g, naam = (GAMES.find((g) => g[0] === id) || [, id])[1];
+  if (!b.classList.contains('sure')) { b.classList.add('sure'); b.textContent = 'Zeker?'; return; }
+  b.disabled = true;
+  try {
+    const raw = open.raw || {};
+    const data = Object.assign({}, open.data);
+    gameKeys(id, data).forEach((k) => delete data[k]);
+    const resets = Object.assign({}, raw.resets || {}, { [id]: fb.serverTimestamp() });
+    const docData = Object.assign({}, raw, { data, resets, email: open.email, updated: fb.serverTimestamp() });
+    await fb.setDoc(fb.doc(fb.db, 'users', open.uid), docData);
+    // ook van de openbare ranglijst halen
+    const lb = fb.doc(fb.db, 'leaderboard', open.uid);
+    const ls = await fb.getDoc(lb).catch(() => null);
+    if (ls && ls.exists()) { const x = ls.data(); const sc = Object.assign({}, x.scores || {}); delete sc[id]; await fb.setDoc(lb, Object.assign({}, x, { scores: sc })); }
+    open.data = data; open.raw = Object.assign({}, raw, { data, resets });
+    $('mMsg').className = 'msg ok'; $('mMsg').textContent = `${naam} is gereset. Ook op hun apparaten verdwijnt dit record zodra ze de site openen.`;
+    showRows(); render();
+  } catch (err) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (err.code || err.message); b.disabled = false; }
 });
 const closeM = () => $('modal').classList.remove('open');
 $('mClose').addEventListener('click', closeM);
@@ -224,7 +255,11 @@ $('mWipe').addEventListener('click', async () => {
   if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = '⚠️ Zeker weten? Klik nog een keer'; return; }
   b.disabled = true;
   try {
-    await fb.setDoc(fb.doc(fb.db, 'users', open.uid), { data: {}, email: open.email, updated: fb.serverTimestamp(), resetAt: fb.serverTimestamp() });
+    const raw = open.raw || {};
+    await fb.setDoc(fb.doc(fb.db, 'users', open.uid), Object.assign({}, raw, { data: {}, resets: {}, email: open.email, updated: fb.serverTimestamp(), resetAt: fb.serverTimestamp() }));
+    const lb = fb.doc(fb.db, 'leaderboard', open.uid);
+    const ls = await fb.getDoc(lb).catch(() => null);
+    if (ls && ls.exists()) await fb.setDoc(lb, Object.assign({}, ls.data(), { scores: {} }));
     $('mMsg').className = 'msg ok'; $('mMsg').textContent = 'Gewist. Ook op hun apparaten verdwijnen de records zodra ze de site openen.';
     b.textContent = '✔ Gewist';
     load();
