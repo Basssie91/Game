@@ -660,8 +660,8 @@ const MOTO = (() => {
     C: (b) => b.flat(300).bumps(4, 300, 42).flat(300),
     D: (b) => b.flat(450).kicker(200, 60).pit(240, 380, 40).flat(400),
     E: (b) => b.flat(600).loop().flat(400),
-    G: (b) => b.flat(450).kicker(200, 70).barrel(170).flat(550),
-    H: (b) => b.flat(450).kicker(220, 75).barrel(150).barrel(205).flat(600),
+    G: (b) => b.flat(450).kicker(220, 95).barrel(190).flat(550),
+    H: (b) => b.flat(450).kicker(240, 100).barrel(180).barrel(235).flat(600),
     I: (b) => b.flat(300).valley(700, 170).hill(600, 150).flat(300),
     J: (b) => b.flat(300).slope(400, -250).flat(150).slope(400, 250).flat(250),
     K: (b) => b.flat(700).loop().flat(120).loop().flat(400),
@@ -687,7 +687,7 @@ const MOTO = (() => {
   ];
   // sterrentijden (3 sterren, 2 sterren), gemeten met een computer-coureur.
   // Voor 3 sterren moet je bij (bijna) elke grote sprong een salto maken.
-  const STARS = [[14.5, 17], [13.5, 16], [12.5, 16], [11, 14], [12.5, 16], [17.5, 21], [15.5, 19], [14, 19], [15, 19], [22.5, 29]];
+  const STARS = [[14, 16], [13.5, 16], [11.5, 15], [11.5, 14], [13, 16], [16.5, 20], [15.5, 19], [12.5, 18], [15.5, 19], [22, 28]];
   LEVELS.forEach((l, i) => { l.build = seq(l.parts); l.stars = STARS[i]; });
 
   function makeLevel(i) {
@@ -742,10 +742,11 @@ const MOTO = (() => {
         if (inp.brake) { const target = -REV; if (vf > target) { const sub = Math.min(BRAKE * dt, vf - target); b.vx -= tx * sub; b.vy -= ty * sub; } }
       }
       const lean = inp.lean || 0;
-      b.w += lean * (grounded ? 11 : 22) * dt;
+      // kantelen: rustig ronddraaien, met een maximum (loopings mogen wel sneller draaien)
+      if (lean > 0 ? b.w < 6.2 : lean < 0 ? b.w > -6.2 : false) b.w += lean * (grounded ? 10 : 12) * dt;
       if (inp.gas && b.gr[0] && !b.gr[1]) b.w -= 1.2 * dt;   // wheelie bij gas op het achterwiel
     }
-    b.w = Math.max(-9.5, Math.min(9.5, b.w));
+    b.w = Math.max(-14, Math.min(14, b.w));
     b.w *= 1 - (grounded ? 1.2 : 0.25) * dt;
     b.vy += G * dt;
     b.x += b.vx * dt; b.y += b.vy * dt; b.a += b.w * dt;
