@@ -161,6 +161,17 @@ function scoresOf(d) {
   const vier = J(d.arcade_vier_stats); if (vier && vier.w > 0) o.vier = vier.w;
   return o;
 }
+// racegames: beste tijd per level (seconden)
+const TIMED = { race: 12, moto: 10 };
+function timesOf(d) {
+  const o = {};
+  const r = J(d.tt2_bests2);
+  if (r && typeof r === 'object') { o.race = {}; for (const k in r) { const t = r[k] && typeof r[k] === 'object' ? r[k].t : r[k]; if (typeof t === 'number' && t > 0) o.race[k] = Math.round(t * 100) / 100; } }
+  const m = J(d.arcade_moto_bests);
+  if (m && typeof m === 'object') { o.moto = {}; for (const k in m) if (typeof m[k] === 'number' && m[k] > 0) o.moto[k] = Math.round(m[k] * 100) / 100; }
+  return o;
+}
+const fmtT = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r < 10 ? '0' : ''}${r.toFixed(2)}`; };
 // records die geen score zijn (tijden/zetten), alleen om te laten zien op je profiel
 function extraOf(d) {
   const o = {};
@@ -170,12 +181,12 @@ function extraOf(d) {
 async function pushBoard(data, force) {
   if (!user || !myName) return;
   const d = data || mergeObjs(collect(), remote);
-  const scores = scoresOf(d), extra = extraOf(d);
+  const scores = scoresOf(d), extra = extraOf(d), times = timesOf(d);
   const since = (user.metadata && user.metadata.creationTime) || '';
-  const s = JSON.stringify([myName, scores, extra]);
+  const s = JSON.stringify([myName, scores, extra, times]);
   if (!force && s === lastBoard) return;
   try {
-    await fb.setDoc(fb.doc(fb.db, 'leaderboard', user.uid), { name: myName, scores, extra, since, updated: fb.serverTimestamp() });
+    await fb.setDoc(fb.doc(fb.db, 'leaderboard', user.uid), { name: myName, scores, extra, times, since, updated: fb.serverTimestamp() });
     lastBoard = s;
   } catch (e) { console.warn('Ranglijst bijwerken mislukt:', e); }
 }
@@ -286,6 +297,7 @@ function hubUI() {
 // ---------- Ranglijst op de startpagina ----------
 const SHOW = { race: (v) => v + '/12', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins', moto: (v) => v + '/30 ★' };
 let boardPlayers = null;
+const boardLvl = {};
 async function loadBoard() {
   if (!fb) return;
   try {
@@ -298,13 +310,16 @@ function renderBoard() {
   const list = $('bList'); if (!list || !boardPlayers) return;
   const g = $('bGame').value;
   let rows;
-  if (!g) {   // klassement: 🥇 3, 🥈 2, 🥉 1 punt per game
-    const pts = new Map();
-    for (const id of [...BOARD, 'race', 'vier']) {
-      boardPlayers.filter((p) => p.scores && p.scores[id] > 0).sort((a, b) => b.scores[id] - a.scores[id]).slice(0, 3)
-        .forEach((p, i) => pts.set(p.uid, (pts.get(p.uid) || 0) + 3 - i));
-    }
-    rows = boardPlayers.filter((p) => pts.has(p.uid)).map((p) => ({ p, v: pts.get(p.uid), s: pts.get(p.uid) + ' pt' })).sort((a, b) => b.v - a.v);
+  const lvBox = $('bLvl');
+  if (TIMED[g]) {   // racegame: kies een level, snelste tijd bovenaan
+    const cur = boardLvl[g] || 0;
+    lvBox.innerHTML = Array.from({ length: TIMED[g] }, (_, i) => `<button data-l="${i}" class="${i === cur ? 'on' : ''}">${i + 1}</button>`).join('');
+    lvBox.hidden = false;
+    rows = levelRanking(g, cur).map((r) => ({ p: r.p, v: r.v, s: fmtT(r.v) }));
+  } else lvBox.hidden = true;
+  if (TIMED[g]) { /* al gedaan */ }
+  else if (!g) {   // klassement: 🥇 3, 🥈 2, 🥉 1 punt per game
+    rows = klassement().map(([uid, v]) => ({ p: boardPlayers.find((x) => x.uid === uid), v, s: v + ' pt' }));
   } else {
     rows = boardPlayers.filter((p) => p.scores && p.scores[g] > 0).map((p) => ({ p, v: p.scores[g], s: (SHOW[g] || ((v) => v.toLocaleString('nl-NL')))(p.scores[g]) })).sort((a, b) => b.v - a.v);
   }
@@ -321,12 +336,23 @@ function renderBoard() {
 
 // ---------- Profiel ----------
 const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['moto', '🏍️', 'Moto Stunt'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['blokken', '🧱', 'Blokken'], ['stack', '🏗️', 'Stack Tower'], ['vier', '🔴', 'Vier op een rij'], ['sudoku', '🔢', 'Sudoku'], ['mijnen', '💣', 'Mijnenveger'], ['memory', '🧠', 'Memory'], ['patience', '🃏', 'Patience']];
+// snelste tijden op één level
+function levelRanking(id, l) {
+  return boardPlayers.filter((p) => p.times && p.times[id] && p.times[id][l] != null).map((p) => ({ p, v: p.times[id][l] })).sort((a, b) => a.v - b.v);
+}
+// ranglijst van een game; bij racegames: wie de meeste level-podiumplekken heeft (🥇 3, 🥈 2, 🥉 1 per level)
+function gameRanking(id) {
+  if (TIMED[id]) {
+    const pts = new Map();
+    for (let l = 0; l < TIMED[id]; l++) levelRanking(id, l).slice(0, 3).forEach((r, i) => pts.set(r.p.uid, (pts.get(r.p.uid) || 0) + 3 - i));
+    return boardPlayers.filter((p) => pts.has(p.uid)).map((p) => ({ p, v: pts.get(p.uid) })).sort((a, b) => b.v - a.v);
+  }
+  return boardPlayers.filter((p) => p.scores && p.scores[id] > 0).map((p) => ({ p, v: p.scores[id] })).sort((a, b) => b.v - a.v);
+}
+const KL_GAMES = ['race', 'moto', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'vier'];
 function klassement() {
   const pts = new Map();
-  for (const id of [...BOARD, 'race', 'vier']) {
-    boardPlayers.filter((p) => p.scores && p.scores[id] > 0).sort((a, b) => b.scores[id] - a.scores[id]).slice(0, 3)
-      .forEach((p, i) => pts.set(p.uid, (pts.get(p.uid) || 0) + 3 - i));
-  }
+  for (const id of KL_GAMES) gameRanking(id).slice(0, 3).forEach((r, i) => pts.set(r.p.uid, (pts.get(r.p.uid) || 0) + 3 - i));
   return [...pts.entries()].sort((a, b) => b[1] - a[1]);
 }
 async function openProfile(uid) {
@@ -336,8 +362,19 @@ async function openProfile(uid) {
   const kl = klassement(), kpos = kl.findIndex(([u]) => u === uid);
   const sc = p.scores || {}, ex = p.extra || {};
   let n = 0;
+  const tm = p.times || {};
   const rows = PGAMES.map(([id, ic, naam]) => {
-    let val = null, rank = '';
+    let val = null, rank = '', sub = '';
+    if (TIMED[id]) {
+      const mine = tm[id] || {}, ls = Object.keys(mine).map(Number).sort((a, b) => a - b);
+      if (ls.length) {
+        n++;
+        let wins = 0;
+        sub = '<div class="psub">' + ls.map((l) => { const r = levelRanking(id, l).findIndex((x) => x.p.uid === uid) + 1; if (r === 1) wins++; return `<span class="${r === 1 ? 'gold' : ''}">L${l + 1} ${fmtT(mine[l])}${r ? ' <i>#' + r + '</i>' : ''}</span>`; }).join('') + '</div>';
+        return `<div class="pg"><span class="pic">${ic}</span><span class="pn">${naam}</span><b>${ls.length}/${TIMED[id]} levels</b><span class="prk ${wins ? 'm1' : ''}">${wins ? '🥇 ' + wins : ''}</span></div>${sub}`;
+      }
+      return `<div class="pg none"><span class="pic">${ic}</span><span class="pn">${naam}</span><b>–</b></div>`;
+    }
     if (sc[id] > 0) {
       val = (SHOW[id] || ((v) => v.toLocaleString('nl-NL')))(sc[id]);
       const all = boardPlayers.filter((x) => x.scores && x.scores[id] > 0).sort((a, b) => b.scores[id] - a.scores[id]);
@@ -345,6 +382,7 @@ async function openProfile(uid) {
       rank = `<span class="prk ${r <= 3 ? 'm' + r : ''}">#${r}<small> van ${all.length}</small></span>`;
     } else if (ex[id]) val = ex[id];
     if (val != null) n++;
+    void sub;
     return `<div class="pg ${val == null ? 'none' : ''}"><span class="pic">${ic}</span><span class="pn">${naam}</span><b>${val == null ? '–' : esc(val)}</b>${rank}</div>`;
   }).join('');
   const since = p.since ? new Date(p.since) : null;
@@ -423,6 +461,7 @@ function adminTools() {
   if (IS_HUB) {
     hubUI(); $('bGame').addEventListener('change', renderBoard);
     $('bList').addEventListener('click', (e) => { const li = e.target.closest('[data-uid]'); if (li) openProfile(li.dataset.uid); });
+    $('bLvl').addEventListener('click', (e) => { const b = e.target.closest('[data-l]'); if (b) { boardLvl[$('bGame').value] = +b.dataset.l; renderBoard(); } });
     $('profModal').addEventListener('click', (e) => { if (e.target.id === 'profModal' || e.target.closest('#profClose')) $('profModal').classList.remove('open'); });
     addEventListener('keydown', (e) => { if (e.key === 'Escape') $('profModal').classList.remove('open'); });
     $('acctProfile').addEventListener('click', () => { $('acctMenu').classList.remove('open'); if (user) openProfile(user.uid); });
