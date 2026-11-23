@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Puck Voetbal · Game Arcade</title>
-  <meta name="description" content="Voetbal van bovenaf: schiet je schijven tegen de bal, kies 3 powerups en win het toernooi. Of speel tegen een vriend!">
+  <meta name="description" content="Voetbal van bovenaf: schiet je schijven tegen de bal, kies 1 slimme powerup en win het toernooi. Of speel tegen een vriend!">
   <meta name="theme-color" content="#0b0c10">
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Crect%20x%3D%228%22%20y%3D%2214%22%20width%3D%2248%22%20height%3D%2236%22%20rx%3D%224%22%20fill%3D%22%23357a32%22%20stroke%3D%22%23e6e8eb%22%20stroke-width%3D%222%22/%3E%3Cline%20x1%3D%2232%22%20y1%3D%2214%22%20x2%3D%2232%22%20y2%3D%2250%22%20stroke%3D%22%23e6e8eb%22%20stroke-width%3D%222%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%226%22%20fill%3D%22none%22%20stroke%3D%22%23e6e8eb%22%20stroke-width%3D%222%22/%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2226%22%20r%3D%225%22%20fill%3D%22%232f7fe0%22%20stroke%3D%22%23173f70%22%20stroke-width%3D%221.5%22/%3E%3Ccircle%20cx%3D%2244%22%20cy%3D%2238%22%20r%3D%225%22%20fill%3D%22%23e8282f%22%20stroke%3D%22%237a1418%22%20stroke-width%3D%221.5%22/%3E%3Ccircle%20cx%3D%2237%22%20cy%3D%2227%22%20r%3D%223%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
   <style>
@@ -744,7 +744,7 @@ function startMatch() {
   S = newWorld(); used = [{}, {}]; skip = [false, false]; turbo = false; magnetNext = false; target = null; aim = null; moving = false; shots = 0;
   if (mode === 'bot') {
     goals = tour && tour.g ? tour.g.slice() : [0, 0];
-    picks[1] = shuffle(PU_KEYS.slice()).slice(0, 3);
+    picks[1] = shuffle(PU_KEYS.slice()).slice(0, 1);
     tour.picks = picks[0]; tour.g = goals; saveTour();
   } else goals = [0, 0];
   state = 'play'; whistle();
@@ -976,7 +976,7 @@ c.addEventListener('pointerup', () => {
 });
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (state === 'play' || state === 'goal') { prevState = state; state = 'pause'; } else if (state === 'pause') state = prevState; }
-  if (state === 'play' && !isBot(turn) && /^[123]$/.test(e.key)) { const k = picks[turn][+e.key - 1]; if (k) usePower(turn, k); }
+  if (state === 'play' && !isBot(turn) && /^1$/.test(e.key)) { const k = picks[turn][+e.key - 1]; if (k) usePower(turn, k); }
 });
 
 // ---------- Tekenen ----------
@@ -1142,7 +1142,7 @@ function drawHUD() {
   const pt = mode === 'bot' ? 0 : turn;
   const mine = picks[pt] || [];
   mine.forEach((k, j) => {
-    const x = W - 20 - (3 - j) * 150 + 6, y = bar + 4, w = 142, h = 50, u = used[pt][k];
+    const x = W - 20 - 186, y = bar + 4, w = 180, h = 50, u = used[pt][k];
     const can = !u && state === 'play' && turn === pt && !moving && !isBot(turn);
     const active = (k === 'turbo' && turbo && turn === pt) || (k === 'magnet' && magnetNext && turn === pt) || target === k;
     ctx.globalAlpha = u && !active ? 0.35 : 1;
@@ -1150,13 +1150,13 @@ function drawHUD() {
     ctx.strokeStyle = active ? '#ffd23f' : can ? PU[k].c : 'rgba(255,255,255,0.12)'; ctx.lineWidth = active ? 2.5 : 1.5; ctx.stroke();
     T(ctx, PU[k].i, x + 24, y + 26, 22);
     T(ctx, PU[k].n, x + 44, y + 19, 13, '#fff', 'left', '800');
-    T(ctx, active ? 'Actief!' : u ? 'Gebruikt' : Arcade.touch ? 'Tik om te gebruiken' : `Klik of toets ${j + 1}`, x + 44, y + 36, 11, active ? '#ffd23f' : '#9aa1ab', 'left', '700');
+    T(ctx, active ? 'Actief!' : u ? 'Gebruikt' : Arcade.touch ? 'Tik om in te zetten' : 'Klik of toets 1', x + 44, y + 36, 11, active ? '#ffd23f' : '#9aa1ab', 'left', '700');
     ctx.globalAlpha = 1;
     if (can) ui.btn('', x, y, w, h, () => usePower(pt, k), false, false); // klikgebied (onzichtbaar)
   });
   // powerups van de bot (klein, bovenaan rechts)
   if (mode === 'bot') {
-    T(ctx, 'Powerups bot:', W / 2 + 226, 40, 12, '#9aa1ab', 'left', '700');
+    T(ctx, 'Powerup bot:', W / 2 + 226, 40, 12, '#9aa1ab', 'left', '700');
     picks[1].forEach((k, j) => { ctx.globalAlpha = used[1][k] ? 0.25 : 1; T(ctx, PU[k].i, W / 2 + 320 + j * 24, 40, 17); ctx.globalAlpha = 1; });
   }
   if (toastT > 0) {
@@ -1189,9 +1189,9 @@ function drawMenu() {
   card(gx, 170, cw, ch, false);
   T(ctx, '🤖 Tegen de bot', gx + cw / 2, 206, 22, '#fff', 'center', '900');
   T(ctx, 'Toernooi van 8 rondes', gx + cw / 2, 238, 15, '#c9ced6', 'center', '600');
-  T(ctx, 'Telt voor de ranglijst', gx + cw / 2, 260, 13, '#ffd23f', 'center', '700');
+  T(ctx, 'Hoe ver kom jij?', gx + cw / 2, 260, 13, '#ffd23f', 'center', '700');
   if (tour) {
-    ui.btn(`Verder: ronde ${tour.round + 1}`, gx + 20, 284, cw / 2 - 26, 50, () => { mode = 'bot'; picks[0] = tour.picks && tour.picks.length === 3 ? tour.picks : []; if (picks[0].length === 3) toPick(0, true); else toPick(0); }, true);
+    ui.btn(`Verder: ronde ${tour.round + 1}`, gx + 20, 284, cw / 2 - 26, 50, () => { mode = 'bot'; picks[0] = tour.picks && tour.picks.length === 1 ? tour.picks : []; if (picks[0].length === 1) toPick(0, true); else toPick(0); }, true);
     ui.btn('Opnieuw', gx + cw / 2 + 6, 284, cw / 2 - 26, 50, () => { mode = 'bot'; tour = { round: 0, score: 0, g: [0, 0], picks: [] }; saveTour(); toPick(0); });
   } else ui.btn('Start toernooi', gx + 40, 284, cw - 80, 50, () => { mode = 'bot'; tour = { round: 0, score: 0, g: [0, 0], picks: [] }; saveTour(); toPick(0); }, true);
   // tegen een vriend
@@ -1199,24 +1199,24 @@ function drawMenu() {
   card(vx, 170, cw, ch, false);
   T(ctx, '👥 Tegen een vriend', vx + cw / 2, 206, 22, '#fff', 'center', '900');
   T(ctx, 'Om de beurt op hetzelfde scherm', vx + cw / 2, 238, 15, '#c9ced6', 'center', '600');
-  T(ctx, 'Telt niet voor de ranglijst', vx + cw / 2, 260, 13, '#9aa1ab', 'center', '700');
+  T(ctx, 'Wie is de beste?', vx + cw / 2, 260, 13, '#9aa1ab', 'center', '700');
   ui.btn('Speel samen', vx + 40, 284, cw - 80, 50, () => { mode = 'vriend'; toPick(0); });
   T(ctx, `Beste toernooiscore: ${best ? best.toLocaleString('nl-NL') : '–'}`, W / 2, 400, 16, '#c9ced6', 'center', '700');
-  T(ctx, 'Elke powerup kun je 1x per wedstrijd gebruiken. Je kiest er 3 voor de aftrap.', W / 2, 440, 14, '#9aa1ab', 'center', '600');
+  T(ctx, 'Je kiest 1 powerup en kunt hem maar 1x gebruiken: zet hem in op het goede moment!', W / 2, 440, 14, '#9aa1ab', 'center', '600');
   T(ctx, 'Elke beurt heb je 15 seconden. Wie het eerst 3 keer scoort, wint.', W / 2, 464, 14, '#9aa1ab', 'center', '600');
 }
 function toPick(p, keep = false) {
   pickFor = p; state = 'pick';
-  pickSel = keep ? picks[p].slice() : (picks[p] && picks[p].length === 3 && mode === 'bot' ? picks[p].slice() : []);
+  pickSel = keep ? picks[p].slice() : (picks[p] && picks[p].length === 1 && mode === 'bot' ? picks[p].slice() : []);
 }
 function drawPick() {
   drawField();
   ctx.fillStyle = 'rgba(8,9,12,0.82)'; ctx.fillRect(0, 0, W, H);
-  const who = mode === 'bot' ? 'Kies je powerups' : `Speler ${pickFor + 1}: kies je powerups`;
+  const who = mode === 'bot' ? 'Kies je powerup' : `Speler ${pickFor + 1}: kies je powerup`;
   T(ctx, who, W / 2, 62, 30, '#fff', 'center', '900');
   const sub = mode === 'bot' ? `Ronde ${round() + 1} van 8 · tegen ${ROUNDS[round()][0]}` : (pickFor ? 'Speler 1 kijkt even niet 😉' : 'Daarna kiest speler 2');
   T(ctx, sub, W / 2, 96, 15, '#c9ced6', 'center', '600');
-  T(ctx, `${pickSel.length} van 3 gekozen`, W / 2, 124, 14, pickSel.length === 3 ? '#7bd88f' : '#ffd23f', 'center', '800');
+  T(ctx, 'Je kunt hem maar 1x gebruiken, dus kies slim', W / 2, 124, 14, '#ffd23f', 'center', '800');
   const cw = 260, ch = 128, gx = W / 2 - (cw * 3 + 32) / 2;
   PU_KEYS.forEach((k, j) => {
     const x = gx + (j % 3) * (cw + 16), y = 148 + Math.floor(j / 3) * (ch + 16), on = pickSel.includes(k), p = PU[k];
@@ -1227,16 +1227,14 @@ function drawPick() {
     T(ctx, p.d[1], x + 72, y + 87, 13, '#c9ced6', 'left', '600');
     if (on) { ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(x + cw - 22, y + 22, 11, 0, 7); ctx.fill(); T(ctx, '✓', x + cw - 22, y + 23, 14, '#111214', 'center', '900'); }
     ui.btn('', x, y, cw, ch, () => {
-      if (on) pickSel = pickSel.filter((q) => q !== k);
-      else if (pickSel.length < 3) pickSel.push(k);
-      else { pickSel.shift(); pickSel.push(k); }
+      pickSel = on ? [] : [k];
       Arcade.beep(on ? 440 : 660, 0.06, 'triangle', 0.04);
     });
   });
   ui.btn('← Terug', gx, 470, 160, 52, () => { state = 'menu'; });
-  ui.btn('Willekeurig', gx + 176, 470, 160, 52, () => { pickSel = shuffle(PU_KEYS.slice()).slice(0, 3); });
-  const ready = pickSel.length === 3;
-  ui.btn(ready ? (mode === 'vriend' && pickFor === 0 ? 'Volgende speler →' : 'Aftrap ⚽') : 'Kies er nog ' + (3 - pickSel.length), gx + cw * 3 + 32 - 240, 470, 240, 52, () => {
+  ui.btn('Willekeurig', gx + 176, 470, 160, 52, () => { pickSel = shuffle(PU_KEYS.slice()).slice(0, 1); });
+  const ready = pickSel.length === 1;
+  ui.btn(ready ? (mode === 'vriend' && pickFor === 0 ? 'Volgende speler →' : 'Aftrap ⚽') : 'Kies een powerup', gx + cw * 3 + 32 - 240, 470, 240, 52, () => {
     if (!ready) return;
     picks[pickFor] = pickSel.slice();
     if (mode === 'vriend' && pickFor === 0) return toPick(1);
@@ -1326,13 +1324,13 @@ requestAnimationFrame(loop);
 // ---------- Admin-voordelen ----------
 ArcadeCore.cheat('⚽ Goal voor jou', () => { if (S && (state === 'play' || state === 'goal') ) { if (state === 'goal') return; scored(0); } });
 ArcadeCore.cheat('🏆 Wedstrijd meteen winnen', () => { if (S && (state === 'play' || state === 'goal' || state === 'pause')) { goals = [WIN_GOALS, Math.min(goals[1], WIN_GOALS - 1)]; finishMatch(0); } });
-ArcadeCore.cheat('♻️ Powerups opnieuw opladen', () => { used[0] = {}; say('♻️ Powerups weer vol'); });
+ArcadeCore.cheat('♻️ Powerup opnieuw opladen', () => { used[0] = {}; say('♻️ Powerup weer beschikbaar'); });
 ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (mode === 'bot' && tour && tour.round < 7) { tour.round++; tour.g = [0, 0]; saveTour(); state = 'menu'; } });
 ArcadeCore.toggle('🧊 Bot slaat elke beurt over', () => cheatFreeze, (v) => { cheatFreeze = v; });
 
 window.__puck = { get S() { return S; }, get state() { return state; }, step, botThink, startMatch, usePower, applyTarget, shoot, get turn() { return turn; }, get goals() { return goals; }, setMode: (m) => { mode = m; }, setTour: (t) => { tour = t; }, picks, finishMatch, endTurn };
 
   </script>
-  <script type="module" src="../auth.js?v=16"></script>
+  <script type="module" src="../auth.js?v=17"></script>
 </body>
 </html>
