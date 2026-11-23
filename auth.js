@@ -153,7 +153,7 @@ async function push(force) {
 }
 
 // ---------- Openbare ranglijst (ook gelezen door de Discord-bot) ----------
-const BOARD = ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'tycoon', 'moto'];
+const BOARD = ['voetbal', 'overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'tycoon', 'moto'];
 function scoresOf(d) {
   const o = {};
   for (const g of BOARD) { const v = J(d['arcade_best_' + g]); if (typeof v === 'number' && v > 0) o[g] = Math.round(v); }
@@ -337,7 +337,7 @@ function renderBoard() {
 }
 
 // ---------- Profiel ----------
-const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['moto', '🏍️', 'Moto Stunt'], ['escape', '🔐', 'Escape Room'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['blokken', '🧱', 'Blokken'], ['stack', '🏗️', 'Stack Tower'], ['vier', '🔴', 'Vier op een rij'], ['sudoku', '🔢', 'Sudoku'], ['mijnen', '💣', 'Mijnenveger'], ['memory', '🧠', 'Memory'], ['patience', '🃏', 'Patience']];
+const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['moto', '🏍️', 'Moto Stunt'], ['escape', '🔐', 'Escape Room'], ['voetbal', '⚽', 'Puck Voetbal'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['blokken', '🧱', 'Blokken'], ['stack', '🏗️', 'Stack Tower'], ['vier', '🔴', 'Vier op een rij'], ['sudoku', '🔢', 'Sudoku'], ['mijnen', '💣', 'Mijnenveger'], ['memory', '🧠', 'Memory'], ['patience', '🃏', 'Patience']];
 // snelste tijden op één level
 function levelRanking(id, l) {
   return boardPlayers.filter((p) => p.times && p.times[id] && p.times[id][l] != null).map((p) => ({ p, v: p.times[id][l] })).sort((a, b) => a.v - b.v);
@@ -351,7 +351,7 @@ function gameRanking(id) {
   }
   return boardPlayers.filter((p) => p.scores && p.scores[id] > 0).map((p) => ({ p, v: p.scores[id] })).sort((a, b) => b.v - a.v);
 }
-const KL_GAMES = ['race', 'moto', 'escape', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'vier'];
+const KL_GAMES = ['race', 'moto', 'escape', 'voetbal', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'vier'];
 function klassement() {
   const pts = new Map();
   for (const id of KL_GAMES) gameRanking(id).slice(0, 3).forEach((r, i) => pts.set(r.p.uid, (pts.get(r.p.uid) || 0) + 3 - i));

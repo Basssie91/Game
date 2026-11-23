@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Puck Voetbal · Game Arcade</title>
+  <meta name="description" content="Voetbal van bovenaf: schiet je schijven tegen de bal, kies 3 powerups en win het toernooi. Of speel tegen een vriend!">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Crect%20x%3D%228%22%20y%3D%2214%22%20width%3D%2248%22%20height%3D%2236%22%20rx%3D%224%22%20fill%3D%22%23357a32%22%20stroke%3D%22%23e6e8eb%22%20stroke-width%3D%222%22/%3E%3Cline%20x1%3D%2232%22%20y1%3D%2214%22%20x2%3D%2232%22%20y2%3D%2250%22%20stroke%3D%22%23e6e8eb%22%20stroke-width%3D%222%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%226%22%20fill%3D%22none%22%20stroke%3D%22%23e6e8eb%22%20stroke-width%3D%222%22/%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2226%22%20r%3D%225%22%20fill%3D%22%232f7fe0%22%20stroke%3D%22%23173f70%22%20stroke-width%3D%221.5%22/%3E%3Ccircle%20cx%3D%2244%22%20cy%3D%2238%22%20r%3D%225%22%20fill%3D%22%23e8282f%22%20stroke%3D%22%237a1418%22%20stroke-width%3D%221.5%22/%3E%3Ccircle%20cx%3D%2237%22%20cy%3D%2227%22%20r%3D%223%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #fff; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+.terug, .geluid { position: fixed; top: 12px; z-index: 5; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); padding: 8px 12px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.terug { left: 12px; } .geluid { right: 12px; }
+.terug:hover, .geluid:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <a class="terug" href="../">← Games</a>
+  <canvas id="c"></canvas>
+  
+  <script>
+'use strict';
+// ================= Game Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
+const ArcadeCore = (() => {
+  const KEY = 'arcade_settings';
+  const DEF = { music: 0.5, sfx: 0.8, quality: 'normaal', muted: false };
+  let S = { ...DEF };
+  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* standaard */ }
+  const listeners = [];
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* */ }
+    listeners.forEach((f) => f(S));
+  };
+  const set = (k, v) => { S[k] = v; save(); };
+  const sfx = () => (S.muted ? 0 : S.sfx);
+  const musicVol = () => (S.muted ? 0 : S.music);
+  // Hoeveel pixels we tekenen: lager = soepeler op trage apparaten
+  const dprCap = () => ({ hoog: 2, normaal: 1.5, laag: 1 })[S.quality] || 1.5;
+
+  // ---------- Muziek: kleine sequencer met drums, bas, akkoorden en melodie ----------
+  const SCALE = [0, 2, 3, 5, 7, 8, 10]; // mineur
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // Elke game een eigen nummer
+  const SONGS = {
+    menu:     { bpm: 92,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x.....x.x.......', arp: true,  lead: 'triangle', seed: 3, density: 0.35, pad: 'triangle' },
+    race:     { bpm: 128, root: 52, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xo', bass: 'x.xox.xox.xox.xo', arp: true,  lead: 'sawtooth', seed: 11, density: 0.45, pad: 'sawtooth' },
+    meteoren: { bpm: 140, root: 50, prog: [[0, 3, 7], [1, 5, 8], [-2, 2, 5], [0, 3, 7]], kick: 'x..x..x.x..x..x.', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx', bass: 'xxoxxxoxxxoxxxox', arp: false, lead: 'square', seed: 21, density: 0.55, pad: 'sawtooth' },
+    runner:   { bpm: 124, root: 54, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..o...o...o...o.', bass: 'x.x.x.x.x.x.x.x.', arp: true,  lead: 'sawtooth', seed: 31, density: 0.4, pad: 'sawtooth' },
+    snake:    { bpm: 112, root: 60, prog: [[0, 3, 7], [5, 8, 12], [3, 7, 10], [-2, 2, 5]], kick: 'x.....x.x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...o...x...o...', arp: false, lead: 'square', seed: 41, density: 0.6, pad: null },
+    2048:     { bpm: 84,  root: 55, prog: [[0, 3, 7, 10], [-4, 0, 3, 7], [3, 7, 10, 14], [-2, 2, 5, 9]], kick: 'x.........x.....', snare: '....x.......x...', hat: '..x...x...x..xx.', bass: 'x.......x..x....', arp: false, lead: 'triangle', seed: 51, density: 0.25, pad: 'triangle' },
+    blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
+    overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
+    td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    mijnen:   { bpm: 80,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], kick: 'x.........x.....', snare: '................', hat: '........x.......', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 81, density: 0.25, pad: 'triangle' },
+    sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
+    memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
+    vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    voetbal:  { bpm: 128, root: 50, prog: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [5, 9, 12]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'square', seed: 77, density: 0.3, pad: 'sawtooth' },
+    escape:   { bpm: 84,  root: 45, prog: [[0, 3, 7], [-4, 0, 3], [-2, 1, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '........x.......', hat: '....x.......x...', bass: 'x.......x...x...', arp: true,  lead: 'triangle', seed: 171, density: 0.22, pad: 'triangle' },
+    moto:     { bpm: 132, root: 50, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.xox.xox.xox.xo', bass: 'x.x.xox.x.x.xox.', arp: true,  lead: 'sawtooth', seed: 151, density: 0.42, pad: 'sawtooth' },
+    tycoon:   { bpm: 96,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [-5, -1, 2]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'triangle', seed: 131, density: 0.32, pad: 'triangle' },
+    patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
+    stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
+  };
+  // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
+  function makeMelody(song) {
+    const R = rng(song.seed);
+    const motif = [];
+    for (let i = 0; i < 32; i++) {
+      if (R() > song.density || i % 2 === 1 && R() < 0.5) { motif.push(null); continue; }
+      const deg = Math.floor(R() * 7) + (R() < 0.3 ? 7 : 0);
+      const len = R() < 0.25 ? 3 : R() < 0.5 ? 2 : 1;
+      motif.push({ deg, len });
+    }
+    const mel = [];
+    for (let bar = 0; bar < 8; bar++) {
+      for (let i = 0; i < 16; i++) {
+        let m = motif[(bar % 2) * 16 + i];
+        if (m && bar >= 4 && bar % 2 === 1 && i > 8) m = { deg: m.deg + 2, len: m.len }; // kleine variatie
+        mel.push(m);
+      }
+    }
+    return mel;
+  }
+  for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
+
+  let ac = null, master = null, delayIn = null, reverbIn = null, duck = null, noise = null, timer = null;
+  let song = null, wanted = null, step = 0, nextT = 0;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Galm: zelf gemaakte impulsrespons (geen bestanden nodig)
+  function makeReverb(sec = 2.2) {
+    const len = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
+  function initAudio() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = musicVol() * 0.5;
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -16; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      const warm = ac.createBiquadFilter(); warm.type = 'highshelf'; warm.frequency.value = 6000; warm.gain.value = -4;
+      master.connect(warm); warm.connect(comp); comp.connect(ac.destination);
+      // 'duck' zakt even weg op elke kick (pompend effect zoals in echte dance-muziek)
+      duck = ac.createGain(); duck.connect(master);
+      // Echo voor melodie
+      delayIn = ac.createGain(); delayIn.gain.value = 0.2;
+      const d = ac.createDelay(); d.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.32;
+      const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2400;
+      delayIn.connect(d); d.connect(dlp); dlp.connect(fb); fb.connect(d); dlp.connect(duck);
+      reverbIn = ac.createGain(); reverbIn.gain.value = 0.28;
+      const rv = makeReverb(); reverbIn.connect(rv); rv.connect(duck);
+      noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    } catch (e) { ac = null; }
+  }
+  function env(g, t, a, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function out(node, pan = 0) {
+    if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; node.connect(p); return p; }
+    return node;
+  }
+  function kick(t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.002, 0.95, 0.28);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    noiseHit(t, 3000, 0.12, 0.012, 0, master);            // tikje voor de aanslag
+    duck.gain.cancelScheduledValues(t);
+    duck.gain.setValueAtTime(0.45, t); duck.gain.linearRampToValueAtTime(1, t + 0.22);
+  }
+  function noiseHit(t, hp, peak, dur, pan = 0, dest = null, type = 'highpass', q = 0.7) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise;
+    f.type = type; f.frequency.value = hp; f.Q.value = q;
+    env(g, t, 0.002, peak, dur);
+    s.connect(f); f.connect(g); out(g, pan).connect(dest || master);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
+    return g;
+  }
+  function snare(t) {
+    const g = noiseHit(t, 1800, 0.32, 0.18, 0, master, 'bandpass', 0.6);
+    g.connect(reverbIn);
+    const o = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    env(g2, t, 0.002, 0.22, 0.1); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.12);
+  }
+  // Toon met twee licht ontstemde oscillatoren en een filter dat 'opengaat'
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006, opt = {}) {
+    const f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.Q.value = opt.q || 0.8;
+    f.frequency.setValueAtTime(cutoff * (opt.sweep ? 0.25 : 1), t);
+    if (opt.sweep) f.frequency.exponentialRampToValueAtTime(cutoff, t + Math.min(dur, 0.08)), f.frequency.exponentialRampToValueAtTime(cutoff * 0.35, t + dur);
+    const n = opt.unison ? 2 : 1;
+    for (let k = 0; k < n; k++) {
+      const o = ac.createOscillator();
+      o.type = type; o.frequency.value = mtof(midi); o.detune.value = n > 1 ? (k ? 9 : -9) : 0;
+      if (opt.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = 7; l.connect(lg); lg.connect(o.detune); l.start(t + 0.12); l.stop(t + dur + 0.05); }
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    env(g, t, attack, vol / n, dur);
+    f.connect(g);
+    const dst = out(g, opt.pan || 0);
+    dst.connect(opt.dry ? master : duck);
+    if (echo) dst.connect(delayIn);
+    if (opt.verb) dst.connect(reverbIn);
+  }
+  function playStep(s, t) {
+    const sp = 60 / song.bpm / 4;
+    const i = s % 16, barN = Math.floor(s / 16), bar = barN % 4, chord = song.prog[bar];
+    const intro = barN < 2 && song.introDone !== true;
+    const fill = barN % 8 === 7 && i >= 12;                       // drumroffel aan het eind van elke 8 maten
+    if (!intro) {
+      if (song.kick[i] === 'x') kick(t);
+      if (song.snare[i] === 'x' || (fill && i % 2 === 0)) snare(t);
+      if (song.hat[i] === 'x') noiseHit(t, 8000, 0.06 + (i % 4 === 2 ? 0.03 : 0), 0.03, i % 2 ? 0.25 : -0.25);
+      if (song.hat[i] === 'o') noiseHit(t, 7000, 0.08, 0.16, 0.2);
+      if (barN % 8 === 0 && i === 0 && song.introDone) noiseHit(t, 5000, 0.12, 1.4, 0, reverbIn);  // bekken
+    }
+    const b = song.bass[i];
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.2, 900, false, 0.004, { sweep: true, unison: true, q: 4 });
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.045, intro ? 700 : 1500, false, 0.35, { unison: true, verb: true, pan: (n % 3 - 1) * 0.3 });
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length] + (barN % 2 && i >= 8 ? 12 : 0), sp * 0.7, 'square', 0.022, 2400, true, 0.003, { pan: ((i / 2) % 2 ? 0.35 : -0.35) });
+    const m = song.mel[s % song.mel.length];
+    if (m && !intro) {
+      const deg = m.deg;
+      const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.055, song.lead === 'sawtooth' ? 2600 : 3800, true, 0.008, { vib: m.len > 1, verb: true, unison: song.lead === 'sawtooth' });
+    }
+  }
+  function tick() {
+    if (!ac || !song) return;
+    const sp = 60 / song.bpm / 4;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
+    while (nextT < ac.currentTime + 0.15) {
+      playStep(step, nextT);
+      nextT += sp;
+      step++;
+      if (step >= 128) { step = 0; song.introDone = true; }
+    }
+  }
+  function startIfWanted() {
+    if (!wanted) return;
+    initAudio();
+    if (!ac) return;
+    if (song !== SONGS[wanted]) { song = SONGS[wanted]; step = 0; nextT = ac.currentTime + 0.1; }
+    if (!timer) timer = setInterval(tick, 25);
+  }
+  // Muziek mag pas starten na een klik of toetsaanslag (regel van browsers)
+  addEventListener('pointerdown', startIfWanted);
+  addEventListener('keydown', startIfWanted);
+  document.addEventListener('visibilitychange', () => {
+    if (!ac) return;
+    if (document.hidden) ac.suspend(); else ac.resume();
+  });
+  listeners.push(() => { if (master) master.gain.setTargetAtTime(musicVol() * 0.5, ac.currentTime, 0.1); });
+
+  const music = { play(name) { wanted = name; if (ac) startIfWanted(); }, status: () => ({ running: !!timer, song: wanted, step, audio: ac ? ac.state : 'geen' }) };
+
+  // ---------- Instellingenpaneel ----------
+  const CSS = `
+  .ac-gear { position: fixed; top: 12px; right: 12px; z-index: 50; width: 42px; height: 42px; border-radius: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ac-gear:hover { background: rgba(255,255,255,0.2); }
+  .ac-gear svg { width: 22px; height: 22px; transition: transform 0.4s ease; }
+  .ac-gear:hover svg { transform: rotate(60deg); }
+  .ac-ov { position: fixed; inset: 0; z-index: 60; background: rgba(5,6,9,0.6); display: none; align-items: center; justify-content: center; padding: 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; }
+  .ac-ov.open { display: flex; }
+  .ac-card { width: min(380px, 100%); background: #16181d; border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 20px 22px; color: #fff;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .ac-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .ac-head b { font-size: 20px; font-weight: 900; }
+  .ac-x { background: rgba(255,255,255,0.1); border: 0; color: #fff; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+  .ac-row { margin: 14px 0; }
+  .ac-lab { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #e6e9ee; }
+  .ac-lab span { color: #9aa1ab; font-family: ui-monospace, Consolas, monospace; }
+  .ac-card input[type=range] { width: 100%; accent-color: #e8282f; height: 22px; }
+  .ac-seg { display: flex; gap: 6px; background: #0e0f13; padding: 4px; border-radius: 12px; }
+  .ac-seg button { flex: 1; border: 0; background: transparent; color: #c9ced6; padding: 9px 0; border-radius: 9px; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .ac-seg button.on { background: #fff; color: #111214; }
+  .ac-hint { font-size: 12px; color: #7d848e; margin-top: 6px; }
+  .ac-check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #e6e9ee; cursor: pointer; }
+  .ac-check input { width: 18px; height: 18px; accent-color: #e8282f; }
+  .ac-danger { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; border: 1px solid rgba(232,40,47,0.6); background: rgba(232,40,47,0.12);
+    color: #ff6b72; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .ac-danger:hover { background: rgba(232,40,47,0.25); }`;
+  const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  let ov = null;
+  function buildPanel() {
+    const st = document.createElement('style');
+    st.textContent = CSS;
+    document.head.appendChild(st);
+    const gear = document.createElement('button');
+    gear.className = 'ac-gear';
+    gear.type = 'button';
+    gear.title = 'Instellingen';
+    gear.setAttribute('aria-label', 'Instellingen');
+    gear.innerHTML = GEAR;
+    document.body.appendChild(gear);
+    ov = document.createElement('div');
+    ov.className = 'ac-ov';
+    ov.innerHTML = `
+      <div class="ac-card" role="dialog" aria-label="Instellingen">
+        <div class="ac-head"><b>⚙ Instellingen</b><button class="ac-x" type="button" aria-label="Sluiten">✕</button></div>
+        <div class="ac-row"><div class="ac-lab">🎵 Muziek <span id="acMv"></span></div><input type="range" min="0" max="100" id="acM"></div>
+        <div class="ac-row"><div class="ac-lab">🔊 Geluidseffecten <span id="acSv"></span></div><input type="range" min="0" max="100" id="acS"></div>
+        <div class="ac-row"><label class="ac-check"><input type="checkbox" id="acMute"> Alles dempen (sneltoets M)</label></div>
+        <div class="ac-row"><div class="ac-lab">🖥 Beeldkwaliteit</div>
+          <div class="ac-seg"><button type="button" data-q="laag">Laag</button><button type="button" data-q="normaal">Normaal</button><button type="button" data-q="hoog">Hoog</button></div>
+          <div class="ac-hint">Laag = soepeler op oudere laptops en telefoons. Hoog = scherper beeld.</div></div>
+        <button class="ac-danger" type="button">🗑 Alle records wissen</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const $ = (id) => ov.querySelector('#' + id);
+    const refresh = () => {
+      $('acM').value = Math.round(S.music * 100); $('acMv').textContent = Math.round(S.music * 100) + '%';
+      $('acS').value = Math.round(S.sfx * 100); $('acSv').textContent = Math.round(S.sfx * 100) + '%';
+      $('acMute').checked = !!S.muted;
+      ov.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('on', b.dataset.q === S.quality));
+    };
+    refresh();
+    listeners.push(refresh);
+    $('acM').addEventListener('input', (e) => { set('music', e.target.value / 100); startIfWanted(); });
+    $('acS').addEventListener('input', (e) => set('sfx', e.target.value / 100));
+    $('acS').addEventListener('change', () => { if (window.Arcade) Arcade.beep(660, 0.08, 'triangle', 0.06); });
+    $('acMute').addEventListener('change', (e) => set('muted', e.target.checked));
+    ov.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => set('quality', b.dataset.q)));
+    ov.querySelector('.ac-danger').addEventListener('click', () => {
+      if (!confirm('Weet je zeker dat je ALLE records, medailles en spookauto\'s wilt wissen? Dit kan niet ongedaan worden.')) return;
+      const kill = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (/^arcade_(best_|2048_state)|^tt2_(bests|ghost)/.test(k)) kill.push(k);
+      }
+      kill.forEach((k) => localStorage.removeItem(k));
+      location.reload();
+    });
+    const close = () => ov.classList.remove('open');
+    ov.querySelector('.ac-x').addEventListener('click', close);
+    ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
+    // Toetsen in het paneel niet doorgeven aan de game
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); e.stopPropagation(); });
+    gear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ov.classList.add('open');
+      // Games pauzeren als het venster de focus verliest: dat doen we hier ook
+      window.dispatchEvent(new Event('blur'));
+      gear.blur();
+    });
+    gear.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM' && !(ov && ov.classList.contains('open'))) set('muted', !S.muted);
+  });
+  if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
+
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
+  return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
+    get settings() { return S; },
+    set, sfx, musicVol, dprCap, music,
+    onChange: (f) => listeners.push(f),
+    isOpen: () => !!(ov && ov.classList.contains('open')),
+  };
+})();
+
+
+// ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
+const Arcade = (() => {
+  const load = (k, d) => { try { const v = localStorage.getItem('arcade_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem('arcade_' + k, JSON.stringify(v)); } catch (e) { /* uit */ } };
+  let audio = null;
+
+  function initAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  addEventListener('pointerdown', initAudio);
+  addEventListener('keydown', initAudio);
+
+  let sfxBus = null, noiseBuf = null;
+  function bus() {
+    if (sfxBus || !audio) return sfxBus;
+    // zachte filter + compressor: effecten klinken voller en minder schel
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const comp = audio.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    lp.connect(comp); comp.connect(audio.destination);
+    sfxBus = lp;
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return sfxBus;
+  }
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    vol *= level * 1.25 * (type === 'square' || type === 'sawtooth' ? 0.8 : 1.1);
+    try {
+      const t = audio.currentTime + delay;
+      const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+      o.type = o2.type = type;
+      o.frequency.setValueAtTime(freq, t); o2.frequency.setValueAtTime(freq, t); o2.detune.value = 7;
+      if (slide) { o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); o2.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      const g2 = audio.createGain(); g2.gain.value = 0.5;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.connect(bus());
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Ruisgeluid: knal, plof, zoef, explosie
+  function noise(dur = 0.2, vol = 0.1, f0 = 3000, f1 = 300, type = 'lowpass', delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      bus();
+      const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+      s.buffer = noiseBuf; f.type = type;
+      f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      g.gain.setValueAtTime(vol * level * 1.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(sfxBus);
+      s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Effecten: deeltjes, schudden, zwevende tekst (zelfde stijl in elke game)
+  function makeFx() {
+    const parts = [], texts = [], rings = [];
+    let shakeT = 0, shakeA = 0, flashA = 0, flashC = '#fff';
+    return {
+      burst(x, y, n = 14, color = '#fff', speed = 180, life = 0.6, size = 3, grav = 200) {
+        const max = ArcadeCore.settings.quality === 'laag' ? 0.5 : 1;
+        for (let i = 0; i < n * max; i++) {
+          const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+          parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.6 + Math.random() * 0.4), max: life, color: Array.isArray(color) ? color[i % color.length] : color, size: size * (0.6 + Math.random() * 0.8), grav });
+        }
+        if (parts.length > 600) parts.splice(0, parts.length - 600);
+      },
+      ring(x, y, color = '#fff', r = 40, life = 0.4) { rings.push({ x, y, color, r, life, max: life }); },
+      text(x, y, t, color = '#fff', size = 18) { texts.push({ x, y, t, color, size, life: 0.9 }); },
+      shake(a = 6, t = 0.25) { shakeA = Math.max(shakeA, a); shakeT = Math.max(shakeT, t); },
+      flash(c = '#fff', a = 0.35) { flashC = c; flashA = Math.max(flashA, a); },
+      update(dt) {
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.grav * dt; p.vx *= 1 - dt * 1.5; p.x += p.vx * dt; p.y += p.vy * dt; }
+        for (let i = texts.length - 1; i >= 0; i--) { const q = texts[i]; q.life -= dt; q.y -= 40 * dt; if (q.life <= 0) texts.splice(i, 1); }
+        for (let i = rings.length - 1; i >= 0; i--) { const q = rings[i]; q.life -= dt; if (q.life <= 0) rings.splice(i, 1); }
+        shakeT = Math.max(0, shakeT - dt); if (!shakeT) shakeA = 0;
+        flashA = Math.max(0, flashA - dt * 2.5);
+      },
+      // roep aan vóór het tekenen van de wereld (ctx.save gebeurt hier)
+      begin(ctx) { ctx.save(); if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeA * 2, (Math.random() - 0.5) * shakeA * 2); },
+      end(ctx) { ctx.restore(); },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const q of rings) { const k = 1 - q.life / q.max; ctx.globalAlpha = 1 - k; ctx.strokeStyle = q.color; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.3 + k), 0, Math.PI * 2); ctx.stroke(); }
+        for (const q of texts) { ctx.globalAlpha = Math.min(1, q.life * 2); text(ctx, q.t, q.x, q.y, q.size, q.color, 'center', '900'); }
+        ctx.restore();
+      },
+      drawFlash(ctx, W, H) { if (flashA > 0) { ctx.save(); ctx.globalAlpha = flashA; ctx.fillStyle = flashC; ctx.fillRect(0, 0, W, H); ctx.restore(); } },
+      clear() { parts.length = 0; texts.length = 0; rings.length = 0; shakeT = 0; },
+      get count() { return parts.length; },
+    };
+  }
+
+  // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
+  function canvas(id, W, H) {
+    const c = document.getElementById(id);
+    const ctx = c.getContext('2d');
+    const view = { W, H, scale: 1 };
+    const fit = () => {
+      const s = Math.min(innerWidth / W, innerHeight / H);
+      const dpr = Math.min(ArcadeCore.dprCap(), devicePixelRatio || 1);
+      c.style.width = Math.floor(W * s) + 'px';
+      c.style.height = Math.floor(H * s) + 'px';
+      c.width = Math.floor(W * s * dpr);
+      c.height = Math.floor(H * s * dpr);
+      view.scale = s * dpr;
+      ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    };
+    fit();
+    addEventListener('resize', fit);
+    ArcadeCore.onChange(fit);
+    view.begin = () => ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    view.toGame = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    };
+    return { c, ctx, view };
+  }
+
+  // Vegen (swipe) op touchscreens: geeft 'links', 'rechts', 'op' of 'neer'
+  function onSwipe(el, fn, onTap) {
+    let sx = 0, sy = 0, st = 0, active = false;
+    el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; st = performance.now(); active = true; });
+    el.addEventListener('pointerup', (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (onTap) onTap(e); return; }
+      if (Math.abs(dx) > Math.abs(dy)) fn(dx > 0 ? 'rechts' : 'links');
+      else fn(dy > 0 ? 'neer' : 'op');
+    });
+  }
+
+  // Tekenhulpjes in dezelfde stijl
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function text(ctx, t, x, y, size, color = '#fff', align = 'center', weight = '700', mono = false) {
+    ctx.font = `${weight} ${size}px ${mono ? 'ui-monospace, Consolas, monospace' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, x, y);
+  }
+  // Knoppen op het canvas (zelfde stijl overal). btn() elke frame opnieuw tekenen; hit() bij klikken.
+  function ui(ctx) {
+    let list = [], hover = null;
+    return {
+      clear() { list = []; },
+      btn(label, x, y, w, h, fn, primary = false, active = false, size = 0) {
+        const on = hover && hover.x >= x && hover.x <= x + w && hover.y >= y && hover.y <= y + h;
+        const g = ctx.createLinearGradient(0, y, 0, y + h);
+        if (primary || active) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe2e6'); }
+        else { g.addColorStop(0, on ? '#30343c' : '#262930'); g.addColorStop(1, on ? '#24272d' : '#1b1d22'); }
+        ctx.fillStyle = g; rr(ctx, x, y, w, h, Math.min(10, h / 3)); ctx.fill();
+        ctx.strokeStyle = primary || active ? 'rgba(255,255,255,0.6)' : on ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, label, x + w / 2, y + h / 2 + 1, size || Math.min(16, h * 0.4), primary || active ? '#111214' : '#ffffff', 'center', '800');
+        list.push({ x, y, w, h, fn });
+      },
+      hit(q) { for (let i = list.length - 1; i >= 0; i--) { const b = list[i]; if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return true; } } return false; },
+      hover(q) { hover = q; },
+    };
+  }
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  // Standaard scherm voor start / pauze / game over
+  function overlay(ctx, W, H, title, lines = [], hint = '') {
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(10, 11, 14, 0.55)'); g.addColorStop(1, 'rgba(4, 5, 7, 0.85)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 40, 400), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const x = (W - pw) / 2, y = (H - ph) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    const cg = ctx.createLinearGradient(0, y, 0, y + ph);
+    cg.addColorStop(0, 'rgba(32, 35, 42, 0.97)'); cg.addColorStop(1, 'rgba(18, 20, 24, 0.97)');
+    ctx.fillStyle = cg;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.stroke();
+    ctx.fillStyle = '#e8282f';
+    rr(ctx, W / 2 - 24, y + 78, 48, 3, 1.5); ctx.fill();
+    text(ctx, title, W / 2, y + 48, 32, '#fff', 'center', '900');
+    lines.forEach((l, i) => {
+      const s = typeof l === 'string' ? { t: l } : l;
+      text(ctx, s.t, W / 2, y + 108 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+    });
+    if (hint) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 450)); text(ctx, hint, W / 2, y + ph - 30, 15, '#ffffff', 'center', '700'); ctx.globalAlpha = 1; }
+  }
+  // Achtergrond met diepte: zacht licht in het midden + vignet
+  function backdrop(ctx, W, H, top = '#15171c', bottom = '#0a0b0e') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.035)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+
+  return {
+    load, save, beep, noise, makeFx, backdrop, ui, fmtTime,
+    get muted() { return !ArcadeCore.sfx(); },
+    best: (game) => load('best_' + game, 0),
+    // Slaat een nieuwe topscore op; geeft true terug als het een record is
+    record: (game, score, lowerIsBetter = false) => {
+      const b = load('best_' + game, 0);
+      if (!b || (lowerIsBetter ? score < b : score > b)) { save('best_' + game, score); return true; }
+      return false;
+    },
+    canvas, onSwipe, rr, text, overlay,
+    touch: matchMedia('(hover: none) and (pointer: coarse)').matches,
+  };
+})();
+
+ArcadeCore.music.play('voetbal');
+
+// ================= PUCK VOETBAL =================
+// Van bovenaf, om de beurt: trek een schijf naar achteren en schiet. Eerst tot 3 goals.
+const W = 960, H = 600;
+const { c, ctx, view } = Arcade.canvas('c', W, H);
+const GAME = 'voetbal';
+const fx = Arcade.makeFx();
+const ui = Arcade.ui(ctx);
+const T = Arcade.text, RR = Arcade.rr;
+
+// ---------- Veld ----------
+const FX0 = 70, FX1 = 890, FY0 = 106, FY1 = 516, MIDX = (FX0 + FX1) / 2, MIDY = (FY0 + FY1) / 2;
+const GOAL_H = 134, GOAL_D = 40, GY0 = MIDY - GOAL_H / 2, GY1 = MIDY + GOAL_H / 2;
+const DR = 21, KR = 25, BR = 12, VMAX = 1150, PULL = 150, WIN_GOALS = 3, TURN_T = 15;
+
+// ---------- Powerups ----------
+const PU = {
+  stone: { n: 'Stenen goal', i: '🧱', c: '#e0a050', d: ['Je doel is dicht', 'tot je volgende beurt'] },
+  turbo: { n: 'Turboschot', i: '⚡', c: '#ffd23f', d: ['Je volgende schot', 'gaat 2x zo hard'] },
+  freeze: { n: 'Bevriezen', i: '❄️', c: '#7cc4ff', d: ['Tegenstander slaat', '1 beurt over'] },
+  magnet: { n: 'Magneet', i: '🧲', c: '#ff6b7a', d: ['De bal trekt naar', 'je geschoten schijf'] },
+  giant: { n: 'Reuzeschijf', i: '🟢', c: '#7bd88f', d: ['Eén schijf 2x zo groot', 'tot je volgende beurt'] },
+  ice: { n: 'IJsblok', i: '🧊', c: '#a8e6ff', d: ['Zet een eigen schijf', 'vast als een paal'] },
+};
+const PU_KEYS = Object.keys(PU);
+
+// ---------- Toernooi ----------
+const ROUNDS = [
+  ['Zondagsamateurs', '#e8a33c'], ['FC Bankzitters', '#9b6bd6'], ['Sportclub Speedy', '#3fbf9f'], ['Robo United', '#9aa1ab'],
+  ['Atletico Turbo', '#e05a9a'], ['Real Puckdam', '#f2f2f2'], ['Inter IJzer', '#5a6070'], ['Wereldkampioenen', '#ffd23f'],
+];
+const BLUE = '#2f7fe0', RED = '#e8282f';
+
+// ---------- Opslag ----------
+const TOUR_KEY = 'voetbal_tour';
+let best = Arcade.best(GAME);
+let tour = Arcade.load(TOUR_KEY, null); // { round, score, g: [a, b], picks: [...] }
+const saveTour = () => Arcade.save(TOUR_KEY, tour);
+
+// ---------- Spelstatus ----------
+let state = 'menu'; // menu | pick | play | goal | over | pause
+let mode = 'bot';   // bot | vriend
+let S = null;       // physics-wereld
+let goals = [0, 0], turn = 0, turnT = TURN_T, picks = [[], []], used = [{}, {}], pickFor = 0, pickSel = [];
+let skip = [false, false], turbo = false, magnetNext = false, target = null, aim = null, moving = false, shooter = -1;
+let goalT = 0, goalBy = 0, overInfo = null, toast = '', toastT = 0, botT = 0, botPlan = null, shots = 0, clock = 0;
+let cheatFreeze = false, prevState = 'play', newRecord = false;
+const names = () => mode === 'bot' ? ['Jij', ROUNDS[tour ? tour.round : 0][0]] : ['Speler 1', 'Speler 2'];
+const teamCol = (t) => t === 0 ? BLUE : mode === 'bot' ? (ROUNDS[tour ? tour.round : 0][1]) : RED;
+const isBot = (t) => mode === 'bot' && t === 1;
+const round = () => (tour ? tour.round : 0);
+
+// Formatie (team 0 speelt van links naar rechts)
+const FORM = [[FX0 + 32, MIDY, 'K'], [180, MIDY - 66, '2'], [180, MIDY + 66, '3'], [365, MIDY - 70, '7'], [365, MIDY + 70, '9']];
+function newWorld() {
+  const d = [];
+  for (let t = 0; t < 2; t++) for (const [x, y, num] of FORM) d.push({ x: t ? FX0 + FX1 - x : x, y, vx: 0, vy: 0, r: num === 'K' ? KR : DR, m: num === 'K' ? 1.3 : 1, team: t, pin: false, giant: false, num });
+  return { d, b: { x: MIDX, y: MIDY, vx: 0, vy: 0, r: BR, m: 0.45, rot: 0 }, stone: [false, false], mag: -1 };
+}
+function cloneWorld(w) {
+  return { d: w.d.map((q) => ({ ...q })), b: { ...w.b }, stone: w.stone.slice(), mag: w.mag };
+}
+
+// ---------- Natuurkunde ----------
+let onHit = null;
+function friction(o, dt, dec, lin) {
+  const sp = Math.hypot(o.vx, o.vy);
+  if (!sp) return;
+  const ns = Math.max(0, sp - (dec + sp * lin) * dt);
+  o.vx *= ns / sp; o.vy *= ns / sp;
+}
+function wallsDisc(o) {
+  const e = 0.75;
+  if (o.x - o.r < FX0) { o.x = FX0 + o.r; o.vx = Math.abs(o.vx) * e; }
+  if (o.x + o.r > FX1) { o.x = FX1 - o.r; o.vx = -Math.abs(o.vx) * e; }
+  if (o.y - o.r < FY0) { o.y = FY0 + o.r; o.vy = Math.abs(o.vy) * e; }
+  if (o.y + o.r > FY1) { o.y = FY1 - o.r; o.vy = -Math.abs(o.vy) * e; }
+}
+function wallsBall(w, o) {
+  const e = 0.8, r = o.r;
+  for (const side of [0, 1]) {
+    const line = side ? FX1 : FX0, dir = side ? 1 : -1, open = !w.stone[side];
+    const past = side ? o.x + r > line : o.x - r < line;
+    if (!past) continue;
+    const inMouth = open && o.y > GY0 && o.y < GY1;
+    if (!inMouth) {
+      // naast het doel: gewoon de zijlijn (alleen als de bal nog in het veld is)
+      if (side ? o.x < line + 2 : o.x > line - 2) { o.x = line - dir * r; o.vx = -dir * Math.abs(o.vx) * e; }
+      continue;
+    }
+    // binnen het doel: achterkant en zijkanten van het net
+    const back = line + dir * GOAL_D;
+    if (side ? o.x + r > back : o.x - r < back) { o.x = back - dir * r; o.vx = -dir * Math.abs(o.vx) * 0.3; }
+    if ((side ? o.x > line : o.x < line)) {
+      if (o.y - r < GY0) { o.y = GY0 + r; o.vy = Math.abs(o.vy) * 0.4; }
+      if (o.y + r > GY1) { o.y = GY1 - r; o.vy = -Math.abs(o.vy) * 0.4; }
+    }
+  }
+  if (o.x > FX0 && o.x < FX1) {
+    if (o.y - r < FY0) { o.y = FY0 + r; o.vy = Math.abs(o.vy) * e; }
+    if (o.y + r > FY1) { o.y = FY1 - r; o.vy = -Math.abs(o.vy) * e; }
+  }
+  // palen
+  for (const [px, py] of [[FX0, GY0], [FX0, GY1], [FX1, GY0], [FX1, GY1]]) {
+    const dx = o.x - px, dy = o.y - py, dd = Math.hypot(dx, dy), min = r + 4;
+    if (dd < min && dd > 0.01) {
+      const nx = dx / dd, ny = dy / dd; o.x = px + nx * min; o.y = py + ny * min;
+      const vn = o.vx * nx + o.vy * ny; if (vn < 0) { o.vx -= 1.8 * vn * nx; o.vy -= 1.8 * vn * ny; if (onHit) onHit('post', -vn); }
+    }
+  }
+}
+function collide(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y, dd = Math.hypot(dx, dy), min = a.r + b.r;
+  if (dd >= min || dd < 0.001) return;
+  const nx = dx / dd, ny = dy / dd, over = min - dd;
+  const ia = a.pin ? 0 : 1 / a.m, ib = b.pin ? 0 : 1 / b.m, is = ia + ib;
+  if (!is) return;
+  a.x -= nx * over * ia / is; a.y -= ny * over * ia / is;
+  b.x += nx * over * ib / is; b.y += ny * over * ib / is;
+  const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+  if (rv > 0) return;
+  const e = a.r === BR || b.r === BR ? 0.92 : 0.85;
+  const j = -(1 + e) * rv / is;
+  a.vx -= j * nx * ia; a.vy -= j * ny * ia;
+  b.vx += j * nx * ib; b.vy += j * ny * ib;
+  if (onHit) onHit(a.r === BR || b.r === BR ? 'ball' : 'disc', -rv);
+}
+// Eén stap; geeft 0/1 terug als dat team scoort, anders -1
+function step(w, dt) {
+  const all = w.d.concat([w.b]);
+  if (w.mag >= 0) {
+    const m = w.d[w.mag], dx = m.x - w.b.x, dy = m.y - w.b.y, dd = Math.hypot(dx, dy);
+    if (dd < 300 && dd > m.r + BR + 1) { const f = 1500 * (1 - dd / 300) + 300; w.b.vx += dx / dd * f * dt; w.b.vy += dy / dd * f * dt; }
+  }
+  for (const o of w.d) { if (o.pin) { o.vx = o.vy = 0; continue; } friction(o, dt, 140, 0.95); o.x += o.vx * dt; o.y += o.vy * dt; wallsDisc(o); }
+  friction(w.b, dt, 80, 0.8); w.b.x += w.b.vx * dt; w.b.y += w.b.vy * dt; w.b.rot += Math.hypot(w.b.vx, w.b.vy) * dt / BR;
+  for (let k = 0; k < 2; k++) for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) collide(all[i], all[j]);
+  for (const o of w.d) wallsDisc(o);
+  wallsBall(w, w.b);
+  if (w.b.x < FX0 - BR * 0.6) return 1;
+  if (w.b.x > FX1 + BR * 0.6) return 0;
+  return -1;
+}
+function still(w) {
+  let s = Math.hypot(w.b.vx, w.b.vy) < 5;
+  for (const o of w.d) if (Math.hypot(o.vx, o.vy) >= 5) s = false;
+  return s;
+}
+function stopAll(w) { w.b.vx = w.b.vy = 0; for (const o of w.d) o.vx = o.vy = 0; }
+
+// ---------- Geluid ----------
+let hitCd = 0;
+onHit = (kind, v) => {
+  if (hitCd > 0 || v < 40) return; hitCd = 0.04;
+  const vol = Math.min(0.09, v / 9000);
+  if (kind === 'ball') Arcade.beep(520 + Math.random() * 80, 0.05, 'triangle', vol);
+  else if (kind === 'post') { Arcade.beep(1300, 0.18, 'triangle', vol); Arcade.beep(900, 0.25, 'sine', vol * 0.6); }
+  else Arcade.noise(0.06, vol * 1.2, 1800, 400);
+};
+const whistle = () => { Arcade.beep(2200, 0.12, 'sine', 0.05); Arcade.beep(2300, 0.35, 'sine', 0.05, 0, 0.16); };
+
+// ---------- Wedstrijd ----------
+function say(t) { toast = t; toastT = 2.2; }
+function startMatch() {
+  S = newWorld(); used = [{}, {}]; skip = [false, false]; turbo = false; magnetNext = false; target = null; aim = null; moving = false; shots = 0;
+  if (mode === 'bot') {
+    goals = tour && tour.g ? tour.g.slice() : [0, 0];
+    picks[1] = shuffle(PU_KEYS.slice()).slice(0, 3);
+    tour.picks = picks[0]; tour.g = goals; saveTour();
+  } else goals = [0, 0];
+  state = 'play'; whistle();
+  beginTurn(0);
+}
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function beginTurn(t) {
+  turn = t; turnT = TURN_T; target = null; aim = null; turbo = false; magnetNext = false; S.mag = -1;
+  S.stone[t] = false;
+  for (const o of S.d) if (o.team === t) { if (o.giant) { o.giant = false; o.r = o.num === 'K' ? KR : DR; o.m = o.num === 'K' ? 1.3 : 1; } o.pin = false; }
+  if (isBot(t)) { botT = 0.9 + Math.random() * 0.5; botPlan = null; }
+}
+function endTurn() {
+  S.mag = -1; moving = false; shooter = -1;
+  let next = 1 - turn;
+  if (skip[next] || (cheatFreeze && next === 1)) { skip[next] = false; next = turn; say(`❄️ ${names()[1 - turn]} is bevroren en slaat een beurt over!`); }
+  beginTurn(next);
+}
+function shoot(i, vx, vy) {
+  const o = S.d[i];
+  o.vx = vx; o.vy = vy; moving = true; shooter = i; aim = null; target = null;
+  if (magnetNext) { S.mag = i; magnetNext = false; }
+  turbo = false;
+  if (!isBot(turn)) shots++;
+  Arcade.noise(0.08, 0.06, 2600, 500);
+}
+function usePower(t, k) {
+  if (used[t][k] || moving || state !== 'play' || turn !== t) return false;
+  if (!picks[t].includes(k)) return false;
+  used[t][k] = true;
+  const col = PU[k].c;
+  if (k === 'stone') { S.stone[t] = true; fx.burst(t ? FX1 : FX0, MIDY, 20, ['#e0a050', '#8a5a2a'], 160); Arcade.noise(0.3, 0.12, 900, 120); }
+  if (k === 'turbo') { turbo = true; Arcade.beep(300, 0.3, 'sawtooth', 0.05, 500); }
+  if (k === 'freeze') { skip[1 - t] = true; Arcade.beep(1600, 0.4, 'sine', 0.05, -900); for (const o of S.d) if (o.team !== t) fx.burst(o.x, o.y, 6, ['#bfe6ff', '#ffffff'], 70, 0.5, 3, 0); }
+  if (k === 'magnet') { magnetNext = true; Arcade.beep(200, 0.3, 'square', 0.04, 120); }
+  if (k === 'giant' || k === 'ice') { target = k; Arcade.beep(700, 0.12, 'triangle', 0.05); }
+  say(`${PU[k].i} ${names()[t]}: ${PU[k].n}!`);
+  fx.flash(col, 0.12);
+  return true;
+}
+function applyTarget(i) {
+  const o = S.d[i];
+  if (target === 'giant') { o.giant = true; o.r = (o.num === 'K' ? KR : DR) * 1.8; o.m = 3; fx.ring(o.x, o.y, '#7bd88f', 60); Arcade.beep(300, 0.3, 'triangle', 0.05, 300); }
+  if (target === 'ice') { o.pin = true; o.vx = o.vy = 0; fx.burst(o.x, o.y, 14, ['#bfe6ff', '#ffffff'], 120, 0.5, 3, 0); Arcade.beep(1800, 0.2, 'sine', 0.05, -600); }
+  target = null;
+}
+function scored(t) {
+  goals[t]++; goalBy = t; state = 'goal'; goalT = 2.4;
+  const gx = t ? FX0 : FX1;
+  fx.burst(gx, MIDY, 60, [teamCol(t), '#ffffff', '#ffd23f'], 320, 1.1, 4, 120); fx.shake(10, 0.4); fx.flash('#ffffff', 0.3);
+  Arcade.noise(1.4, 0.1, 1500, 600, 'bandpass'); Arcade.beep(523, 0.15, 'square', 0.05); Arcade.beep(659, 0.15, 'square', 0.05, 0, 0.15); Arcade.beep(784, 0.3, 'square', 0.05, 0, 0.3);
+  if (mode === 'bot' && tour) { tour.g = goals.slice(); saveTour(); }
+}
+function afterGoal() {
+  if (goals[0] >= WIN_GOALS || goals[1] >= WIN_GOALS) return finishMatch(goals[0] > goals[1] ? 0 : 1);
+  const keepStone = [false, false];
+  const u = used, sk = skip;
+  S = newWorld(); S.stone = keepStone; used = u; skip = sk; moving = false; whistle();
+  beginTurn(1 - goalBy); // wie een tegengoal kreeg, mag aftrappen
+  state = 'play';
+}
+function finishMatch(winner) {
+  state = 'over'; newRecord = false;
+  if (mode === 'vriend') { overInfo = { title: `${names()[winner]} wint!`, lines: [`${goals[0]} - ${goals[1]}`], vriend: true }; return; }
+  const r = tour.round;
+  if (winner === 0) {
+    const pts = 500 + r * 250 + (goals[0] - goals[1]) * 100 + Math.max(0, 300 - shots * 10);
+    tour.score += pts; tour.round++; tour.g = [0, 0];
+    if (tour.round >= ROUNDS.length) {
+      tour.score += 3000;
+      newRecord = Arcade.record(GAME, tour.score);
+      overInfo = { title: '🏆 Kampioen!', lines: [`Je hebt alle 8 rondes gewonnen`, `Eindscore: ${tour.score.toLocaleString('nl-NL')}`], done: true };
+      tour = null; Arcade.save(TOUR_KEY, null);
+    } else {
+      saveTour();
+      overInfo = { title: 'Gewonnen!', lines: [`${goals[0]} - ${goals[1]} tegen ${ROUNDS[r][0]}`, `+${pts} punten (totaal ${tour.score.toLocaleString('nl-NL')})`, `Volgende: ${ROUNDS[tour.round][0]}`], next: true };
+    }
+    Arcade.beep(523, 0.2, 'square', 0.05); Arcade.beep(784, 0.4, 'square', 0.05, 0, 0.2);
+  } else {
+    newRecord = tour.score > 0 && Arcade.record(GAME, tour.score);
+    overInfo = { title: 'Uitgeschakeld', lines: [`${goals[0]} - ${goals[1]} tegen ${ROUNDS[r][0]}`, `Ronde ${r + 1} van 8 gehaald`, `Eindscore: ${tour.score.toLocaleString('nl-NL')}`], done: true };
+    tour = null; Arcade.save(TOUR_KEY, null);
+    Arcade.beep(300, 0.5, 'sawtooth', 0.04, -150);
+  }
+  best = Arcade.best(GAME);
+}
+
+// ---------- Bot ----------
+function simulate(w, team) {
+  const dt = 1 / 90;
+  let first = -1, t = 0, touched = false; const b0x = w.b.x, b0y = w.b.y;
+  const saveHit = onHit; onHit = null;
+  for (; t < 6; t += dt) {
+    const g = step(w, dt);
+    if (g >= 0) { first = g; break; }
+    if (!touched && Math.hypot(w.b.x - b0x, w.b.y - b0y) > 2) touched = true;
+    if (t > 0.3 && still(w)) break;
+  }
+  onHit = saveHit;
+  const enemyGoalX = team ? FX0 : FX1, ownGoalX = team ? FX1 : FX0;
+  if (first === team) return 100000 - t * 100;
+  if (first >= 0) return -100000;
+  let v = -Math.abs(w.b.x - enemyGoalX) * 1.0 + Math.abs(w.b.x - ownGoalX) * 0.35 - Math.abs(w.b.y - MIDY) * 0.15;
+  if (!touched) v -= 260;
+  // de tegenstander dicht bij de bal en dicht bij jouw doel = gevaarlijk
+  if (Math.abs(w.b.x - ownGoalX) < 260) v -= 250;
+  v -= threat(w, team);
+  // keeper niet uit zijn doel halen
+  const keeper = w.d[team * 5];
+  v -= Math.max(0, Math.abs(keeper.x - ownGoalX) - 70) * 0.6;
+  return v;
+}
+// Hoe makkelijk kan de tegenstander hierna scoren? (open schietlijnen naar ons doel)
+function threat(w, team) {
+  const gx = team ? FX1 : FX0, b = w.b;
+  let open = 0;
+  for (const gy of [GY0 + 16, MIDY, GY1 - 16]) {
+    const dx = gx - b.x, dy = gy - b.y, L = Math.hypot(dx, dy) || 1;
+    let blocked = false;
+    for (const o of w.d) {
+      if (o.team !== team) continue;
+      const t = ((o.x - b.x) * dx + (o.y - b.y) * dy) / (L * L);
+      if (t < 0 || t > 1) continue;
+      const px = b.x + dx * t, py = b.y + dy * t;
+      if (Math.hypot(o.x - px, o.y - py) < o.r + BR) { blocked = true; break; }
+    }
+    if (!blocked) open++;
+  }
+  if (!open) return 0;
+  // staat er een tegenstander achter de bal om te schieten?
+  let near = 1e9;
+  for (const o of w.d) if (o.team !== team && !o.pin) near = Math.min(near, Math.hypot(o.x - b.x, o.y - b.y));
+  const dist = Math.abs(b.x - gx);
+  return open * (dist < 450 ? 260 : 130) * (near < 260 ? 1.4 : 1);
+}
+function candidates(team, power) {
+  const out = [], b = S.b, enemyGoalX = team ? FX0 - 10 : FX1 + 10;
+  for (let i = team * 5; i < team * 5 + 5; i++) {
+    const o = S.d[i]; if (o.pin) continue;
+    const targets = [GY0 + 22, MIDY, GY1 - 22, MIDY - 160, MIDY + 160];
+    for (const ty of targets) {
+      const dx = enemyGoalX - b.x, dy = ty - b.y, dd = Math.hypot(dx, dy) || 1;
+      const cx = b.x - dx / dd * (BR + o.r - 2), cy = b.y - dy / dd * (BR + o.r - 2);
+      const ax = cx - o.x, ay = cy - o.y, ad = Math.hypot(ax, ay) || 1;
+      for (const p of [0.5, 0.75, 1]) out.push({ i, ang: Math.atan2(ay, ax), p: p * power });
+    }
+    const ax = b.x - o.x, ay = b.y - o.y;
+    out.push({ i, ang: Math.atan2(ay, ax), p: 0.85 * power });
+  }
+  return out;
+}
+function evalShot(cand, team, extra = {}) {
+  const w = cloneWorld(S); const o = w.d[cand.i];
+  o.vx = Math.cos(cand.ang) * VMAX * cand.p; o.vy = Math.sin(cand.ang) * VMAX * cand.p;
+  if (extra.mag) w.mag = cand.i;
+  if (extra.stone) w.stone[team] = true;
+  return simulate(w, team);
+}
+function botThink() {
+  const t = turn, r = round(), smart = 0.3 + r * 0.1;
+  const has = (k) => picks[t].includes(k) && !used[t][k];
+  const ownX = t ? FX1 : FX0;
+  // verdedigende powerups
+  if (has('ice') && Math.abs(S.b.x - ownX) < 330 && Math.random() < smart) { usePower(t, 'ice'); applyTarget(t * 5); }
+  if (has('giant') && Math.abs(S.b.x - ownX) < 300 && Math.random() < smart) { usePower(t, 'giant'); applyTarget(t * 5); }
+  let cands = candidates(t, 1);
+  if (r < 3) cands = cands.filter(() => Math.random() < 0.45 + r * 0.15);
+  if (!cands.length) cands = candidates(t, 1).slice(0, 3);
+  for (const cd of cands) cd.v = evalShot(cd, t);
+  cands.sort((a, b) => b.v - a.v);
+  let pick = cands[Math.min(cands.length - 1, Math.floor(Math.random() * Math.max(1, 5 - r)))];
+  if (cands[0].v > 50000 && Math.random() < 0.4 + r * 0.08) pick = cands[0];
+  let useTurbo = false, useMag = false;
+  if (pick.v < 50000) {
+    if (has('turbo') && Math.random() < smart) {
+      const tc = candidates(t, 2); for (const cd of tc) cd.v = evalShot(cd, t); tc.sort((a, b) => b.v - a.v);
+      if (tc[0].v > 50000) { pick = tc[0]; useTurbo = true; }
+    }
+    if (!useTurbo && has('magnet') && Math.random() < smart) {
+      const mc = candidates(t, 1); for (const cd of mc) cd.v = evalShot(cd, t, { mag: true }); mc.sort((a, b) => b.v - a.v);
+      if (mc[0].v > 50000) { pick = mc[0]; useMag = true; }
+    }
+  }
+  if (useTurbo) usePower(t, 'turbo');
+  if (useMag) usePower(t, 'magnet');
+  // na het schot ligt de bal dicht bij het eigen doel? dan de stenen goal
+  if (has('stone') && pick.v > -100000) {
+    const w = cloneWorld(S), o = w.d[pick.i]; o.vx = Math.cos(pick.ang) * VMAX * pick.p; o.vy = Math.sin(pick.ang) * VMAX * pick.p; simulate(w, t);
+    if (Math.abs(w.b.x - ownX) < 300 && Math.random() < smart + 0.2) usePower(t, 'stone');
+  }
+  if (has('freeze') && (goals[1] <= goals[0]) && Math.random() < smart * 0.35) usePower(t, 'freeze');
+  // mikfout: zwakke teams mikken slordig
+  const noise = Math.max(0.012, 0.11 - r * 0.014);
+  const ang = pick.ang + (Math.random() - 0.5) * 2 * noise;
+  const p = Math.min(useTurbo ? 2 : 1, pick.p * (1 + (Math.random() - 0.5) * noise * 2));
+  return { i: pick.i, ang, p, t: 0 };
+}
+
+// ---------- Invoer ----------
+let ptr = { x: 0, y: 0 };
+function discAt(q, team) {
+  let bi = -1, bd = 1e9;
+  for (let i = 0; i < S.d.length; i++) {
+    const o = S.d[i]; if (o.team !== team) continue;
+    const d = Math.hypot(o.x - q.x, o.y - q.y);
+    if (d < Math.max(o.r + 22, 44) && d < bd) { bd = d; bi = i; }
+  }
+  return bi;
+}
+const humanTurn = () => state === 'play' && !moving && !isBot(turn);
+c.addEventListener('pointerdown', (e) => {
+  const q = view.toGame(e); ptr = q;
+  if (ui.hit(q)) return;
+  if (!humanTurn()) return;
+  const i = discAt(q, turn);
+  if (i < 0) return;
+  if (target) { applyTarget(i); return; }
+  if (S.d[i].pin) { say('🧊 Deze schijf staat vast'); return; }
+  aim = { i, x: q.x, y: q.y };
+  c.setPointerCapture && c.setPointerCapture(e.pointerId);
+});
+c.addEventListener('pointermove', (e) => { const q = view.toGame(e); ptr = q; ui.hover(q); if (aim) { aim.x = q.x; aim.y = q.y; } });
+c.addEventListener('pointerup', () => {
+  if (!aim || !humanTurn()) { aim = null; return; }
+  const o = S.d[aim.i], dx = o.x - aim.x, dy = o.y - aim.y, len = Math.hypot(dx, dy);
+  if (len < 14) { aim = null; return; }
+  const p = Math.min(1, len / PULL) * (turbo ? 2 : 1);
+  shoot(aim.i, dx / len * VMAX * p, dy / len * VMAX * p);
+});
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { if (state === 'play' || state === 'goal') { prevState = state; state = 'pause'; } else if (state === 'pause') state = prevState; }
+  if (state === 'play' && !isBot(turn) && /^[123]$/.test(e.key)) { const k = picks[turn][+e.key - 1]; if (k) usePower(turn, k); }
+});
+
+// ---------- Tekenen ----------
+function drawField() {
+  // tribune / rand
+  const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#11141a'); bg.addColorStop(1, '#090a0d');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  // gras met banen
+  ctx.save();
+  RR(ctx, FX0 - 22, FY0 - 22, FX1 - FX0 + 44, FY1 - FY0 + 44, 18); ctx.fillStyle = '#2f6e2c'; ctx.fill(); ctx.clip();
+  const n = 12, sw = (FX1 - FX0 + 44) / n;
+  for (let i = 0; i < n; i++) { ctx.fillStyle = i % 2 ? '#3b8237' : '#357a32'; ctx.fillRect(FX0 - 22 + i * sw, FY0 - 22, sw + 1, FY1 - FY0 + 44); }
+  const v = ctx.createRadialGradient(MIDX, MIDY, 100, MIDX, MIDY, 560); v.addColorStop(0, 'rgba(255,255,255,0.05)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3;
+  ctx.strokeRect(FX0, FY0, FX1 - FX0, FY1 - FY0);
+  ctx.beginPath(); ctx.moveTo(MIDX, FY0); ctx.lineTo(MIDX, FY1); ctx.stroke();
+  ctx.beginPath(); ctx.arc(MIDX, MIDY, 62, 0, 7); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(MIDX, MIDY, 4, 0, 7); ctx.fill();
+  for (const s of [0, 1]) {
+    const x = s ? FX1 : FX0, d = s ? -1 : 1;
+    ctx.strokeRect(Math.min(x, x + d * 120), MIDY - 130, 120, 260);
+    ctx.strokeRect(Math.min(x, x + d * 44), MIDY - 70, 44, 140);
+    ctx.beginPath(); ctx.arc(x + d * 120, MIDY, 40, s ? Math.PI / 2 : -Math.PI / 2, s ? Math.PI * 1.5 : Math.PI / 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x + d * 88, MIDY, 3, 0, 7); ctx.fill();
+  }
+  // doelen met net
+  for (const s of [0, 1]) {
+    const x0 = s ? FX1 : FX0 - GOAL_D;
+    ctx.fillStyle = 'rgba(10,12,16,0.55)'; ctx.fillRect(x0, GY0, GOAL_D, GOAL_H);
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, GY0, GOAL_D, GOAL_H); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1;
+    for (let k = -GOAL_H; k < GOAL_H + GOAL_D; k += 9) { ctx.beginPath(); ctx.moveTo(x0, GY0 + k); ctx.lineTo(x0 + GOAL_D, GY0 + k + GOAL_D); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x0, GY0 + k + GOAL_D); ctx.lineTo(x0 + GOAL_D, GY0 + k); ctx.stroke(); }
+    ctx.restore();
+    ctx.strokeStyle = '#e9edf2'; ctx.lineWidth = 5; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(s ? FX1 : FX0, GY0); ctx.lineTo(s ? FX1 + GOAL_D : FX0 - GOAL_D, GY0); ctx.lineTo(s ? FX1 + GOAL_D : FX0 - GOAL_D, GY1); ctx.lineTo(s ? FX1 : FX0, GY1); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; for (const py of [GY0, GY1]) { ctx.beginPath(); ctx.arc(s ? FX1 : FX0, py, 5, 0, 7); ctx.fill(); }
+    if (S && S.stone[s]) drawStone(s);
+  }
+}
+function drawStone(s) {
+  const x = s ? FX1 - 6 : FX0 - 10, w = 16;
+  ctx.save();
+  ctx.fillStyle = '#7a5530'; ctx.fillRect(x, GY0 - 4, w, GOAL_H + 8);
+  for (let y = GY0 - 4, row = 0; y < GY1 + 4; y += 14, row++) {
+    for (let k = 0; k < 2; k++) {
+      const bx = x + (row % 2 ? -w / 2 : 0) + k * w;
+      ctx.fillStyle = (row + k) % 2 ? '#c98a4b' : '#b5773c';
+      ctx.fillRect(Math.max(x, bx) + 1, y + 1, Math.min(x + w, bx + w) - Math.max(x, bx) - 2, 12);
+    }
+  }
+  ctx.strokeStyle = '#3e2a16'; ctx.lineWidth = 2; ctx.strokeRect(x, GY0 - 4, w, GOAL_H + 8);
+  ctx.restore();
+}
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  if (f > 0) { r += (255 - r) * f; g += (255 - g) * f; b += (255 - b) * f; } else { r *= 1 + f; g *= 1 + f; b *= 1 + f; }
+  return `rgb(${r | 0},${g | 0},${b | 0})`;
+}
+function drawDisc(o, i) {
+  const col = teamCol(o.team), r = o.r;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(o.x + 3, o.y + 5, r, r * 0.95, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = shade(col, -0.45); ctx.beginPath(); ctx.arc(o.x, o.y + 3, r, 0, 7); ctx.fill();
+  const g = ctx.createRadialGradient(o.x - r * 0.35, o.y - r * 0.4, r * 0.1, o.x, o.y, r);
+  g.addColorStop(0, shade(col, 0.35)); g.addColorStop(1, col);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(o.x, o.y, r, 0, 7); ctx.fill();
+  ctx.strokeStyle = shade(col, 0.5); ctx.globalAlpha = 0.6; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(o.x, o.y, r * 0.72, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+  const light = col === '#f2f2f2' || col === '#ffd23f';
+  T(ctx, o.num, o.x, o.y + 1, r * 0.75, light ? '#1b1d22' : '#ffffff', 'center', '900');
+  if (o.pin) {
+    ctx.fillStyle = 'rgba(190,230,255,0.55)'; RR(ctx, o.x - r - 4, o.y - r - 4, r * 2 + 8, r * 2 + 8, 6); ctx.fill();
+    ctx.strokeStyle = '#e6f7ff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.beginPath(); ctx.moveTo(o.x - r + 2, o.y - r + 8); ctx.lineTo(o.x - r + 8, o.y - r + 2); ctx.stroke();
+  }
+  if (skip[o.team] || (cheatFreeze && o.team === 1)) {
+    ctx.fillStyle = 'rgba(160,215,255,0.45)'; ctx.beginPath(); ctx.arc(o.x, o.y, r + 2, 0, 7); ctx.fill();
+    T(ctx, '❄', o.x + r * 0.7, o.y - r * 0.7, 14, '#e6f7ff');
+  }
+  // jouw beurt: schijven die je kunt kiezen pulseren
+  if (state === 'play' && !moving && o.team === turn && !isBot(turn) && !o.pin && (!aim || aim.i === i)) {
+    ctx.strokeStyle = target ? PU[target].c : '#ffd23f'; ctx.lineWidth = 2.5; ctx.setLineDash([6, 5]); ctx.lineDashOffset = -clock * 20;
+    ctx.globalAlpha = 0.55 + 0.45 * Math.sin(clock * 5);
+    ctx.beginPath(); ctx.arc(o.x, o.y, r + 7, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  if (S.mag === i) {
+    ctx.strokeStyle = '#ff6b7a'; ctx.lineWidth = 2;
+    for (let k = 0; k < 3; k++) { const rr = r + 10 + ((clock * 60 + k * 25) % 75); ctx.globalAlpha = 1 - (rr - r) / 85; ctx.beginPath(); ctx.arc(o.x, o.y, rr, 0, 7); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+function drawBall(b) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(b.x + 3, b.y + 4, BR, BR * 0.9, 0, 0, 7); ctx.fill();
+  const g = ctx.createRadialGradient(b.x - 4, b.y - 4, 1, b.x, b.y, BR);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#cfd4da');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, BR, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(b.x, b.y, BR, 0, 7); ctx.clip();
+  ctx.fillStyle = '#1b1d22';
+  for (let k = 0; k < 5; k++) { const a = b.rot + k * 1.2566; const px = b.x + Math.cos(a) * BR * 0.75, py = b.y + Math.sin(a) * BR * 0.75 * Math.cos(b.rot * 0.7); ctx.beginPath(); ctx.arc(px, py, 3.2, 0, 7); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(b.x + Math.sin(b.rot) * 2, b.y, 3.6, 0, 7); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(b.x, b.y, BR, 0, 7); ctx.stroke();
+}
+function drawAim() {
+  if (!aim) return;
+  const o = S.d[aim.i], dx = o.x - aim.x, dy = o.y - aim.y, len = Math.hypot(dx, dy);
+  if (len < 4) return;
+  const p = Math.min(1, len / PULL), ux = dx / len, uy = dy / len;
+  // trekker (achter de schijf)
+  const bx = o.x - ux * p * PULL, by = o.y - uy * p * PULL;
+  ctx.strokeStyle = 'rgba(255,210,63,0.9)'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(o.x - ux * o.r, o.y - uy * o.r); ctx.lineTo(bx, by); ctx.stroke();
+  ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(bx, by, 7, 0, 7); ctx.fill();
+  // richting
+  const L = 60 + p * 190 * (turbo ? 1.4 : 1);
+  ctx.strokeStyle = turbo ? '#ffd23f' : '#ffffff'; ctx.lineWidth = 3; ctx.setLineDash([3, 9]);
+  ctx.beginPath(); ctx.moveTo(o.x + ux * (o.r + 6), o.y + uy * (o.r + 6)); ctx.lineTo(o.x + ux * L, o.y + uy * L); ctx.stroke(); ctx.setLineDash([]);
+  const ex = o.x + ux * L, ey = o.y + uy * L;
+  ctx.beginPath(); ctx.moveTo(ex + ux * 10, ey + uy * 10); ctx.lineTo(ex - uy * 8 - ux * 4, ey + ux * 8 - uy * 4); ctx.lineTo(ex + uy * 8 - ux * 4, ey - ux * 8 - uy * 4); ctx.closePath();
+  ctx.fillStyle = turbo ? '#ffd23f' : '#ffffff'; ctx.fill();
+  ctx.lineCap = 'butt';
+}
+function drawBotAim() {
+  if (!botPlan || moving) return;
+  const o = S.d[botPlan.i], k = Math.min(1, botPlan.t / 0.6);
+  const L = (60 + Math.min(1, botPlan.p) * 190) * k, ux = Math.cos(botPlan.ang), uy = Math.sin(botPlan.ang);
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 3; ctx.setLineDash([3, 9]);
+  ctx.beginPath(); ctx.moveTo(o.x + ux * (o.r + 6), o.y + uy * (o.r + 6)); ctx.lineTo(o.x + ux * L, o.y + uy * L); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(255,210,63,0.8)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(o.x - ux * o.r, o.y - uy * o.r); ctx.lineTo(o.x - ux * (o.r + 70 * k * Math.min(1, botPlan.p)), o.y - uy * (o.r + 70 * k * Math.min(1, botPlan.p))); ctx.stroke();
+}
+function drawHUD() {
+  const nm = names();
+  // scorebord
+  const sw = 420, sx = W / 2 - sw / 2;
+  ctx.fillStyle = 'rgba(18,20,26,0.92)'; RR(ctx, sx, 14, sw, 50, 14); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1; ctx.stroke();
+  for (const t of [0, 1]) {
+    const x = t ? sx + sw - 20 : sx + 20;
+    ctx.fillStyle = teamCol(t); ctx.beginPath(); ctx.arc(t ? x - 6 : x + 6, 39, 8, 0, 7); ctx.fill();
+    T(ctx, nm[t], t ? x - 22 : x + 22, 40, nm[t].length > 14 ? 14 : 16, '#fff', t ? 'right' : 'left', '800');
+  }
+  T(ctx, `${goals[0]}  -  ${goals[1]}`, W / 2, 40, 26, '#fff', 'center', '900');
+  if (mode === 'bot' && tour) T(ctx, `Ronde ${tour.round + 1} van 8 · eerst tot ${WIN_GOALS}`, W / 2, 78, 13, '#9aa1ab', 'center', '700');
+  else T(ctx, `Eerst tot ${WIN_GOALS} goals`, W / 2, 78, 13, '#9aa1ab', 'center', '700');
+  // menu-knop
+  ui.btn('II', W - 58, 18, 40, 40, () => { if (state === 'play' || state === 'goal') { prevState = state; state = 'pause'; } }, false, false, 16);
+  // beurt
+  const bar = H - 64;
+  if (state === 'play') {
+    const who = isBot(turn) ? `${nm[turn]} denkt na…` : moving ? 'Rollen…' : target ? (target === 'giant' ? 'Klik op een schijf om hem groot te maken' : 'Klik op een schijf om hem vast te zetten') : mode === 'bot' ? 'Jouw beurt: trek een schijf naar achteren en laat los' : `${nm[turn]}: trek een schijf naar achteren en laat los`;
+    ctx.fillStyle = 'rgba(18,20,26,0.9)'; RR(ctx, 20, bar + 8, 430, 40, 12); ctx.fill();
+    ctx.fillStyle = teamCol(turn); RR(ctx, 20, bar + 8, 6, 40, 3); ctx.fill();
+    T(ctx, who, 38, bar + 29, 14, '#fff', 'left', '700');
+    if (!moving && !isBot(turn)) {
+      const k = Math.max(0, turnT / TURN_T);
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; RR(ctx, 38, bar + 40, 400, 3, 1.5); ctx.fill();
+      ctx.fillStyle = k < 0.3 ? '#e8282f' : '#ffd23f'; RR(ctx, 38, bar + 40, 400 * k, 3, 1.5); ctx.fill();
+    }
+  }
+  // powerups van de speler die nu aan de beurt is (of van speler 1 tegen de bot)
+  const pt = mode === 'bot' ? 0 : turn;
+  const mine = picks[pt] || [];
+  mine.forEach((k, j) => {
+    const x = W - 20 - (3 - j) * 150 + 6, y = bar + 4, w = 142, h = 50, u = used[pt][k];
+    const can = !u && state === 'play' && turn === pt && !moving && !isBot(turn);
+    const active = (k === 'turbo' && turbo && turn === pt) || (k === 'magnet' && magnetNext && turn === pt) || target === k;
+    ctx.globalAlpha = u && !active ? 0.35 : 1;
+    ctx.fillStyle = active ? 'rgba(255,210,63,0.18)' : 'rgba(18,20,26,0.92)'; RR(ctx, x, y, w, h, 12); ctx.fill();
+    ctx.strokeStyle = active ? '#ffd23f' : can ? PU[k].c : 'rgba(255,255,255,0.12)'; ctx.lineWidth = active ? 2.5 : 1.5; ctx.stroke();
+    T(ctx, PU[k].i, x + 24, y + 26, 22);
+    T(ctx, PU[k].n, x + 44, y + 19, 13, '#fff', 'left', '800');
+    T(ctx, active ? 'Actief!' : u ? 'Gebruikt' : Arcade.touch ? 'Tik om te gebruiken' : `Klik of toets ${j + 1}`, x + 44, y + 36, 11, active ? '#ffd23f' : '#9aa1ab', 'left', '700');
+    ctx.globalAlpha = 1;
+    if (can) ui.btn('', x, y, w, h, () => usePower(pt, k), false, false); // klikgebied (onzichtbaar)
+  });
+  // powerups van de bot (klein, bovenaan rechts)
+  if (mode === 'bot') {
+    T(ctx, 'Powerups bot:', W / 2 + 226, 40, 12, '#9aa1ab', 'left', '700');
+    picks[1].forEach((k, j) => { ctx.globalAlpha = used[1][k] ? 0.25 : 1; T(ctx, PU[k].i, W / 2 + 320 + j * 24, 40, 17); ctx.globalAlpha = 1; });
+  }
+  if (toastT > 0) {
+    ctx.globalAlpha = Math.min(1, toastT * 2);
+    ctx.font = '800 16px system-ui'; const tw = ctx.measureText(toast).width + 40;
+    ctx.fillStyle = 'rgba(18,20,26,0.92)'; RR(ctx, W / 2 - tw / 2, 92, tw, 36, 12); ctx.fill();
+    T(ctx, toast, W / 2, 111, 16, '#fff', 'center', '800');
+    ctx.globalAlpha = 1;
+  }
+}
+// onzichtbare knoppen: ui.btn tekent altijd, dus overschrijf voor lege labels
+const _btn = ui.btn;
+ui.btn = function (label, x, y, w, h, fn, ...rest) {
+  if (label === '') { ctx.save(); ctx.globalAlpha = 0; _btn.call(this, label, x, y, w, h, fn, ...rest); ctx.restore(); return; }
+  return _btn.call(this, label, x, y, w, h, fn, ...rest);
+};
+
+// ---------- Menu's ----------
+function card(x, y, w, h, on, accent) {
+  ctx.fillStyle = on ? 'rgba(47,127,224,0.16)' : 'rgba(255,255,255,0.04)'; RR(ctx, x, y, w, h, 14); ctx.fill();
+  ctx.strokeStyle = on ? (accent || '#2f7fe0') : 'rgba(255,255,255,0.12)'; ctx.lineWidth = on ? 2.5 : 1; ctx.stroke();
+}
+function drawMenu() {
+  drawField();
+  ctx.fillStyle = 'rgba(8,9,12,0.78)'; ctx.fillRect(0, 0, W, H);
+  T(ctx, '⚽ Puck Voetbal', W / 2, 92, 44, '#fff', 'center', '900');
+  T(ctx, 'Trek een schijf naar achteren, laat los en schiet de bal in het doel', W / 2, 132, 16, '#c9ced6', 'center', '600');
+  const cw = 330, ch = 190, gx = W / 2 - cw - 12;
+  // tegen de bot
+  card(gx, 170, cw, ch, false);
+  T(ctx, '🤖 Tegen de bot', gx + cw / 2, 206, 22, '#fff', 'center', '900');
+  T(ctx, 'Toernooi van 8 rondes', gx + cw / 2, 238, 15, '#c9ced6', 'center', '600');
+  T(ctx, 'Telt voor de ranglijst', gx + cw / 2, 260, 13, '#ffd23f', 'center', '700');
+  if (tour) {
+    ui.btn(`Verder: ronde ${tour.round + 1}`, gx + 20, 284, cw / 2 - 26, 50, () => { mode = 'bot'; picks[0] = tour.picks && tour.picks.length === 3 ? tour.picks : []; if (picks[0].length === 3) toPick(0, true); else toPick(0); }, true);
+    ui.btn('Opnieuw', gx + cw / 2 + 6, 284, cw / 2 - 26, 50, () => { mode = 'bot'; tour = { round: 0, score: 0, g: [0, 0], picks: [] }; saveTour(); toPick(0); });
+  } else ui.btn('Start toernooi', gx + 40, 284, cw - 80, 50, () => { mode = 'bot'; tour = { round: 0, score: 0, g: [0, 0], picks: [] }; saveTour(); toPick(0); }, true);
+  // tegen een vriend
+  const vx = W / 2 + 12;
+  card(vx, 170, cw, ch, false);
+  T(ctx, '👥 Tegen een vriend', vx + cw / 2, 206, 22, '#fff', 'center', '900');
+  T(ctx, 'Om de beurt op hetzelfde scherm', vx + cw / 2, 238, 15, '#c9ced6', 'center', '600');
+  T(ctx, 'Telt niet voor de ranglijst', vx + cw / 2, 260, 13, '#9aa1ab', 'center', '700');
+  ui.btn('Speel samen', vx + 40, 284, cw - 80, 50, () => { mode = 'vriend'; toPick(0); });
+  T(ctx, `Beste toernooiscore: ${best ? best.toLocaleString('nl-NL') : '–'}`, W / 2, 400, 16, '#c9ced6', 'center', '700');
+  T(ctx, 'Elke powerup kun je 1x per wedstrijd gebruiken. Je kiest er 3 voor de aftrap.', W / 2, 440, 14, '#9aa1ab', 'center', '600');
+  T(ctx, 'Elke beurt heb je 15 seconden. Wie het eerst 3 keer scoort, wint.', W / 2, 464, 14, '#9aa1ab', 'center', '600');
+}
+function toPick(p, keep = false) {
+  pickFor = p; state = 'pick';
+  pickSel = keep ? picks[p].slice() : (picks[p] && picks[p].length === 3 && mode === 'bot' ? picks[p].slice() : []);
+}
+function drawPick() {
+  drawField();
+  ctx.fillStyle = 'rgba(8,9,12,0.82)'; ctx.fillRect(0, 0, W, H);
+  const who = mode === 'bot' ? 'Kies je powerups' : `Speler ${pickFor + 1}: kies je powerups`;
+  T(ctx, who, W / 2, 62, 30, '#fff', 'center', '900');
+  const sub = mode === 'bot' ? `Ronde ${round() + 1} van 8 · tegen ${ROUNDS[round()][0]}` : (pickFor ? 'Speler 1 kijkt even niet 😉' : 'Daarna kiest speler 2');
+  T(ctx, sub, W / 2, 96, 15, '#c9ced6', 'center', '600');
+  T(ctx, `${pickSel.length} van 3 gekozen`, W / 2, 124, 14, pickSel.length === 3 ? '#7bd88f' : '#ffd23f', 'center', '800');
+  const cw = 260, ch = 128, gx = W / 2 - (cw * 3 + 32) / 2;
+  PU_KEYS.forEach((k, j) => {
+    const x = gx + (j % 3) * (cw + 16), y = 148 + Math.floor(j / 3) * (ch + 16), on = pickSel.includes(k), p = PU[k];
+    card(x, y, cw, ch, on, p.c);
+    T(ctx, p.i, x + 40, y + 46, 34);
+    T(ctx, p.n, x + 72, y + 40, 19, '#fff', 'left', '900');
+    T(ctx, p.d[0], x + 72, y + 68, 13, '#c9ced6', 'left', '600');
+    T(ctx, p.d[1], x + 72, y + 87, 13, '#c9ced6', 'left', '600');
+    if (on) { ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(x + cw - 22, y + 22, 11, 0, 7); ctx.fill(); T(ctx, '✓', x + cw - 22, y + 23, 14, '#111214', 'center', '900'); }
+    ui.btn('', x, y, cw, ch, () => {
+      if (on) pickSel = pickSel.filter((q) => q !== k);
+      else if (pickSel.length < 3) pickSel.push(k);
+      else { pickSel.shift(); pickSel.push(k); }
+      Arcade.beep(on ? 440 : 660, 0.06, 'triangle', 0.04);
+    });
+  });
+  ui.btn('← Terug', gx, 470, 160, 52, () => { state = 'menu'; });
+  ui.btn('Willekeurig', gx + 176, 470, 160, 52, () => { pickSel = shuffle(PU_KEYS.slice()).slice(0, 3); });
+  const ready = pickSel.length === 3;
+  ui.btn(ready ? (mode === 'vriend' && pickFor === 0 ? 'Volgende speler →' : 'Aftrap ⚽') : 'Kies er nog ' + (3 - pickSel.length), gx + cw * 3 + 32 - 240, 470, 240, 52, () => {
+    if (!ready) return;
+    picks[pickFor] = pickSel.slice();
+    if (mode === 'vriend' && pickFor === 0) return toPick(1);
+    startMatch();
+  }, ready);
+}
+function drawOver() {
+  const lines = overInfo.lines.slice();
+  if (newRecord) lines.push({ t: '🏆 Nieuw record!', color: '#ffd23f' });
+  Arcade.overlay(ctx, W, H, overInfo.title, lines, '');
+  const by = H / 2 + (130 + lines.length * 30) / 2 + 14;
+  if (overInfo.next) {
+    ui.btn('Menu', W / 2 - 200, by, 180, 50, () => { state = 'menu'; });
+    ui.btn('Volgende ronde →', W / 2 + 20, by, 180, 50, () => toPick(0, true), true);
+  } else if (overInfo.vriend) {
+    ui.btn('Menu', W / 2 - 200, by, 180, 50, () => { state = 'menu'; });
+    ui.btn('Nog een keer', W / 2 + 20, by, 180, 50, () => toPick(0), true);
+  } else {
+    ui.btn('Menu', W / 2 - 200, by, 180, 50, () => { state = 'menu'; });
+    ui.btn('Nieuw toernooi', W / 2 + 20, by, 180, 50, () => { mode = 'bot'; tour = { round: 0, score: 0, g: [0, 0], picks: [] }; saveTour(); toPick(0); }, true);
+  }
+}
+function drawPause() {
+  Arcade.overlay(ctx, W, H, 'Pauze', [mode === 'bot' ? 'Opgeven telt als verlies' : 'Opgeven stopt de wedstrijd'], '');
+  const by = H / 2 + 95;
+  ui.btn('Opgeven', W / 2 - 200, by, 180, 50, () => { goals[1 - (mode === 'bot' ? 0 : turn)] = WIN_GOALS; finishMatch(mode === 'bot' ? 1 : 1 - turn); });
+  ui.btn('Verder', W / 2 + 20, by, 180, 50, () => { state = prevState; }, true);
+}
+
+// ---------- Lus ----------
+let last = performance.now();
+function update(dt) {
+  clock += dt; hitCd -= dt; toastT -= dt; fx.update(dt);
+  if (state === 'play') {
+    if (moving) {
+      const sub = 4;
+      for (let k = 0; k < sub; k++) {
+        const g = step(S, dt / sub);
+        if (g >= 0) { scored(g); return; }
+      }
+      if (still(S)) { stopAll(S); endTurn(); }
+    } else if (isBot(turn)) {
+      if (!document.hidden) botT -= dt;
+      if (botT <= 0 && !botPlan) botPlan = botThink();
+      if (botPlan) { botPlan.t += dt; if (botPlan.t > 0.75) { const p = botPlan; botPlan = null; shoot(p.i, Math.cos(p.ang) * VMAX * p.p, Math.sin(p.ang) * VMAX * p.p); } }
+    } else if (!document.hidden) {
+      turnT -= dt;
+      if (turnT <= 0) { aim = null; target = null; say('⏱️ Te laat! Beurt voorbij'); Arcade.beep(200, 0.3, 'square', 0.04); endTurn(); }
+    }
+  } else if (state === 'goal') {
+    // bal rolt nog even door in het net
+    for (let k = 0; k < 2; k++) step(S, dt / 2);
+    goalT -= dt;
+    if (goalT <= 0) afterGoal();
+  }
+}
+function loop(now) {
+  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+  update(dt);
+  view.begin(); ui.clear();
+  if (state === 'menu') drawMenu();
+  else if (state === 'pick') drawPick();
+  else {
+    fx.begin(ctx);
+    drawField();
+    drawBall(S.b);
+    S.d.forEach((o, i) => drawDisc(o, i));
+    drawAim(); drawBotAim();
+    fx.draw(ctx);
+    fx.end(ctx);
+    if (state === 'goal') {
+      const k = Math.min(1, (2.4 - goalT) * 3);
+      ctx.save(); ctx.globalAlpha = Math.min(1, goalT * 2);
+      T(ctx, 'GOAL!', W / 2, H / 2 - 10, 60 + 30 * (1 - k), '#fff', 'center', '900');
+      T(ctx, names()[goalBy] + ' scoort', W / 2, H / 2 + 40, 20, teamCol(goalBy), 'center', '800');
+      ctx.restore();
+    }
+    drawHUD();
+    fx.drawFlash(ctx, W, H);
+    if (state === 'over') drawOver();
+    if (state === 'pause') drawPause();
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---------- Admin-voordelen ----------
+ArcadeCore.cheat('⚽ Goal voor jou', () => { if (S && (state === 'play' || state === 'goal') ) { if (state === 'goal') return; scored(0); } });
+ArcadeCore.cheat('🏆 Wedstrijd meteen winnen', () => { if (S && (state === 'play' || state === 'goal' || state === 'pause')) { goals = [WIN_GOALS, Math.min(goals[1], WIN_GOALS - 1)]; finishMatch(0); } });
+ArcadeCore.cheat('♻️ Powerups opnieuw opladen', () => { used[0] = {}; say('♻️ Powerups weer vol'); });
+ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (mode === 'bot' && tour && tour.round < 7) { tour.round++; tour.g = [0, 0]; saveTour(); state = 'menu'; } });
+ArcadeCore.toggle('🧊 Bot slaat elke beurt over', () => cheatFreeze, (v) => { cheatFreeze = v; });
+
+window.__puck = { get S() { return S; }, get state() { return state; }, step, botThink, startMatch, usePower, applyTarget, shoot, get turn() { return turn; }, get goals() { return goals; }, setMode: (m) => { mode = m; }, setTour: (t) => { tour = t; }, picks, finishMatch, endTurn };
+
+  </script>
+  <script type="module" src="../auth.js?v=16"></script>
+</body>
+</html>
