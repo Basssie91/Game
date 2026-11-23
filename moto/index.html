@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Moto Stunt · Game Arcade</title>
+  <meta name="description" content="Scheur over schansen, loopings en spijkerkuilen. Maak flips voor tijdbonus en haal overal 3 sterren!">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2242%22%20r%3D%229%22%20fill%3D%22none%22%20stroke%3D%22%23e6e8eb%22%20stroke-width%3D%224%22/%3E%3Ccircle%20cx%3D%2246%22%20cy%3D%2242%22%20r%3D%229%22%20fill%3D%22none%22%20stroke%3D%22%23e6e8eb%22%20stroke-width%3D%224%22/%3E%3Cpath%20d%3D%22M18%2042%20L28%2030%20L40%2030%20L46%2042%22%20stroke%3D%22%239aa1ab%22%20stroke-width%3D%223%22%20fill%3D%22none%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M22%2030%20L30%2024%20L42%2024%20L46%2030%20L38%2034%20L26%2034%20Z%22%20fill%3D%22%23e8282f%22/%3E%3Ccircle%20cx%3D%2233%22%20cy%3D%2215%22%20r%3D%226%22%20fill%3D%22%23fff%22/%3E%3Cpath%20d%3D%22M33%2021%20L30%2029%22%20stroke%3D%22%23c9ced6%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M8%2052%20Q32%2044%2056%2052%22%20stroke%3D%22%235b616b%22%20stroke-width%3D%222%22%20fill%3D%22none%22/%3E%3C/svg%3E">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #fff; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+.terug, .geluid { position: fixed; top: 12px; z-index: 5; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); padding: 8px 12px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.terug { left: 12px; } .geluid { right: 12px; }
+.terug:hover, .geluid:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <a class="terug" href="../">← Games</a>
+  <canvas id="c"></canvas>
+  
+  <script>
+'use strict';
+// ================= Game Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
+const ArcadeCore = (() => {
+  const KEY = 'arcade_settings';
+  const DEF = { music: 0.5, sfx: 0.8, quality: 'normaal', muted: false };
+  let S = { ...DEF };
+  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* standaard */ }
+  const listeners = [];
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* */ }
+    listeners.forEach((f) => f(S));
+  };
+  const set = (k, v) => { S[k] = v; save(); };
+  const sfx = () => (S.muted ? 0 : S.sfx);
+  const musicVol = () => (S.muted ? 0 : S.music);
+  // Hoeveel pixels we tekenen: lager = soepeler op trage apparaten
+  const dprCap = () => ({ hoog: 2, normaal: 1.5, laag: 1 })[S.quality] || 1.5;
+
+  // ---------- Muziek: kleine sequencer met drums, bas, akkoorden en melodie ----------
+  const SCALE = [0, 2, 3, 5, 7, 8, 10]; // mineur
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // Elke game een eigen nummer
+  const SONGS = {
+    menu:     { bpm: 92,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x.....x.x.......', arp: true,  lead: 'triangle', seed: 3, density: 0.35, pad: 'triangle' },
+    race:     { bpm: 128, root: 52, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xo', bass: 'x.xox.xox.xox.xo', arp: true,  lead: 'sawtooth', seed: 11, density: 0.45, pad: 'sawtooth' },
+    meteoren: { bpm: 140, root: 50, prog: [[0, 3, 7], [1, 5, 8], [-2, 2, 5], [0, 3, 7]], kick: 'x..x..x.x..x..x.', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx', bass: 'xxoxxxoxxxoxxxox', arp: false, lead: 'square', seed: 21, density: 0.55, pad: 'sawtooth' },
+    runner:   { bpm: 124, root: 54, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..o...o...o...o.', bass: 'x.x.x.x.x.x.x.x.', arp: true,  lead: 'sawtooth', seed: 31, density: 0.4, pad: 'sawtooth' },
+    snake:    { bpm: 112, root: 60, prog: [[0, 3, 7], [5, 8, 12], [3, 7, 10], [-2, 2, 5]], kick: 'x.....x.x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...o...x...o...', arp: false, lead: 'square', seed: 41, density: 0.6, pad: null },
+    2048:     { bpm: 84,  root: 55, prog: [[0, 3, 7, 10], [-4, 0, 3, 7], [3, 7, 10, 14], [-2, 2, 5, 9]], kick: 'x.........x.....', snare: '....x.......x...', hat: '..x...x...x..xx.', bass: 'x.......x..x....', arp: false, lead: 'triangle', seed: 51, density: 0.25, pad: 'triangle' },
+    blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
+    overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
+    td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    mijnen:   { bpm: 80,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], kick: 'x.........x.....', snare: '................', hat: '........x.......', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 81, density: 0.25, pad: 'triangle' },
+    sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
+    memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
+    vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    moto:     { bpm: 132, root: 50, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.xox.xox.xox.xo', bass: 'x.x.xox.x.x.xox.', arp: true,  lead: 'sawtooth', seed: 151, density: 0.42, pad: 'sawtooth' },
+    tycoon:   { bpm: 96,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [-5, -1, 2]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'triangle', seed: 131, density: 0.32, pad: 'triangle' },
+    patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
+    stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
+  };
+  // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
+  function makeMelody(song) {
+    const R = rng(song.seed);
+    const motif = [];
+    for (let i = 0; i < 32; i++) {
+      if (R() > song.density || i % 2 === 1 && R() < 0.5) { motif.push(null); continue; }
+      const deg = Math.floor(R() * 7) + (R() < 0.3 ? 7 : 0);
+      const len = R() < 0.25 ? 3 : R() < 0.5 ? 2 : 1;
+      motif.push({ deg, len });
+    }
+    const mel = [];
+    for (let bar = 0; bar < 8; bar++) {
+      for (let i = 0; i < 16; i++) {
+        let m = motif[(bar % 2) * 16 + i];
+        if (m && bar >= 4 && bar % 2 === 1 && i > 8) m = { deg: m.deg + 2, len: m.len }; // kleine variatie
+        mel.push(m);
+      }
+    }
+    return mel;
+  }
+  for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
+
+  let ac = null, master = null, delayIn = null, reverbIn = null, duck = null, noise = null, timer = null;
+  let song = null, wanted = null, step = 0, nextT = 0;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Galm: zelf gemaakte impulsrespons (geen bestanden nodig)
+  function makeReverb(sec = 2.2) {
+    const len = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
+  function initAudio() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = musicVol() * 0.5;
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -16; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      const warm = ac.createBiquadFilter(); warm.type = 'highshelf'; warm.frequency.value = 6000; warm.gain.value = -4;
+      master.connect(warm); warm.connect(comp); comp.connect(ac.destination);
+      // 'duck' zakt even weg op elke kick (pompend effect zoals in echte dance-muziek)
+      duck = ac.createGain(); duck.connect(master);
+      // Echo voor melodie
+      delayIn = ac.createGain(); delayIn.gain.value = 0.2;
+      const d = ac.createDelay(); d.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.32;
+      const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2400;
+      delayIn.connect(d); d.connect(dlp); dlp.connect(fb); fb.connect(d); dlp.connect(duck);
+      reverbIn = ac.createGain(); reverbIn.gain.value = 0.28;
+      const rv = makeReverb(); reverbIn.connect(rv); rv.connect(duck);
+      noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    } catch (e) { ac = null; }
+  }
+  function env(g, t, a, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function out(node, pan = 0) {
+    if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; node.connect(p); return p; }
+    return node;
+  }
+  function kick(t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.002, 0.95, 0.28);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    noiseHit(t, 3000, 0.12, 0.012, 0, master);            // tikje voor de aanslag
+    duck.gain.cancelScheduledValues(t);
+    duck.gain.setValueAtTime(0.45, t); duck.gain.linearRampToValueAtTime(1, t + 0.22);
+  }
+  function noiseHit(t, hp, peak, dur, pan = 0, dest = null, type = 'highpass', q = 0.7) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise;
+    f.type = type; f.frequency.value = hp; f.Q.value = q;
+    env(g, t, 0.002, peak, dur);
+    s.connect(f); f.connect(g); out(g, pan).connect(dest || master);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
+    return g;
+  }
+  function snare(t) {
+    const g = noiseHit(t, 1800, 0.32, 0.18, 0, master, 'bandpass', 0.6);
+    g.connect(reverbIn);
+    const o = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    env(g2, t, 0.002, 0.22, 0.1); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.12);
+  }
+  // Toon met twee licht ontstemde oscillatoren en een filter dat 'opengaat'
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006, opt = {}) {
+    const f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.Q.value = opt.q || 0.8;
+    f.frequency.setValueAtTime(cutoff * (opt.sweep ? 0.25 : 1), t);
+    if (opt.sweep) f.frequency.exponentialRampToValueAtTime(cutoff, t + Math.min(dur, 0.08)), f.frequency.exponentialRampToValueAtTime(cutoff * 0.35, t + dur);
+    const n = opt.unison ? 2 : 1;
+    for (let k = 0; k < n; k++) {
+      const o = ac.createOscillator();
+      o.type = type; o.frequency.value = mtof(midi); o.detune.value = n > 1 ? (k ? 9 : -9) : 0;
+      if (opt.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = 7; l.connect(lg); lg.connect(o.detune); l.start(t + 0.12); l.stop(t + dur + 0.05); }
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    env(g, t, attack, vol / n, dur);
+    f.connect(g);
+    const dst = out(g, opt.pan || 0);
+    dst.connect(opt.dry ? master : duck);
+    if (echo) dst.connect(delayIn);
+    if (opt.verb) dst.connect(reverbIn);
+  }
+  function playStep(s, t) {
+    const sp = 60 / song.bpm / 4;
+    const i = s % 16, barN = Math.floor(s / 16), bar = barN % 4, chord = song.prog[bar];
+    const intro = barN < 2 && song.introDone !== true;
+    const fill = barN % 8 === 7 && i >= 12;                       // drumroffel aan het eind van elke 8 maten
+    if (!intro) {
+      if (song.kick[i] === 'x') kick(t);
+      if (song.snare[i] === 'x' || (fill && i % 2 === 0)) snare(t);
+      if (song.hat[i] === 'x') noiseHit(t, 8000, 0.06 + (i % 4 === 2 ? 0.03 : 0), 0.03, i % 2 ? 0.25 : -0.25);
+      if (song.hat[i] === 'o') noiseHit(t, 7000, 0.08, 0.16, 0.2);
+      if (barN % 8 === 0 && i === 0 && song.introDone) noiseHit(t, 5000, 0.12, 1.4, 0, reverbIn);  // bekken
+    }
+    const b = song.bass[i];
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.2, 900, false, 0.004, { sweep: true, unison: true, q: 4 });
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.045, intro ? 700 : 1500, false, 0.35, { unison: true, verb: true, pan: (n % 3 - 1) * 0.3 });
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length] + (barN % 2 && i >= 8 ? 12 : 0), sp * 0.7, 'square', 0.022, 2400, true, 0.003, { pan: ((i / 2) % 2 ? 0.35 : -0.35) });
+    const m = song.mel[s % song.mel.length];
+    if (m && !intro) {
+      const deg = m.deg;
+      const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.055, song.lead === 'sawtooth' ? 2600 : 3800, true, 0.008, { vib: m.len > 1, verb: true, unison: song.lead === 'sawtooth' });
+    }
+  }
+  function tick() {
+    if (!ac || !song) return;
+    const sp = 60 / song.bpm / 4;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
+    while (nextT < ac.currentTime + 0.15) {
+      playStep(step, nextT);
+      nextT += sp;
+      step++;
+      if (step >= 128) { step = 0; song.introDone = true; }
+    }
+  }
+  function startIfWanted() {
+    if (!wanted) return;
+    initAudio();
+    if (!ac) return;
+    if (song !== SONGS[wanted]) { song = SONGS[wanted]; step = 0; nextT = ac.currentTime + 0.1; }
+    if (!timer) timer = setInterval(tick, 25);
+  }
+  // Muziek mag pas starten na een klik of toetsaanslag (regel van browsers)
+  addEventListener('pointerdown', startIfWanted);
+  addEventListener('keydown', startIfWanted);
+  document.addEventListener('visibilitychange', () => {
+    if (!ac) return;
+    if (document.hidden) ac.suspend(); else ac.resume();
+  });
+  listeners.push(() => { if (master) master.gain.setTargetAtTime(musicVol() * 0.5, ac.currentTime, 0.1); });
+
+  const music = { play(name) { wanted = name; if (ac) startIfWanted(); }, status: () => ({ running: !!timer, song: wanted, step, audio: ac ? ac.state : 'geen' }) };
+
+  // ---------- Instellingenpaneel ----------
+  const CSS = `
+  .ac-gear { position: fixed; top: 12px; right: 12px; z-index: 50; width: 42px; height: 42px; border-radius: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ac-gear:hover { background: rgba(255,255,255,0.2); }
+  .ac-gear svg { width: 22px; height: 22px; transition: transform 0.4s ease; }
+  .ac-gear:hover svg { transform: rotate(60deg); }
+  .ac-ov { position: fixed; inset: 0; z-index: 60; background: rgba(5,6,9,0.6); display: none; align-items: center; justify-content: center; padding: 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; }
+  .ac-ov.open { display: flex; }
+  .ac-card { width: min(380px, 100%); background: #16181d; border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 20px 22px; color: #fff;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .ac-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .ac-head b { font-size: 20px; font-weight: 900; }
+  .ac-x { background: rgba(255,255,255,0.1); border: 0; color: #fff; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+  .ac-row { margin: 14px 0; }
+  .ac-lab { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #e6e9ee; }
+  .ac-lab span { color: #9aa1ab; font-family: ui-monospace, Consolas, monospace; }
+  .ac-card input[type=range] { width: 100%; accent-color: #e8282f; height: 22px; }
+  .ac-seg { display: flex; gap: 6px; background: #0e0f13; padding: 4px; border-radius: 12px; }
+  .ac-seg button { flex: 1; border: 0; background: transparent; color: #c9ced6; padding: 9px 0; border-radius: 9px; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .ac-seg button.on { background: #fff; color: #111214; }
+  .ac-hint { font-size: 12px; color: #7d848e; margin-top: 6px; }
+  .ac-check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #e6e9ee; cursor: pointer; }
+  .ac-check input { width: 18px; height: 18px; accent-color: #e8282f; }
+  .ac-danger { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; border: 1px solid rgba(232,40,47,0.6); background: rgba(232,40,47,0.12);
+    color: #ff6b72; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .ac-danger:hover { background: rgba(232,40,47,0.25); }`;
+  const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  let ov = null;
+  function buildPanel() {
+    const st = document.createElement('style');
+    st.textContent = CSS;
+    document.head.appendChild(st);
+    const gear = document.createElement('button');
+    gear.className = 'ac-gear';
+    gear.type = 'button';
+    gear.title = 'Instellingen';
+    gear.setAttribute('aria-label', 'Instellingen');
+    gear.innerHTML = GEAR;
+    document.body.appendChild(gear);
+    ov = document.createElement('div');
+    ov.className = 'ac-ov';
+    ov.innerHTML = `
+      <div class="ac-card" role="dialog" aria-label="Instellingen">
+        <div class="ac-head"><b>⚙ Instellingen</b><button class="ac-x" type="button" aria-label="Sluiten">✕</button></div>
+        <div class="ac-row"><div class="ac-lab">🎵 Muziek <span id="acMv"></span></div><input type="range" min="0" max="100" id="acM"></div>
+        <div class="ac-row"><div class="ac-lab">🔊 Geluidseffecten <span id="acSv"></span></div><input type="range" min="0" max="100" id="acS"></div>
+        <div class="ac-row"><label class="ac-check"><input type="checkbox" id="acMute"> Alles dempen (sneltoets M)</label></div>
+        <div class="ac-row"><div class="ac-lab">🖥 Beeldkwaliteit</div>
+          <div class="ac-seg"><button type="button" data-q="laag">Laag</button><button type="button" data-q="normaal">Normaal</button><button type="button" data-q="hoog">Hoog</button></div>
+          <div class="ac-hint">Laag = soepeler op oudere laptops en telefoons. Hoog = scherper beeld.</div></div>
+        <button class="ac-danger" type="button">🗑 Alle records wissen</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const $ = (id) => ov.querySelector('#' + id);
+    const refresh = () => {
+      $('acM').value = Math.round(S.music * 100); $('acMv').textContent = Math.round(S.music * 100) + '%';
+      $('acS').value = Math.round(S.sfx * 100); $('acSv').textContent = Math.round(S.sfx * 100) + '%';
+      $('acMute').checked = !!S.muted;
+      ov.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('on', b.dataset.q === S.quality));
+    };
+    refresh();
+    listeners.push(refresh);
+    $('acM').addEventListener('input', (e) => { set('music', e.target.value / 100); startIfWanted(); });
+    $('acS').addEventListener('input', (e) => set('sfx', e.target.value / 100));
+    $('acS').addEventListener('change', () => { if (window.Arcade) Arcade.beep(660, 0.08, 'triangle', 0.06); });
+    $('acMute').addEventListener('change', (e) => set('muted', e.target.checked));
+    ov.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => set('quality', b.dataset.q)));
+    ov.querySelector('.ac-danger').addEventListener('click', () => {
+      if (!confirm('Weet je zeker dat je ALLE records, medailles en spookauto\'s wilt wissen? Dit kan niet ongedaan worden.')) return;
+      const kill = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (/^arcade_(best_|2048_state)|^tt2_(bests|ghost)/.test(k)) kill.push(k);
+      }
+      kill.forEach((k) => localStorage.removeItem(k));
+      location.reload();
+    });
+    const close = () => ov.classList.remove('open');
+    ov.querySelector('.ac-x').addEventListener('click', close);
+    ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
+    // Toetsen in het paneel niet doorgeven aan de game
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); e.stopPropagation(); });
+    gear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ov.classList.add('open');
+      // Games pauzeren als het venster de focus verliest: dat doen we hier ook
+      window.dispatchEvent(new Event('blur'));
+      gear.blur();
+    });
+    gear.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM' && !(ov && ov.classList.contains('open'))) set('muted', !S.muted);
+  });
+  if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
+
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
+  return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
+    get settings() { return S; },
+    set, sfx, musicVol, dprCap, music,
+    onChange: (f) => listeners.push(f),
+    isOpen: () => !!(ov && ov.classList.contains('open')),
+  };
+})();
+
+
+// ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
+const Arcade = (() => {
+  const load = (k, d) => { try { const v = localStorage.getItem('arcade_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem('arcade_' + k, JSON.stringify(v)); } catch (e) { /* uit */ } };
+  let audio = null;
+
+  function initAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  addEventListener('pointerdown', initAudio);
+  addEventListener('keydown', initAudio);
+
+  let sfxBus = null, noiseBuf = null;
+  function bus() {
+    if (sfxBus || !audio) return sfxBus;
+    // zachte filter + compressor: effecten klinken voller en minder schel
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const comp = audio.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    lp.connect(comp); comp.connect(audio.destination);
+    sfxBus = lp;
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return sfxBus;
+  }
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    vol *= level * 1.25 * (type === 'square' || type === 'sawtooth' ? 0.8 : 1.1);
+    try {
+      const t = audio.currentTime + delay;
+      const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+      o.type = o2.type = type;
+      o.frequency.setValueAtTime(freq, t); o2.frequency.setValueAtTime(freq, t); o2.detune.value = 7;
+      if (slide) { o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); o2.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      const g2 = audio.createGain(); g2.gain.value = 0.5;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.connect(bus());
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Ruisgeluid: knal, plof, zoef, explosie
+  function noise(dur = 0.2, vol = 0.1, f0 = 3000, f1 = 300, type = 'lowpass', delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      bus();
+      const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+      s.buffer = noiseBuf; f.type = type;
+      f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      g.gain.setValueAtTime(vol * level * 1.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(sfxBus);
+      s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Effecten: deeltjes, schudden, zwevende tekst (zelfde stijl in elke game)
+  function makeFx() {
+    const parts = [], texts = [], rings = [];
+    let shakeT = 0, shakeA = 0, flashA = 0, flashC = '#fff';
+    return {
+      burst(x, y, n = 14, color = '#fff', speed = 180, life = 0.6, size = 3, grav = 200) {
+        const max = ArcadeCore.settings.quality === 'laag' ? 0.5 : 1;
+        for (let i = 0; i < n * max; i++) {
+          const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+          parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.6 + Math.random() * 0.4), max: life, color: Array.isArray(color) ? color[i % color.length] : color, size: size * (0.6 + Math.random() * 0.8), grav });
+        }
+        if (parts.length > 600) parts.splice(0, parts.length - 600);
+      },
+      ring(x, y, color = '#fff', r = 40, life = 0.4) { rings.push({ x, y, color, r, life, max: life }); },
+      text(x, y, t, color = '#fff', size = 18) { texts.push({ x, y, t, color, size, life: 0.9 }); },
+      shake(a = 6, t = 0.25) { shakeA = Math.max(shakeA, a); shakeT = Math.max(shakeT, t); },
+      flash(c = '#fff', a = 0.35) { flashC = c; flashA = Math.max(flashA, a); },
+      update(dt) {
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.grav * dt; p.vx *= 1 - dt * 1.5; p.x += p.vx * dt; p.y += p.vy * dt; }
+        for (let i = texts.length - 1; i >= 0; i--) { const q = texts[i]; q.life -= dt; q.y -= 40 * dt; if (q.life <= 0) texts.splice(i, 1); }
+        for (let i = rings.length - 1; i >= 0; i--) { const q = rings[i]; q.life -= dt; if (q.life <= 0) rings.splice(i, 1); }
+        shakeT = Math.max(0, shakeT - dt); if (!shakeT) shakeA = 0;
+        flashA = Math.max(0, flashA - dt * 2.5);
+      },
+      // roep aan vóór het tekenen van de wereld (ctx.save gebeurt hier)
+      begin(ctx) { ctx.save(); if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeA * 2, (Math.random() - 0.5) * shakeA * 2); },
+      end(ctx) { ctx.restore(); },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const q of rings) { const k = 1 - q.life / q.max; ctx.globalAlpha = 1 - k; ctx.strokeStyle = q.color; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.3 + k), 0, Math.PI * 2); ctx.stroke(); }
+        for (const q of texts) { ctx.globalAlpha = Math.min(1, q.life * 2); text(ctx, q.t, q.x, q.y, q.size, q.color, 'center', '900'); }
+        ctx.restore();
+      },
+      drawFlash(ctx, W, H) { if (flashA > 0) { ctx.save(); ctx.globalAlpha = flashA; ctx.fillStyle = flashC; ctx.fillRect(0, 0, W, H); ctx.restore(); } },
+      clear() { parts.length = 0; texts.length = 0; rings.length = 0; shakeT = 0; },
+      get count() { return parts.length; },
+    };
+  }
+
+  // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
+  function canvas(id, W, H) {
+    const c = document.getElementById(id);
+    const ctx = c.getContext('2d');
+    const view = { W, H, scale: 1 };
+    const fit = () => {
+      const s = Math.min(innerWidth / W, innerHeight / H);
+      const dpr = Math.min(ArcadeCore.dprCap(), devicePixelRatio || 1);
+      c.style.width = Math.floor(W * s) + 'px';
+      c.style.height = Math.floor(H * s) + 'px';
+      c.width = Math.floor(W * s * dpr);
+      c.height = Math.floor(H * s * dpr);
+      view.scale = s * dpr;
+      ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    };
+    fit();
+    addEventListener('resize', fit);
+    ArcadeCore.onChange(fit);
+    view.begin = () => ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    view.toGame = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    };
+    return { c, ctx, view };
+  }
+
+  // Vegen (swipe) op touchscreens: geeft 'links', 'rechts', 'op' of 'neer'
+  function onSwipe(el, fn, onTap) {
+    let sx = 0, sy = 0, st = 0, active = false;
+    el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; st = performance.now(); active = true; });
+    el.addEventListener('pointerup', (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (onTap) onTap(e); return; }
+      if (Math.abs(dx) > Math.abs(dy)) fn(dx > 0 ? 'rechts' : 'links');
+      else fn(dy > 0 ? 'neer' : 'op');
+    });
+  }
+
+  // Tekenhulpjes in dezelfde stijl
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function text(ctx, t, x, y, size, color = '#fff', align = 'center', weight = '700', mono = false) {
+    ctx.font = `${weight} ${size}px ${mono ? 'ui-monospace, Consolas, monospace' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, x, y);
+  }
+  // Knoppen op het canvas (zelfde stijl overal). btn() elke frame opnieuw tekenen; hit() bij klikken.
+  function ui(ctx) {
+    let list = [], hover = null;
+    return {
+      clear() { list = []; },
+      btn(label, x, y, w, h, fn, primary = false, active = false, size = 0) {
+        const on = hover && hover.x >= x && hover.x <= x + w && hover.y >= y && hover.y <= y + h;
+        const g = ctx.createLinearGradient(0, y, 0, y + h);
+        if (primary || active) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe2e6'); }
+        else { g.addColorStop(0, on ? '#30343c' : '#262930'); g.addColorStop(1, on ? '#24272d' : '#1b1d22'); }
+        ctx.fillStyle = g; rr(ctx, x, y, w, h, Math.min(10, h / 3)); ctx.fill();
+        ctx.strokeStyle = primary || active ? 'rgba(255,255,255,0.6)' : on ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, label, x + w / 2, y + h / 2 + 1, size || Math.min(16, h * 0.4), primary || active ? '#111214' : '#ffffff', 'center', '800');
+        list.push({ x, y, w, h, fn });
+      },
+      hit(q) { for (let i = list.length - 1; i >= 0; i--) { const b = list[i]; if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return true; } } return false; },
+      hover(q) { hover = q; },
+    };
+  }
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  // Standaard scherm voor start / pauze / game over
+  function overlay(ctx, W, H, title, lines = [], hint = '') {
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(10, 11, 14, 0.55)'); g.addColorStop(1, 'rgba(4, 5, 7, 0.85)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 40, 400), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const x = (W - pw) / 2, y = (H - ph) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    const cg = ctx.createLinearGradient(0, y, 0, y + ph);
+    cg.addColorStop(0, 'rgba(32, 35, 42, 0.97)'); cg.addColorStop(1, 'rgba(18, 20, 24, 0.97)');
+    ctx.fillStyle = cg;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.stroke();
+    ctx.fillStyle = '#e8282f';
+    rr(ctx, W / 2 - 24, y + 78, 48, 3, 1.5); ctx.fill();
+    text(ctx, title, W / 2, y + 48, 32, '#fff', 'center', '900');
+    lines.forEach((l, i) => {
+      const s = typeof l === 'string' ? { t: l } : l;
+      text(ctx, s.t, W / 2, y + 108 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+    });
+    if (hint) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 450)); text(ctx, hint, W / 2, y + ph - 30, 15, '#ffffff', 'center', '700'); ctx.globalAlpha = 1; }
+  }
+  // Achtergrond met diepte: zacht licht in het midden + vignet
+  function backdrop(ctx, W, H, top = '#15171c', bottom = '#0a0b0e') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.035)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+
+  return {
+    load, save, beep, noise, makeFx, backdrop, ui, fmtTime,
+    get muted() { return !ArcadeCore.sfx(); },
+    best: (game) => load('best_' + game, 0),
+    // Slaat een nieuwe topscore op; geeft true terug als het een record is
+    record: (game, score, lowerIsBetter = false) => {
+      const b = load('best_' + game, 0);
+      if (!b || (lowerIsBetter ? score < b : score > b)) { save('best_' + game, score); return true; }
+      return false;
+    },
+    canvas, onSwipe, rr, text, overlay,
+    touch: matchMedia('(hover: none) and (pointer: coarse)').matches,
+  };
+})();
+
+ArcadeCore.music.play('moto');
+
+// ================= MOTO STUNT · kern: levels en natuurkunde =================
+// Wereld in pixels, y naar beneden. De baan is één lange lijn van punten;
+// je kunt alleen aan de 'bovenkant' rijden (links van de rijrichting), zo werken loopings.
+const MOTO = (() => {
+  const G = 1400;                        // zwaartekracht
+  const WR = 17;                         // wielstraal
+  const AX = 34, AY = 20;                // positie van de wielen t.o.v. het midden van de motor
+  const HEAD = { x: -2, y: -50, r: 11 }; // helm van de rijder
+  const BODY = { x: 0, y: -16, r: 13 };  // romp
+  const INERTIA = 1500;                  // hoe 'zwaar' de motor draait
+  const MAXV = 1000, ACC = 1150, BRAKE = 1700, REV = 180;
+  const BOOSTV = 1320;
+  const WIN = 30;                        // aantal stukken baan rondom de motor die meetellen
+  const SUB = 10;                        // natuurkunde-stapjes per beeld
+
+  // ---------- baan bouwen ----------
+  function builder() {
+    const P = [{ x: 0, y: 0 }];
+    const objs = [], cps = [], deco = [], zones = [];
+    let x = 0, y = 0;
+    const add = (nx, ny, f = {}) => { P.push({ x: nx, y: ny, d: !!f.d, nf: !!f.nf, loop: !!f.loop, boost: !!f.boost }); x = nx; y = ny; };
+    const curve = (len, fy, n) => { const x0 = x, y0 = y; n = n || Math.max(2, Math.round(len / 18)); for (let i = 1; i <= n; i++) { const t = i / n; add(x0 + len * t, y0 + fy(t)); } };
+    const B = {
+      get x() { return x; }, get y() { return y; },
+      flat(len) { add(x + len, y); return B; },
+      slope(len, dy) { curve(len, (t) => dy * (1 - Math.cos(Math.PI * t)) / 2); return B; },
+      hill(len, h) { curve(len, (t) => -h * (1 - Math.cos(2 * Math.PI * t)) / 2); return B; },
+      valley(len, h) { curve(len, (t) => h * (1 - Math.cos(2 * Math.PI * t)) / 2); return B; },
+      bumps(n, w, h) { for (let i = 0; i < n; i++) B.hill(w, h); return B; },
+      // schans: loopt steeds steiler op
+      kicker(len, h) { curve(len, (t) => -h * t * t, Math.max(4, Math.round(len / 14))); return B; },
+      // kuil met spijkers; je moet erover springen. landDy = hoeveel lager de landing ligt
+      pit(w, depth = 420, landDy = 0) {
+        const x0 = x, y0 = y;
+        add(x0 + 2, y0 + depth);
+        const n = Math.max(3, Math.round(w / 34));
+        for (let i = 0; i < n; i++) {
+          add(x0 + 2 + (w - 4) * (i + 0.5) / n, y0 + depth - 26, { d: true });
+          add(x0 + 2 + (w - 4) * (i + 1) / n, y0 + depth, { d: true });
+        }
+        add(x0 + w, y0 + landDy);
+        zones.push({ x0: x0 + 4, x1: x0 + w - 4, y: y0 + Math.min(depth - 90, Math.max(landDy, 0) + 120) });
+        return B;
+      },
+      // looping: rond tegen de klok in (op het scherm), met een kleine verschuiving zodat in- en uitgang niet botsen
+      boost(len = 220) { add(x + len, y, { boost: true }); return B; },
+      loop(R = 130) {
+        B.boost(220);   // turbostrook vlak voor de looping
+        const x0 = x, y0 = y, n = 76, shift = 60;
+        for (let i = 1; i <= n; i++) {
+          const t = i / n, th = Math.PI / 2 - t * Math.PI * 2;
+          const cx = x0 + shift * t;
+          add(cx + R * Math.cos(th), y0 - R + R * Math.sin(th), { nf: true, loop: true });
+        }
+        P[P.length - 1].loop = false;
+        return B;
+      },
+      barrel(dx = 0, up = 0) { objs.push({ type: 'barrel', x: x + dx, y: y - 22 - up, r: 20 }); return B; },
+      checkpoint() { cps.push({ x: x, y: y }); return B; },
+      tree(dx) { deco.push({ type: 'tree', x: x + dx, y }); return B; },
+      sign(dx, t) { deco.push({ type: 'sign', x: x + dx, y, t }); return B; },
+      finish() { const fx = x + 120; B.flat(900); return { P, objs, cps, deco, zones, finishX: fx }; },
+    };
+    B.flat(420);
+    return B;
+  }
+
+  // ---------- levels ----------
+  // Elk level bestaat uit stukken; tussen de stukken staat een checkpoint.
+  const SEC = {
+    A: (b) => b.flat(300).hill(600, 70).flat(150).hill(500, 50).flat(200).slope(500, -140).flat(250).slope(500, 140).flat(200),
+    B: (b) => b.flat(400).kicker(220, 55).flat(500).hill(500, 60).flat(200),
+    C: (b) => b.flat(300).bumps(4, 300, 42).flat(300),
+    D: (b) => b.flat(450).kicker(200, 60).pit(240, 380, 40).flat(400),
+    E: (b) => b.flat(600).loop().flat(400),
+    F: (b) => b.flat(300).slope(500, 200).flat(250).kicker(260, 90).pit(420, 450, 120).slope(400, 100).flat(300),
+    G: (b) => b.flat(450).kicker(200, 70).barrel(170).flat(550),
+    H: (b) => b.flat(450).kicker(220, 75).barrel(150).barrel(205).flat(600),
+    I: (b) => b.flat(300).valley(700, 170).hill(600, 150).flat(300),
+    J: (b) => b.flat(300).slope(400, -250).flat(150).slope(400, 250).flat(250),
+    K: (b) => b.flat(700).loop().flat(120).loop().flat(400),
+    L: (b) => b.flat(200).slope(500, 260).flat(150).kicker(240, 80).pit(360, 420, 100).flat(400),
+    M: (b) => b.flat(300).slope(600, -300).flat(200).kicker(200, 50).flat(400).slope(500, 300).flat(200),
+  };
+  const seq = (list) => (b) => { list.split('').forEach((k, i) => { if (i) b.checkpoint(); SEC[k](b); }); return b.finish(); };
+  const LEVELS = [
+    { name: 'Opwarmen', parts: 'ABCAB' },
+    { name: 'Hobbels', parts: 'CDACDB' },
+    { name: 'Eerste looping', parts: 'AEBDEC' },
+    { name: 'Grote sprong', parts: 'BFDLAF' },
+    { name: 'Tonnen', parts: 'GAHDGCH' },
+    { name: 'Achtbaan', parts: 'IEIDLE' },
+    { name: 'Steile wanden', parts: 'JMJFLJ' },
+    { name: 'Dubbele looping', parts: 'KGEDKH' },
+    { name: 'Gevarenzone', parts: 'DHFGLHDG' },
+    { name: 'Finale', parts: 'FEHKLGJKFH' },
+  ];
+  // sterrentijden (3 sterren, 2 sterren), gemeten met een computer-coureur
+  const STARS = [[15, 21], [15, 21], [15, 21], [16, 22], [15, 20], [16, 22], [16, 21], [15, 20], [15, 21], [24, 33]];
+  LEVELS.forEach((l, i) => { l.build = seq(l.parts); l.stars = STARS[i]; });
+
+  function makeLevel(i) {
+    const lv = LEVELS[i].build(builder());
+    lv.name = LEVELS[i].name;
+    const P = lv.P;
+    // segmenten met normaal (rijkant = links van de rijrichting)
+    const S = [];
+    for (let k = 1; k < P.length; k++) {
+      const a = P[k - 1], b = P[k], dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+      S.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, dx: dx / len, dy: dy / len, nx: dy / len, ny: -dx / len, len, d: b.d, nf: b.nf, loop: b.loop, boost: b.boost });
+    }
+    lv.S = S;
+    lv.startX = 160;
+    return lv;
+  }
+
+  // dichtstbijzijnde punt op een segment
+  function closest(s, px, py) {
+    let t = ((px - s.ax) * s.dx + (py - s.ay) * s.dy);
+    t = Math.max(0, Math.min(s.len, t));
+    return { x: s.ax + s.dx * t, y: s.ay + s.dy * t };
+  }
+  function segIndexAt(lv, x) {   // eerste niet-looping-segment op deze x (voor start/checkpoints)
+    for (let i = 0; i < lv.S.length; i++) { const s = lv.S[i]; if (!s.loop && x >= Math.min(s.ax, s.bx) && x <= Math.max(s.ax, s.bx) && Math.abs(s.dx) > 0.2) return i; }
+    return 0;
+  }
+  function groundAt(lv, i, x) { const s = lv.S[i]; const t = (x - s.ax) / ((s.bx - s.ax) || 1); return { y: s.ay + (s.by - s.ay) * t, a: Math.atan2(s.by - s.ay, s.bx - s.ax) }; }
+
+  function spawn(lv, x) {
+    const si = segIndexAt(lv, x), g = groundAt(lv, si, x);
+    const ca = Math.cos(g.a), sa = Math.sin(g.a);
+    return { x: x - sa * -(AY + WR + 2) + 0, y: g.y - (AY + WR + 2) * ca, a: g.a, vx: 0, vy: 0, w: 0, si, gr: [false, false], rt: [Math.cos(g.a), Math.sin(g.a)], air: 0, flipAcc: 0, spin: 0, dead: false, deadWhy: '' };
+  }
+
+  // lokaal punt van de motor -> wereld
+  function world(b, lx, ly) { const c = Math.cos(b.a), s = Math.sin(b.a); return { x: b.x + c * lx - s * ly, y: b.y + s * lx + c * ly }; }
+
+  // één natuurkunde-stapje. inp = { gas, brake, lean (-1 achterover .. 1 voorover) }
+  function step(lv, b, inp, dt, opts = {}) {
+    const S = lv.S;
+    let ca = Math.cos(b.a), sa = Math.sin(b.a);
+    const grounded = b.gr[0] || b.gr[1];
+    if (!b.dead) {
+      if (b.gr[0]) {
+        // aandrijving langs de grond onder het achterwiel
+        let tx = b.rt[0], ty = b.rt[1];
+        if (tx * ca + ty * sa < 0) { tx = -tx; ty = -ty; }
+        const vf = b.vx * tx + b.vy * ty;
+        const maxv = MAXV * (opts.turbo ? 1.45 : 1);
+        if (inp.gas && vf < maxv) { const add = Math.min(ACC * (opts.turbo ? 1.6 : 1) * dt, maxv - vf); b.vx += tx * add; b.vy += ty * add; }
+        if (inp.brake) { const target = -REV; if (vf > target) { const sub = Math.min(BRAKE * dt, vf - target); b.vx -= tx * sub; b.vy -= ty * sub; } }
+      }
+      const lean = inp.lean || 0;
+      b.w += lean * (grounded ? 11 : 13) * dt;
+      if (inp.gas && b.gr[0] && !b.gr[1]) b.w -= 1.2 * dt;   // wheelie bij gas op het achterwiel
+    }
+    b.w = Math.max(-8.5, Math.min(8.5, b.w));
+    b.w *= 1 - (grounded ? 1.2 : 0.25) * dt;
+    b.vy += G * dt;
+    b.x += b.vx * dt; b.y += b.vy * dt; b.a += b.w * dt;
+    if (!grounded) b.flipAcc += b.w * dt;
+
+    // welk stuk baan is het dichtst bij?
+    let best = b.si, bd = Infinity;
+    const lo = Math.max(0, b.si - WIN), hi = Math.min(S.length - 1, b.si + WIN);
+    for (let i = lo; i <= hi; i++) { const q = closest(S[i], b.x, b.y); const d = (q.x - b.x) ** 2 + (q.y - b.y) ** 2; if (d < bd) { bd = d; best = i; } }
+    b.si = best;
+    const lo2 = Math.max(0, b.si - WIN), hi2 = Math.min(S.length - 1, b.si + WIN);
+
+    // wielen
+    ca = Math.cos(b.a); sa = Math.sin(b.a);
+    b.gr[0] = b.gr[1] = false;
+    for (let wi = 0; wi < 2; wi++) {
+      const lx = wi ? AX : -AX;
+      for (let it = 0; it < 2; it++) {
+        const P = world(b, lx, AY);
+        let hit = null, hd = WR;
+        for (let i = lo2; i <= hi2; i++) {
+          const s = S[i], q = closest(s, P.x, P.y), vx = P.x - q.x, vy = P.y - q.y, d = Math.hypot(vx, vy);
+          if (d >= hd || d < 1e-6) continue;
+          if (vx * s.nx + vy * s.ny < -2) continue;  // achterkant van de baan: negeren
+          hd = d; hit = { s, nx: vx / d, ny: vy / d, pen: WR - d };
+        }
+        if (!hit) break;
+        if (hit.s.d && !opts.god) { kill(b, 'spikes'); }
+        if (hit.s.boost && !b.dead) {   // turbostrook: meteen hard vooruit
+          const vf = b.vx * hit.s.dx + b.vy * hit.s.dy;
+          if (vf < BOOSTV) { b.vx += hit.s.dx * (BOOSTV - vf); b.vy += hit.s.dy * (BOOSTV - vf); b.boosted = 0.6; }
+        }
+        b.gr[wi] = true;
+        if (wi === 0) { b.rt[0] = -hit.ny; b.rt[1] = hit.nx; }
+        b.x += hit.nx * hit.pen; b.y += hit.ny * hit.pen;
+        const rx = P.x - b.x, ry = P.y - b.y;
+        const vpx = b.vx - b.w * ry, vpy = b.vy + b.w * rx;
+        const vn = vpx * hit.nx + vpy * hit.ny;
+        if (vn < 0) {
+          const rn = rx * hit.ny - ry * hit.nx, k = 1 + (rn * rn) / INERTIA;
+          const j = -(1.08) * vn / k;
+          b.vx += j * hit.nx; b.vy += j * hit.ny; b.w += (rn * j) / INERTIA;
+        }
+        if (inp.brake && !b.dead) { // rem = ook grip langs de baan
+          const tx = -hit.ny, ty = hit.nx, vt = (b.vx - b.w * ry) * tx + (b.vy + b.w * rx) * ty;
+          const jt = -vt * Math.min(1, 3 * dt);
+          b.vx += jt * tx; b.vy += jt * ty;
+        }
+      }
+    }
+    if (b.gr[0] || b.gr[1]) {
+      // net geland: flips tellen
+      if (b.air > 0.25 && !b.dead) {
+        const flips = Math.floor((Math.abs(b.flipAcc) + 0.9) / (Math.PI * 2));
+        if (flips > 0) b.landFlips = (b.landFlips || 0) + flips;
+      }
+      b.air = 0; b.flipAcc = 0;
+    } else b.air += dt;
+
+    // helm of romp tegen de grond = crash
+    if (!b.dead && !opts.god) {
+      for (const part of [HEAD, BODY]) {
+        const P = world(b, part.x, part.y);
+        for (let i = lo2; i <= hi2; i++) {
+          const s = S[i], q = closest(s, P.x, P.y), vx = P.x - q.x, vy = P.y - q.y, d = Math.hypot(vx, vy);
+          if (d < part.r && vx * s.nx + vy * s.ny > -2) { kill(b, part === HEAD ? 'head' : 'body'); break; }
+        }
+        if (b.dead) break;
+      }
+    }
+    // tonnen
+    for (const o of lv.objs) {
+      if (o.gone || o.type !== 'barrel') continue;
+      if (Math.abs(o.x - b.x) > 140) continue;
+      for (const pt of [world(b, -AX, AY), world(b, AX, AY), world(b, HEAD.x, HEAD.y), world(b, BODY.x, BODY.y)]) {
+        if (Math.hypot(pt.x - o.x, pt.y - o.y) < o.r + 12) { o.gone = true; o.boom = true; if (!opts.god) kill(b, 'barrel'); else b.vy -= 300; break; }
+      }
+    }
+    // wielen draaien (voor het tekenen)
+    b.spin += ((b.vx * ca + b.vy * sa) / WR) * dt;
+    // in een kuil gevallen
+    if (!b.dead && !opts.god) for (const z of lv.zones) if (b.x > z.x0 && b.x < z.x1 && b.y > z.y) { kill(b, 'fall'); break; }
+    if (b.y > 4000 && !b.dead) kill(b, 'fall');
+  }
+  function kill(b, why) { if (!b.dead) { b.dead = true; b.deadWhy = why; } }
+
+  return { G, WR, AX, AY, HEAD, BODY, SUB, LEVELS, makeLevel, spawn, step, world, segIndexAt, groundAt };
+})();
+// ================= MOTO STUNT · spel, tekenen en menu =================
+const W = 1280, H = 720;
+const { c, ctx, view } = Arcade.canvas('c', W, H);
+const GAME = 'moto';
+const ui = Arcade.ui(ctx);
+const RED = '#e8282f';
+const NLV = MOTO.LEVELS.length;
+
+// ---------- opslag ----------
+let bests = Arcade.load('moto_bests', {});          // { level: beste tijd }
+const starsFor = (i, t) => (t == null ? 0 : t <= MOTO.LEVELS[i].stars[0] ? 3 : t <= MOTO.LEVELS[i].stars[1] ? 2 : 1);
+const totalStars = () => MOTO.LEVELS.reduce((s, _, i) => s + starsFor(i, bests[i]), 0);
+const unlocked = (i) => i === 0 || bests[i - 1] != null || Arcade.load('moto_unlockall', false);
+function saveBests() {
+  Arcade.save('moto_bests', bests);
+  const tot = totalStars();
+  if (tot > 0) Arcade.save('best_moto', Math.max(tot, Arcade.load('best_moto', 0) || 0));
+}
+
+// ---------- spelstatus ----------
+let state = 'menu';            // menu | play | pause | done
+let li = 0, lv = null, bike = null, cp = null, t = 0, started = false, crashT = 0, doneT = 0;
+let flips = 0, result = null, rider = null, camX = 0, camY = 0, zoom = 1, menuScroll = 0;
+const pops = [];               // zwevende teksten (scherm)
+const parts = [];              // deeltjes (wereld)
+const CHEAT = { god: false, turbo: false };
+const keys = {};
+const touchBtns = {};          // actieve touch-knoppen
+
+function startLevel(i) {
+  li = i; lv = MOTO.makeLevel(i);
+  bike = MOTO.spawn(lv, lv.startX);
+  cp = null; t = 0; started = false; crashT = 0; flips = 0; result = null; rider = null;
+  parts.length = 0; pops.length = 0;
+  camX = bike.x; camY = bike.y;
+  state = 'play';
+  for (const k in keys) keys[k] = false;
+}
+function respawn() {
+  const x = cp ? cp.x + 40 : lv.startX;
+  bike = MOTO.spawn(lv, x);
+  rider = null; crashT = 0;
+  lv.objs.forEach((o) => { if (o.x > x) { o.gone = false; o.boom = false; } });
+}
+
+// ---------- invoer ----------
+function input() {
+  const tb = touchBtns;
+  const gas = keys.ArrowUp || keys.KeyW || tb.gas;
+  const brake = keys.ArrowDown || keys.KeyS || tb.brake;
+  const back = keys.ArrowLeft || keys.KeyA || tb.back;
+  const fwd = keys.ArrowRight || keys.KeyD || tb.fwd;
+  return { gas: !!gas, brake: !!brake, lean: (fwd ? 1 : 0) - (back ? 1 : 0) };
+}
+addEventListener('keydown', (e) => {
+  if (e.target && e.target.tagName === 'INPUT') return;
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+  keys[e.code] = true;
+  if (state === 'play') {
+    if (e.code === 'KeyR') startLevel(li);
+    if (e.code === 'Escape' || e.code === 'KeyP') state = 'pause';
+    if (e.code === 'Enter' && bike.dead) respawn();
+  } else if (state === 'pause') {
+    if (e.code === 'Escape' || e.code === 'KeyP' || e.code === 'Enter') state = 'play';
+    if (e.code === 'KeyR') startLevel(li);
+  } else if (state === 'done' && doneT > 0.6) {
+    if (e.code === 'Enter') { if (li + 1 < NLV && unlocked(li + 1)) startLevel(li + 1); else state = 'menu'; }
+    if (e.code === 'KeyR') startLevel(li);
+    if (e.code === 'Escape') state = 'menu';
+  } else if (state === 'menu') {
+    if (e.code === 'Enter') { let i = 0; for (let k = 0; k < NLV; k++) if (unlocked(k)) i = k; for (let k = 0; k < NLV; k++) if (unlocked(k) && bests[k] == null) { i = k; break; } startLevel(i); }
+  }
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; for (const k in touchBtns) touchBtns[k] = false; });
+
+// touch: knoppen onderin; meerdere vingers tegelijk
+const TB = () => {
+  const s = 118, m = 24, y = H - s - m;
+  return { back: [m, y, s, s], fwd: [m + s + 16, y, s, s], brake: [W - m - s * 2 - 16, y, s, s], gas: [W - m - s, y, s, s] };
+};
+const pointers = new Map();
+function zoneAt(q) { const z = TB(); for (const k in z) { const [x, y, w, h] = z[k]; if (q.x >= x - 10 && q.x <= x + w + 10 && q.y >= y - 10 && q.y <= y + h + 10) return k; } return null; }
+function syncTouch() { for (const k of ['back', 'fwd', 'brake', 'gas']) touchBtns[k] = false; for (const z of pointers.values()) if (z) touchBtns[z] = true; }
+c.addEventListener('pointerdown', (e) => {
+  const q = view.toGame(e);
+  if (state === 'play' && e.pointerType !== 'mouse') {
+    // pauzeknop
+    if (q.x > W - 140 && q.x < W - 66 && q.y < 70) { state = 'pause'; return; }
+    pointers.set(e.pointerId, zoneAt(q)); syncTouch();
+    if (bike && bike.dead && crashT > 0.4) respawn();
+    return;
+  }
+  if (state === 'play' && q.x > W - 140 && q.x < W - 66 && q.y < 70) { state = 'pause'; return; }
+  ui.hit(q);
+});
+c.addEventListener('pointermove', (e) => {
+  const q = view.toGame(e); ui.hover(q);
+  if (pointers.has(e.pointerId)) { pointers.set(e.pointerId, zoneAt(q)); syncTouch(); }
+});
+const up = (e) => { pointers.delete(e.pointerId); syncTouch(); };
+c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
+c.addEventListener('wheel', (e) => { if (state === 'menu') menuScroll = Math.max(0, Math.min(1, menuScroll + Math.sign(e.deltaY) * 0.5)); }, { passive: true });
+
+// ---------- motorgeluid ----------
+let actx = null, eng = null;
+function engine(on, speed, gas) {
+  if (!actx) {
+    if (!on) return;
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      const o1 = actx.createOscillator(), o2 = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+      o1.type = 'sawtooth'; o2.type = 'square'; o2.detune.value = 7;
+      f.type = 'lowpass'; f.frequency.value = 700; f.Q.value = 3;
+      g.gain.value = 0;
+      o1.connect(f); o2.connect(f); f.connect(g); g.connect(actx.destination);
+      o1.start(); o2.start();
+      eng = { o1, o2, f, g };
+    } catch (e) { return; }
+  }
+  if (actx.state === 'suspended') actx.resume();
+  const vol = on && !Arcade.muted ? (gas ? 0.045 : 0.025) : 0;
+  const hz = 42 + Math.min(1, speed / 1100) * 95 + (gas ? 12 : 0);
+  const now = actx.currentTime;
+  eng.g.gain.setTargetAtTime(vol, now, 0.06);
+  eng.o1.frequency.setTargetAtTime(hz, now, 0.05);
+  eng.o2.frequency.setTargetAtTime(hz * 0.5, now, 0.05);
+  eng.f.frequency.setTargetAtTime(500 + hz * 6, now, 0.05);
+}
+
+// ---------- effecten ----------
+function burst(x, y, n, cols, spd = 300, life = 0.7, size = 5, grav = 900) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = spd * (0.25 + Math.random() * 0.75);
+    parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - spd * 0.3, life: life * (0.5 + Math.random() * 0.5), max: life, c: cols[i % cols.length], s: size * (0.5 + Math.random()), g: grav });
+  }
+  if (parts.length > 700) parts.splice(0, parts.length - 700);
+}
+function pop(text, color = '#fff', size = 40) { pops.push({ text, color, size, life: 1.3 }); }
+
+// ---------- spel bijwerken ----------
+function update(dt) {
+  for (let i = pops.length - 1; i >= 0; i--) { pops[i].life -= dt; if (pops[i].life <= 0) pops.splice(i, 1); }
+  for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+  if (state === 'done') doneT += dt;
+  if (state !== 'play') { engine(false, 0, false); return; }
+
+  const inp = input();
+  if (!started && (inp.gas || inp.lean || inp.brake)) started = true;
+  if (started && !bike.dead && state === 'play') t += dt;
+
+  const sub = MOTO.SUB, h = dt / sub;
+  const wasAir = bike.air > 0.25;
+  for (let k = 0; k < sub; k++) MOTO.step(lv, bike, bike.dead ? { gas: false, brake: false, lean: 0 } : inp, h, CHEAT);
+
+  // stof bij het rijden
+  if (!bike.dead && bike.gr[0] && inp.gas && Math.random() < 0.6) {
+    const p = MOTO.world(bike, -MOTO.AX, MOTO.AY + MOTO.WR);
+    parts.push({ x: p.x, y: p.y, vx: -bike.vx * 0.15 + (Math.random() - 0.5) * 60, vy: -40 - Math.random() * 60, life: 0.5, max: 0.5, c: 'rgba(150,145,138,0.6)', s: 6 + Math.random() * 6, g: -30, dust: true });
+  }
+  if (bike.boosted > 0) { bike.boosted -= dt; const p = MOTO.world(bike, -MOTO.AX - 10, 0); burst(p.x, p.y, 2, ['#ff6b70', '#ffb3b5', '#fff'], 120, 0.35, 5, 0); }
+  if (bike.boostSnd !== bike.boosted > 0 && bike.boosted > 0.5) { Arcade.noise(0.4, 0.06, 4000, 800, 'bandpass'); }
+  bike.boostSnd = bike.boosted > 0;
+
+  // flips
+  if (bike.landFlips) {
+    const n = bike.landFlips; bike.landFlips = 0;
+    flips += n; t = Math.max(0, t - n);
+    pop(n > 1 ? `${n}x FLIP!  −${n} sec` : 'FLIP!  −1 sec', '#ffffff', 46);
+    Arcade.beep(660, 0.08, 'square', 0.05); Arcade.beep(990, 0.12, 'square', 0.05, 0, 0.08);
+  }
+  // landing-stof
+  if (wasAir && (bike.gr[0] || bike.gr[1]) && !bike.dead) {
+    const p = MOTO.world(bike, 0, MOTO.AY + MOTO.WR);
+    for (let i = 0; i < 10; i++) parts.push({ x: p.x + (Math.random() - 0.5) * 70, y: p.y, vx: (Math.random() - 0.5) * 200, vy: -60 - Math.random() * 80, life: 0.6, max: 0.6, c: 'rgba(150,145,138,0.55)', s: 8 + Math.random() * 8, g: 60, dust: true });
+    Arcade.noise(0.12, 0.05, 900, 200);
+  }
+  // checkpoints
+  for (const q of lv.cps) if (!bike.dead && bike.x > q.x && (!cp || q.x > cp.x)) {
+    cp = q; q.hit = true; pop('CHECKPOINT', '#ffffff', 34);
+    Arcade.beep(523, 0.08, 'triangle', 0.06); Arcade.beep(784, 0.14, 'triangle', 0.06, 0, 0.08);
+  }
+  // tonnen ontploffen
+  for (const o of lv.objs) if (o.boom) {
+    o.boom = false;
+    burst(o.x, o.y, 46, ['#ff4d55', '#ffb020', '#ffe08a', '#ffffff', '#555'], 620, 0.9, 7, 700);
+    Arcade.noise(0.6, 0.18, 2500, 80); Arcade.beep(70, 0.5, 'sawtooth', 0.08, -40);
+    o.ring = 0.001;
+  }
+  for (const o of lv.objs) if (o.ring) { o.ring += dt * 2.2; if (o.ring > 1) o.ring = 0; }
+
+  // crash
+  if (bike.dead) {
+    if (crashT === 0) {
+      const hp = MOTO.world(bike, MOTO.HEAD.x, MOTO.HEAD.y);
+      rider = { x: hp.x, y: hp.y + 25, vx: bike.vx * 0.6 + (Math.random() - 0.5) * 200, vy: Math.min(bike.vy, 0) - 380, r: bike.a, w: (Math.random() < 0.5 ? -1 : 1) * 9 };
+      if (bike.deadWhy !== 'barrel') Arcade.noise(0.35, 0.14, 1800, 120);
+      burst(hp.x, hp.y, 14, ['#ffffff', '#bfc4cb', RED], 260, 0.6, 5);
+      pop('CRASH!', RED, 64);
+    }
+    crashT += dt;
+    if (rider) { rider.vy += 1400 * dt; rider.x += rider.vx * dt; rider.y += rider.vy * dt; rider.r += rider.w * dt; }
+    if (crashT > 1.25) respawn();
+  }
+  // finish
+  if (!bike.dead && bike.x > lv.finishX) finishLevel();
+
+  const sp = Math.hypot(bike.vx, bike.vy);
+  engine(!bike.dead, sp, inp.gas);
+
+  // camera: iets vooruit kijken
+  const tx = bike.x + Math.max(-150, Math.min(260, bike.vx * 0.22)), ty = bike.y - 40 + Math.max(-60, Math.min(120, bike.vy * 0.12));
+  camX += (tx - camX) * Math.min(1, dt * 5); camY += (ty - camY) * Math.min(1, dt * 4);
+  const zt = (Arcade.touch && innerHeight > innerWidth ? 0.72 : 1.0) - Math.min(0.17, sp / 6000);
+  zoom += (zt - zoom) * Math.min(1, dt * 1.5);
+}
+
+function finishLevel() {
+  state = 'done'; doneT = 0;
+  const prev = bests[li];
+  const rec = prev == null || t < prev;
+  const prevStars = starsFor(li, prev);
+  if (rec) { bests[li] = Math.round(t * 100) / 100; saveBests(); }
+  result = { t, stars: starsFor(li, t), rec, prev, flips, newStars: starsFor(li, bests[li]) - prevStars };
+  engine(false, 0, false);
+  [523, 659, 784, 1046].forEach((f, i) => Arcade.beep(f, 0.16, 'triangle', 0.07, 0, i * 0.09));
+  burst(bike.x + 80, bike.y - 80, 60, ['#ffffff', RED, '#bfc4cb'], 520, 1.1, 6, 600);
+}
+
+// ---------- tekenen: wereld ----------
+const sx = (x) => (x - camX) * zoom + W * 0.4;
+const sy = (y) => (y - camY) * zoom + H * 0.56;
+
+function drawSky() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#9fa9b6'); g.addColorStop(0.55, '#d5dae0'); g.addColorStop(1, '#eceef1');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // zon
+  const sg = ctx.createRadialGradient(W * 0.78, H * 0.2, 0, W * 0.78, H * 0.2, 220);
+  sg.addColorStop(0, 'rgba(255,255,255,0.9)'); sg.addColorStop(0.2, 'rgba(255,255,255,0.35)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
+  // lagen bergen en stad (parallax)
+  layer(0.08, 0.05, '#b9c0c9', 260, 170, 0.0021, 1.7, H * 0.52);
+  layer(0.16, 0.1, '#a6aeb9', 200, 120, 0.0043, 0.6, H * 0.6);
+  city(0.3, '#8d96a2', H * 0.7);
+}
+function layer(f, fy, col, amp, amp2, freq, seed, base) {
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, H);
+  const ox = camX * f, oy = (camY * fy) * zoom;
+  for (let x = 0; x <= W; x += 16) {
+    const wx = (x + ox) * freq;
+    const y = base - oy - (Math.sin(wx + seed) * 0.5 + 0.5) * amp * 0.6 - (Math.sin(wx * 2.3 + seed * 3) * 0.5 + 0.5) * amp2 * 0.5;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+}
+function city(f, col, base) {
+  const ox = camX * f, oy = camY * 0.15 * zoom;
+  ctx.fillStyle = col;
+  const bw = 70;
+  const first = Math.floor(ox / bw) - 1;
+  for (let i = first; i < first + W / bw + 3; i++) {
+    const r = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
+    const r2 = Math.abs(Math.sin(i * 78.233) * 12345.678) % 1;
+    const x = i * bw - ox, h = 60 + r * 170, w = bw - 8 - r2 * 14;
+    ctx.fillRect(x, base - oy - h, w, h + 400);
+    if (r > 0.75) ctx.fillRect(x + w / 2 - 2, base - oy - h - 30, 4, 30);
+  }
+}
+
+function visible(s) { const x0 = Math.min(s.ax, s.bx), x1 = Math.max(s.ax, s.bx); return sx(x1) > -60 && sx(x0) < W + 60; }
+
+// decoratie achter de baan (lantaarns, bomen, hekjes), vast per plek
+function drawDeco() {
+  const S = lv.S;
+  for (let i = 0; i < S.length; i++) {
+    const s = S[i];
+    if (s.loop || s.d || s.boost || Math.abs(s.dy) > 0.35 || !visible(s)) continue;
+    const step = 230;
+    const k0 = Math.ceil(Math.min(s.ax, s.bx) / step), k1 = Math.floor(Math.max(s.ax, s.bx) / step);
+    for (let k = k0; k <= k1; k++) {
+      const wx = k * step, r = Math.abs(Math.sin(k * 91.7) * 4375.85) % 1;
+      if (r < 0.35) continue;
+      const f = (wx - s.ax) / ((s.bx - s.ax) || 1), wy = s.ay + (s.by - s.ay) * f;
+      const x = sx(wx), y = sy(wy);
+      ctx.save(); ctx.translate(x, y); ctx.scale(zoom, zoom);
+      if (r < 0.6) {          // boom
+        ctx.fillStyle = '#6f7884'; ctx.fillRect(-3, -40, 6, 40);
+        ctx.fillStyle = '#7d8691'; ctx.beginPath(); ctx.moveTo(0, -120 - r * 40); ctx.lineTo(28, -36); ctx.lineTo(-28, -36); ctx.closePath(); ctx.fill();
+      } else if (r < 0.8) {   // lantaarnpaal
+        ctx.fillStyle = '#5b616b'; ctx.fillRect(-3, -150, 6, 150); ctx.fillRect(-3, -150, 30, 5);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(18, -146, 14, 6);
+      } else {                // hekje
+        ctx.fillStyle = '#8a919b'; for (let q = -40; q <= 40; q += 20) ctx.fillRect(q - 2, -34, 4, 34);
+        ctx.fillRect(-42, -30, 84, 4); ctx.fillRect(-42, -16, 84, 4);
+      }
+      ctx.restore();
+    }
+  }
+}
+
+function drawTrack() {
+  const S = lv.S;
+  // ondergrond: per stuk naar beneden vullen
+  const gg = ctx.createLinearGradient(0, sy(camY - 300), 0, sy(camY + 900));
+  gg.addColorStop(0, '#3a3e46'); gg.addColorStop(1, '#1b1d22');
+  ctx.fillStyle = gg;
+  ctx.beginPath();
+  for (const s of S) {
+    if (s.nf || !visible(s)) continue;
+    ctx.moveTo(sx(s.ax), sy(s.ay)); ctx.lineTo(sx(s.bx), sy(s.by)); ctx.lineTo(sx(s.bx), H + 10); ctx.lineTo(sx(s.ax), H + 10); ctx.closePath();
+  }
+  ctx.fill();
+  // lichtere bovenlaag van de grond
+  ctx.save(); ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#4c515b'; ctx.lineWidth = 34 * zoom; ctx.lineCap = 'butt'; ctx.beginPath();
+  { let open = false; const o = -17 * zoom;
+    for (const s of S) {
+      if (s.nf || !visible(s) || Math.abs(s.dx) < 0.3) { open = false; continue; }
+      if (!open) ctx.moveTo(sx(s.ax) + s.nx * o, sy(s.ay) + s.ny * o);
+      ctx.lineTo(sx(s.bx) + s.nx * o, sy(s.by) + s.ny * o); open = true;
+    } }
+  ctx.stroke();
+  // betonnen blokken in de grond
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 2;
+  const bstep = 160;
+  ctx.beginPath();
+  for (const s of S) {
+    if (s.nf || s.d || !visible(s)) continue;
+    const k0 = Math.ceil(Math.min(s.ax, s.bx) / bstep), k1 = Math.floor(Math.max(s.ax, s.bx) / bstep);
+    for (let k = k0; k <= k1; k++) { const wx = k * bstep, f = (wx - s.ax) / ((s.bx - s.ax) || 1), wy = s.ay + (s.by - s.ay) * f; ctx.moveTo(sx(wx), sy(wy) + 34 * zoom); ctx.lineTo(sx(wx), sy(wy) + 400 * zoom); }
+  }
+  ctx.stroke();
+  ctx.restore();
+  // grond onder de looping (de looping schuift iets op, daar zit anders een gat)
+  ctx.fillStyle = '#2b2e35';
+  for (let i = 1; i < S.length; i++) {
+    const s = S[i];
+    if (s.loop && !S[i - 1].loop && visible(s)) { ctx.fillRect(sx(s.ax) - 2, sy(s.ay), (60 + 4) * zoom, H); ctx.fillStyle = '#4c515b'; ctx.fillRect(sx(s.ax) - 2, sy(s.ay), (60 + 4) * zoom, 34 * zoom); ctx.fillStyle = '#2b2e35'; }
+  }
+  // wegdek: donkere band met lichte rand
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const path = (filter) => {
+    ctx.beginPath(); let open = false, lx = null, ly = null;
+    for (const s of S) {
+      if (!visible(s) || !filter(s)) { open = false; continue; }
+      const ax = sx(s.ax), ay = sy(s.ay);
+      if (!open || lx !== ax || ly !== ay) ctx.moveTo(ax, ay);
+      ctx.lineTo(sx(s.bx), sy(s.by)); lx = sx(s.bx); ly = sy(s.by); open = true;
+    }
+  };
+  path((s) => !s.d && (s.loop || Math.abs(s.dx) >= 0.3));
+  ctx.strokeStyle = '#2a2d33'; ctx.lineWidth = 16 * zoom; ctx.stroke();
+  ctx.strokeStyle = '#4a4f59'; ctx.lineWidth = 9 * zoom; ctx.stroke();
+  // witte rand bovenop (kant waar je rijdt)
+  ctx.save();
+  ctx.strokeStyle = '#f2f3f5'; ctx.lineWidth = 3 * zoom;
+  ctx.beginPath();
+  for (const s of S) {
+    if (!visible(s) || s.d || (!s.loop && Math.abs(s.dx) < 0.3)) continue;
+    const o = 7 * zoom;
+    ctx.moveTo(sx(s.ax) + s.nx * o, sy(s.ay) + s.ny * o); ctx.lineTo(sx(s.bx) + s.nx * o, sy(s.by) + s.ny * o);
+  }
+  ctx.stroke();
+  ctx.restore();
+  // spijkers
+  for (const s of S) {
+    if (!s.d || !visible(s)) continue;
+    const mx = (s.ax + s.bx) / 2;
+    if (s.by > s.ay) continue;   // alleen de opgaande kant van elk spijkerpaar
+    const x0 = sx(s.ax - (s.bx - s.ax)), x1 = sx(s.bx + (s.bx - s.ax)) , yb = sy(s.ay), yt = sy(s.by);
+    const gs = ctx.createLinearGradient(0, yt, 0, yb);
+    gs.addColorStop(0, '#f4f5f7'); gs.addColorStop(1, '#6b717b');
+    ctx.fillStyle = gs;
+    ctx.beginPath(); ctx.moveTo(x0, yb); ctx.lineTo(sx(s.bx), yt); ctx.lineTo(x1, yb); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = RED; ctx.beginPath(); ctx.arc(sx(s.bx), yt + 2 * zoom, 3 * zoom, 0, Math.PI * 2); ctx.fill();
+    void mx;
+  }
+  // turbostroken
+  const tm = performance.now() / 1000;
+  for (const s of S) {
+    if (!s.boost || !visible(s)) continue;
+    const n = Math.floor(s.len / 44);
+    for (let k = 0; k < n; k++) {
+      const f = ((k + (tm * 3) % 1) / n), x = s.ax + (s.bx - s.ax) * f, y = s.ay + (s.by - s.ay) * f;
+      ctx.save(); ctx.translate(sx(x), sy(y) - 2 * zoom); ctx.scale(zoom, zoom);
+      ctx.globalAlpha = 0.55 + 0.45 * Math.sin(f * Math.PI);
+      ctx.fillStyle = RED;
+      ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(6, 0); ctx.lineTo(-8, 6); ctx.lineTo(-3, 0); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+function drawObjects() {
+  // checkpoints
+  for (const q of lv.cps) {
+    if (sx(q.x) < -80 || sx(q.x) > W + 80) continue;
+    ctx.save(); ctx.translate(sx(q.x), sy(q.y)); ctx.scale(zoom, zoom);
+    ctx.fillStyle = '#2a2d33'; ctx.fillRect(-3, -120, 6, 120);
+    const wave = Math.sin(performance.now() / 180 + q.x) * 4;
+    ctx.fillStyle = q.hit ? '#ffffff' : RED;
+    ctx.beginPath(); ctx.moveTo(3, -118); ctx.quadraticCurveTo(30, -112 + wave, 54, -108); ctx.lineTo(54, -80); ctx.quadraticCurveTo(30, -84 + wave, 3, -88); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1.5; ctx.stroke();
+    if (q.hit) { ctx.strokeStyle = '#2f9e5b'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(18, -100); ctx.lineTo(26, -92); ctx.lineTo(40, -108); ctx.stroke(); }
+    ctx.restore();
+  }
+  // finish-poort
+  const fx = sx(lv.finishX);
+  if (fx > -200 && fx < W + 200) {
+    const gy = sy(lv.S[lv.S.length - 1].ay);
+    ctx.save(); ctx.translate(fx, gy); ctx.scale(zoom, zoom);
+    ctx.fillStyle = '#2a2d33'; ctx.fillRect(-90, -230, 14, 230); ctx.fillRect(76, -230, 14, 230);
+    for (let r = 0; r < 2; r++) for (let k = 0; k < 12; k++) { ctx.fillStyle = (k + r) % 2 ? '#111214' : '#ffffff'; ctx.fillRect(-90 + k * 15, -250 + r * 15, 15, 15); }
+    Arcade.text(ctx, 'FINISH', 0, -268, 28, '#111214', 'center', '900');
+    for (let k = 0; k < 8; k++) { ctx.fillStyle = k % 2 ? '#111214' : '#ffffff'; ctx.fillRect(-6, -k * 15 - 15, 12, 15); }
+    ctx.restore();
+  }
+  // tonnen
+  for (const o of lv.objs) {
+    if (o.type !== 'barrel') continue;
+    const x = sx(o.x), y = sy(o.y);
+    if (x < -60 || x > W + 60) continue;
+    if (o.ring) {
+      ctx.save(); ctx.globalAlpha = 1 - o.ring; ctx.strokeStyle = '#ffb020'; ctx.lineWidth = 6 * (1 - o.ring) + 1;
+      ctx.beginPath(); ctx.arc(x, y, (30 + o.ring * 220) * zoom, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    if (o.gone) continue;
+    ctx.save(); ctx.translate(x, y); ctx.scale(zoom, zoom);
+    const g = ctx.createLinearGradient(-20, 0, 20, 0);
+    g.addColorStop(0, '#8e1418'); g.addColorStop(0.45, '#ff4d55'); g.addColorStop(1, '#a61d24');
+    ctx.fillStyle = g; Arcade.rr(ctx, -19, -22, 38, 44, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-19, -10, 38, 4); ctx.fillRect(-19, 8, 38, 4);
+    ctx.fillStyle = '#ffd23a'; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(9, 6); ctx.lineTo(-9, 6); ctx.closePath(); ctx.fill();
+    Arcade.text(ctx, '!', 0, 1, 11, '#111214', 'center', '900');
+    ctx.restore();
+  }
+}
+
+// motor + rijder, lokaal getekend (midden van de motor = 0,0; vooruit = +x)
+function drawBike(b, inp) {
+  ctx.save();
+  ctx.translate(sx(b.x), sy(b.y)); ctx.scale(zoom, zoom); ctx.rotate(b.a);
+  const lean = b.dead ? 0 : (inp ? inp.lean : 0);
+  // schaduwloze, strakke stijl
+  const wheel = (x) => {
+    ctx.save(); ctx.translate(x, MOTO.AY);
+    ctx.fillStyle = '#121317'; ctx.beginPath(); ctx.arc(0, 0, MOTO.WR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#2c2f36'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, MOTO.WR - 3, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#8e959f'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1b1d22'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.rotate(b.spin);
+    ctx.strokeStyle = '#c9ced6'; ctx.lineWidth = 2;
+    for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 8, Math.sin(a) * 8); ctx.stroke(); }
+    ctx.fillStyle = RED; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+    // profiel van de band
+    ctx.fillStyle = '#2c2f36';
+    for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2; ctx.fillRect(Math.cos(a) * 15 - 1.5, Math.sin(a) * 15 - 1.5, 3, 3); }
+    ctx.restore();
+  };
+  // achterbrug en voorvork
+  ctx.strokeStyle = '#5b616b'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-4, 6); ctx.lineTo(-MOTO.AX, MOTO.AY); ctx.stroke();
+  ctx.strokeStyle = '#c9ced6'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(22, -16); ctx.lineTo(MOTO.AX, MOTO.AY); ctx.stroke();
+  wheel(-MOTO.AX); wheel(MOTO.AX);
+  // uitlaat
+  ctx.fillStyle = '#9aa1ab'; Arcade.rr(ctx, -30, -2, 22, 7, 3); ctx.fill();
+  // motorblok
+  ctx.fillStyle = '#2a2d33'; Arcade.rr(ctx, -10, -4, 24, 16, 4); ctx.fill();
+  // kuip (rood)
+  const bg = ctx.createLinearGradient(0, -20, 0, 8);
+  bg.addColorStop(0, '#ff5a61'); bg.addColorStop(1, '#a61d24');
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.moveTo(-28, -6); ctx.lineTo(-10, -12); ctx.lineTo(8, -20); ctx.lineTo(24, -18); ctx.lineTo(30, -8); ctx.lineTo(18, 0); ctx.lineTo(-2, 2); ctx.lineTo(-22, 0); ctx.closePath(); ctx.fill();
+  // zadel
+  ctx.fillStyle = '#121317'; ctx.beginPath(); ctx.moveTo(-30, -7); ctx.lineTo(-8, -13); ctx.lineTo(-6, -9); ctx.lineTo(-28, -3); ctx.closePath(); ctx.fill();
+  // nummerbord
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(27, -10, 4, 7, 0.3, 0, Math.PI * 2); ctx.fill();
+  // stuur
+  ctx.strokeStyle = '#121317'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(20, -18); ctx.lineTo(16, -26); ctx.stroke();
+
+  if (!b.dead) drawRider(lean);
+  ctx.restore();
+}
+function drawRider(lean) {
+  const hx = -8, hy = -12;                       // heup
+  const shx = 2 + lean * 9, shy = -36 + Math.abs(lean) * 4;   // schouder
+  const hdx = shx - 2 + lean * 3, hdy = shy - 14;            // hoofd
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // been
+  ctx.strokeStyle = '#1b1d22'; ctx.lineWidth = 9;
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(8, -4); ctx.lineTo(2, 8); ctx.stroke();
+  ctx.fillStyle = '#121317'; Arcade.rr(ctx, -2, 6, 12, 6, 2); ctx.fill();
+  // romp
+  ctx.strokeStyle = '#2a2d33'; ctx.lineWidth = 13;
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(shx, shy); ctx.stroke();
+  ctx.strokeStyle = RED; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(hx + 1, hy - 4); ctx.lineTo(shx + 1, shy + 3); ctx.stroke();
+  // arm
+  ctx.strokeStyle = '#2a2d33'; ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.moveTo(shx, shy); ctx.lineTo((shx + 16) / 2 + 3, (shy - 24) / 2 + 6); ctx.lineTo(16, -25); ctx.stroke();
+  // helm
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(hdx, hdy, 11, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = RED; ctx.beginPath(); ctx.arc(hdx, hdy, 11, Math.PI * 1.05, Math.PI * 1.55); ctx.lineTo(hdx, hdy); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#16181d'; ctx.beginPath(); ctx.moveTo(hdx + 2, hdy - 4); ctx.lineTo(hdx + 11, hdy - 3); ctx.lineTo(hdx + 10, hdy + 4); ctx.lineTo(hdx + 3, hdy + 3); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(hdx, hdy, 11, 0, Math.PI * 2); ctx.stroke();
+}
+function drawRagdoll() {
+  if (!rider) return;
+  ctx.save(); ctx.translate(sx(rider.x), sy(rider.y)); ctx.scale(zoom, zoom); ctx.rotate(rider.r);
+  ctx.translate(4, 30);
+  drawRider(0);
+  ctx.restore();
+}
+function drawParts() {
+  for (const p of parts) {
+    ctx.globalAlpha = Math.max(0, p.life / p.max) * (p.dust ? 0.8 : 1);
+    ctx.fillStyle = p.c;
+    const s = p.s * zoom * (p.dust ? 1 + (1 - p.life / p.max) : 1);
+    if (p.dust) { ctx.beginPath(); ctx.arc(sx(p.x), sy(p.y), s, 0, Math.PI * 2); ctx.fill(); }
+    else ctx.fillRect(sx(p.x) - s / 2, sy(p.y) - s / 2, s, s);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- tekenen: scherm ----------
+const fmt = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r < 10 ? '0' : ''}${r.toFixed(2)}`; };
+function starShape(x, y, r, fill, stroke) {
+  ctx.beginPath();
+  for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 5, rr = k % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+}
+function panel(x, y, w, h, a = 0.82) {
+  ctx.fillStyle = `rgba(14,15,19,${a})`; Arcade.rr(ctx, x, y, w, h, 14); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.stroke();
+}
+
+function drawHud(inp) {
+  // tijd + level
+  const hy = Arcade.touch ? 92 : 62;
+  ctx.save(); ctx.translate(0, hy - 62);
+  panel(16, 62, 300, 92);
+  Arcade.text(ctx, `LEVEL ${li + 1} · ${MOTO.LEVELS[li].name.toUpperCase()}`, 32, 82, 12, '#9aa1ab', 'left', '800');
+  Arcade.text(ctx, fmt(t), 32, 118, 36, '#ffffff', 'left', '900', true);
+  // sterrendoelen
+  const st = MOTO.LEVELS[li].stars;
+  const cur = starsFor(li, t);
+  for (let k = 0; k < 3; k++) starShape(234 + k * 26, 110, 10, k < cur ? '#ffd23a' : 'rgba(255,255,255,0.12)');
+  Arcade.text(ctx, `★★★ <${st[0]}s  ★★ <${st[1]}s`, 260, 138, 10, '#9aa1ab', 'center', '700');
+  ctx.restore();
+  // voortgang
+  const pw = 420, px = W / 2 - pw / 2, py = 26;
+  ctx.fillStyle = 'rgba(14,15,19,0.55)'; Arcade.rr(ctx, px, py, pw, 10, 5); ctx.fill();
+  const prog = Math.max(0, Math.min(1, (bike.x - lv.startX) / (lv.finishX - lv.startX)));
+  ctx.fillStyle = RED; Arcade.rr(ctx, px, py, Math.max(10, pw * prog), 10, 5); ctx.fill();
+  for (const q of lv.cps) { const f = (q.x - lv.startX) / (lv.finishX - lv.startX); ctx.fillStyle = q.hit ? '#ffffff' : 'rgba(255,255,255,0.45)'; ctx.fillRect(px + pw * f - 1.5, py - 4, 3, 18); }
+  Arcade.text(ctx, '🏁', px + pw + 18, py + 5, 18);
+  // pauzeknop
+  panel(W - 128, 12, 52, 46, 0.6);
+  ctx.fillStyle = '#fff'; ctx.fillRect(W - 110, 24, 5, 22); ctx.fillRect(W - 99, 24, 5, 22);
+  // zwevende teksten
+  for (const p of pops) {
+    const k = p.life / 1.3;
+    ctx.globalAlpha = Math.min(1, p.life * 2.5);
+    const y = H * 0.3 - (1 - k) * 40;
+    const fs = p.size * 0.8 * (1 + Math.max(0, k - 0.85) * 2);
+    ctx.font = `900 ${fs}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+    const tw = ctx.measureText(p.text).width + fs * 1.2;
+    ctx.fillStyle = 'rgba(14,15,19,0.78)'; Arcade.rr(ctx, W / 2 - tw / 2, y - fs * 0.85, tw, fs * 1.7, fs * 0.5); ctx.fill();
+    Arcade.text(ctx, p.text, W / 2, y + 1, fs, p.color, 'center', '900');
+  }
+  ctx.globalAlpha = 1;
+  // starthint
+  if (!started && !bike.dead) {
+    panel(W / 2 - 250, H * 0.68, 500, 70, 0.75);
+    Arcade.text(ctx, Arcade.touch ? 'Houd GAS ingedrukt om te rijden' : '↑ / W = gas · ← → = kantelen · ↓ = rem', W / 2, H * 0.68 + 26, 18, '#fff', 'center', '800');
+    Arcade.text(ctx, 'Maak flips in de lucht: elke flip = 1 seconde eraf!', W / 2, H * 0.68 + 50, 14, '#9aa1ab', 'center', '700');
+  }
+  // touch-knoppen
+  if (Arcade.touch) {
+    const z = TB();
+    const lab = { back: '⟲', fwd: '⟳', brake: 'REM', gas: 'GAS' };
+    for (const k in z) {
+      const [x, y, w, h] = z[k], on = touchBtns[k];
+      ctx.fillStyle = on ? (k === 'gas' ? 'rgba(232,40,47,0.85)' : 'rgba(255,255,255,0.4)') : 'rgba(14,15,19,0.45)';
+      Arcade.rr(ctx, x, y, w, h, 24); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
+      Arcade.text(ctx, lab[k], x + w / 2, y + h / 2 + 2, k === 'gas' || k === 'brake' ? 26 : 46, '#fff', 'center', '900');
+    }
+  }
+}
+
+function drawMenu(now) {
+  // achtergrond: wereld van level 1 die langzaam voorbij schuift
+  if (!lv) { lv = MOTO.makeLevel(0); bike = MOTO.spawn(lv, lv.startX); }
+  camX = (now / 1000 * 120) % 9000 + 200; camY = -80; zoom = 0.7;
+  drawSky(); drawDeco(); drawTrack(); drawObjects();
+  ctx.fillStyle = 'rgba(10,11,14,0.55)'; ctx.fillRect(0, 0, W, H);
+  ui.clear();
+  // titel
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 24;
+  ctx.font = 'italic 900 84px system-ui, -apple-system, "Segoe UI", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw1 = ctx.measureText('MOTO ').width, tw2 = ctx.measureText('STUNT').width, x0 = W / 2 - (tw1 + tw2) / 2;
+  ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.fillText('MOTO ', x0, 92); ctx.fillStyle = RED; ctx.fillText('STUNT', x0 + tw1, 92);
+  ctx.restore();
+  Arcade.text(ctx, `★ ${totalStars()} / ${NLV * 3} sterren verzameld`, W / 2, 150, 18, '#d5dae0', 'center', '800');
+  // levels
+  const cols = 5, cw = 214, ch = 158, gx = 18, gy = 18, gw = cols * cw + (cols - 1) * gx, x1 = (W - gw) / 2, y1 = 186;
+  for (let i = 0; i < NLV; i++) {
+    const cx = x1 + (i % cols) * (cw + gx), cy = y1 + Math.floor(i / cols) * (ch + gy);
+    const open = unlocked(i), bt = bests[i], st = starsFor(i, bt);
+    if (open) ui.btn('', cx, cy, cw, ch, () => startLevel(i));   // klikzone (wordt hieronder overgetekend)
+    const hov = hoverQ && hoverQ.x >= cx && hoverQ.x <= cx + cw && hoverQ.y >= cy && hoverQ.y <= cy + ch && open;
+    ctx.save();
+    if (hov) { ctx.translate(0, -4); }
+    const g = ctx.createLinearGradient(0, cy, 0, cy + ch);
+    g.addColorStop(0, open ? (hov ? '#30343c' : '#24272e') : '#17191d'); g.addColorStop(1, open ? '#16181d' : '#121317');
+    ctx.fillStyle = g; Arcade.rr(ctx, cx, cy, cw, ch, 16); ctx.fill();
+    ctx.strokeStyle = hov ? 'rgba(255,255,255,0.45)' : st === 3 ? 'rgba(255,210,58,0.5)' : 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1.5; ctx.stroke();
+    Arcade.text(ctx, String(i + 1), cx + 22, cy + 34, 34, open ? '#ffffff' : '#4a4f59', 'left', '900');
+    Arcade.text(ctx, MOTO.LEVELS[i].name, cx + 22, cy + 72, 16, open ? '#d5dae0' : '#4a4f59', 'left', '800');
+    if (open) {
+      for (let k = 0; k < 3; k++) starShape(cx + 32 + k * 30, cy + 108, 11, k < st ? '#ffd23a' : 'rgba(255,255,255,0.1)');
+      Arcade.text(ctx, bt != null ? fmt(bt) : 'nog niet gereden', cx + cw - 18, cy + 34, bt != null ? 15 : 12, bt != null ? '#ffffff' : '#8a919b', 'right', '800', bt != null);
+      Arcade.text(ctx, `★★★ ${MOTO.LEVELS[i].stars[0]}s`, cx + cw - 18, cy + 108, 11, '#8a919b', 'right', '700');
+    } else {
+      Arcade.text(ctx, '🔒', cx + cw - 30, cy + 34, 20);
+      Arcade.text(ctx, `haal eerst level ${i}`, cx + 22, cy + 108, 12, '#4a4f59', 'left', '700');
+    }
+    ctx.restore();
+  }
+  // besturing
+  const py = 560, pw = 860, px = W / 2 - pw / 2;
+  panel(px, py, pw, 110, 0.72);
+  const keyCap = (x, y, label, w = 44) => { ctx.fillStyle = '#e6e8eb'; Arcade.rr(ctx, x, y, w, 40, 8); ctx.fill(); ctx.fillStyle = '#9aa1ab'; Arcade.rr(ctx, x, y + 34, w, 6, 3); ctx.fill(); Arcade.text(ctx, label, x + w / 2, y + 18, 18, '#111214', 'center', '900'); };
+  if (Arcade.touch) {
+    Arcade.text(ctx, 'Links: ⟲ ⟳ kantelen   ·   Rechts: REM en GAS', W / 2, py + 40, 20, '#fff', 'center', '800');
+    Arcade.text(ctx, 'Maak flips in de lucht: elke flip = 1 seconde eraf!', W / 2, py + 76, 15, '#9aa1ab', 'center', '700');
+  } else {
+    keyCap(px + 40, py + 22, '↑'); Arcade.text(ctx, 'Gas', px + 96, py + 42, 16, '#fff', 'left', '800');
+    keyCap(px + 170, py + 22, '↓'); Arcade.text(ctx, 'Rem', px + 226, py + 42, 16, '#fff', 'left', '800');
+    keyCap(px + 300, py + 22, '←'); keyCap(px + 350, py + 22, '→'); Arcade.text(ctx, 'Kantelen (flips!)', px + 406, py + 42, 16, '#fff', 'left', '800');
+    keyCap(px + 580, py + 22, 'R'); Arcade.text(ctx, 'Opnieuw', px + 636, py + 42, 16, '#fff', 'left', '800');
+    keyCap(px + 720, py + 22, 'Esc', 56); Arcade.text(ctx, 'Pauze', px + 786, py + 42, 16, '#fff', 'left', '800');
+    Arcade.text(ctx, 'Elke flip in de lucht = 1 seconde eraf  ·  Enter = volgende level spelen', W / 2, py + 88, 14, '#9aa1ab', 'center', '700');
+  }
+}
+let hoverQ = null;
+c.addEventListener('pointermove', (e) => { hoverQ = view.toGame(e); });
+
+function drawPause() {
+  ctx.fillStyle = 'rgba(8,9,12,0.6)'; ctx.fillRect(0, 0, W, H);
+  ui.clear();
+  panel(W / 2 - 200, H / 2 - 150, 400, 300, 0.94);
+  Arcade.text(ctx, 'PAUZE', W / 2, H / 2 - 100, 34, '#fff', 'center', '900');
+  ctx.fillStyle = RED; Arcade.rr(ctx, W / 2 - 24, H / 2 - 70, 48, 3, 1.5); ctx.fill();
+  ui.btn('Verder rijden', W / 2 - 150, H / 2 - 44, 300, 52, () => { state = 'play'; }, true);
+  ui.btn('Opnieuw beginnen', W / 2 - 150, H / 2 + 18, 300, 46, () => startLevel(li));
+  ui.btn('Naar de levels', W / 2 - 150, H / 2 + 74, 300, 46, () => { state = 'menu'; });
+}
+
+function drawDone() {
+  const k = Math.min(1, doneT * 2.5);
+  ctx.fillStyle = `rgba(8,9,12,${0.6 * k})`; ctx.fillRect(0, 0, W, H);
+  ui.clear();
+  const pw = 520, ph = 400, x = W / 2 - pw / 2, y = H / 2 - ph / 2 + (1 - k) * 40;
+  ctx.globalAlpha = k;
+  panel(x, y, pw, ph, 0.95);
+  Arcade.text(ctx, 'FINISH!', W / 2, y + 52, 42, '#fff', 'center', '900');
+  ctx.fillStyle = RED; Arcade.rr(ctx, W / 2 - 24, y + 84, 48, 3, 1.5); ctx.fill();
+  for (let s = 0; s < 3; s++) {
+    const appear = Math.max(0, Math.min(1, (doneT - 0.35 - s * 0.25) * 4));
+    const got = s < result.stars;
+    ctx.save(); ctx.translate(W / 2 + (s - 1) * 84, y + 150 - (s === 1 ? 12 : 0));
+    const sc = got ? 0.6 + appear * 0.4 + Math.sin(appear * Math.PI) * 0.35 : 1;
+    ctx.scale(sc, sc);
+    starShape(0, 0, 34, got && appear > 0 ? '#ffd23a' : 'rgba(255,255,255,0.1)', got && appear > 0 ? 'rgba(255,255,255,0.6)' : null);
+    ctx.restore();
+    if (got && appear > 0 && !result['s' + s]) { result['s' + s] = true; Arcade.beep(880 + s * 220, 0.12, 'triangle', 0.06); }
+  }
+  Arcade.text(ctx, fmt(result.t), W / 2, y + 228, 46, '#ffffff', 'center', '900', true);
+  Arcade.text(ctx, result.rec ? (result.prev != null ? `🏆 Nieuw record! (was ${fmt(result.prev)})` : '🏆 Nieuw record!') : `Record: ${fmt(result.prev)}`, W / 2, y + 268, 17, result.rec ? '#ffffff' : '#9aa1ab', 'center', '800');
+  if (result.flips) Arcade.text(ctx, `${result.flips} flip${result.flips > 1 ? 's' : ''} = −${result.flips} sec`, W / 2, y + 294, 14, '#9aa1ab', 'center', '700');
+  const next = li + 1 < NLV;
+  const bw = 150, by = y + ph - 74;
+  ui.btn('Opnieuw', x + 28, by, bw, 50, () => startLevel(li));
+  ui.btn('Levels', x + 28 + bw + 13, by, bw - 20, 50, () => { state = 'menu'; });
+  if (next) ui.btn('Volgende ▶', x + pw - 28 - bw - 10, by, bw + 10, 50, () => startLevel(li + 1), true);
+  ctx.globalAlpha = 1;
+}
+
+// ---------- hoofdlus ----------
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(1 / 30, (now - last) / 1000); last = now;
+  update(dt);
+  view.begin();
+  if (state === 'menu') drawMenu(now);
+  else {
+    const inp = state === 'play' ? input() : { lean: 0 };
+    drawSky(); drawDeco(); drawTrack(); drawObjects(); drawParts();
+    if (bike) drawBike(bike, inp);
+    drawRagdoll();
+    drawHud(inp);
+    if (state === 'pause') drawPause();
+    if (state === 'done') drawDone();
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+window.__moto = { get bike() { return bike; }, get state() { return state; }, get t() { return t; }, startLevel, keys, MOTO };
+
+// ---------- admin-voordelen ----------
+ArcadeCore.toggle('🛡️ Onsterfelijk (nooit crashen)', () => CHEAT.god, (v) => (CHEAT.god = v));
+ArcadeCore.toggle('🚀 Turbomotor', () => CHEAT.turbo, (v) => (CHEAT.turbo = v));
+ArcadeCore.cheat('🔓 Alle levels ontgrendelen', () => Arcade.save('moto_unlockall', true));
+ArcadeCore.cheat('⭐ Alle levels 3 sterren', () => { MOTO.LEVELS.forEach((l, i) => { if (bests[i] == null || bests[i] > l.stars[0]) bests[i] = l.stars[0]; }); saveBests(); });
+
+  </script>
+  <script type="module" src="../auth.js?v=13"></script>
+</body>
+</html>

@@ -153,7 +153,7 @@ async function push(force) {
 }
 
 // ---------- Openbare ranglijst (ook gelezen door de Discord-bot) ----------
-const BOARD = ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'tycoon'];
+const BOARD = ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'tycoon', 'moto'];
 function scoresOf(d) {
   const o = {};
   for (const g of BOARD) { const v = J(d['arcade_best_' + g]); if (typeof v === 'number' && v > 0) o[g] = Math.round(v); }
@@ -284,7 +284,7 @@ function hubUI() {
 }
 
 // ---------- Ranglijst op de startpagina ----------
-const SHOW = { race: (v) => v + '/12', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins' };
+const SHOW = { race: (v) => v + '/12', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins', moto: (v) => v + '/30 ★' };
 let boardPlayers = null;
 async function loadBoard() {
   if (!fb) return;
@@ -320,7 +320,7 @@ function renderBoard() {
 }
 
 // ---------- Profiel ----------
-const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['blokken', '🧱', 'Blokken'], ['stack', '🏗️', 'Stack Tower'], ['vier', '🔴', 'Vier op een rij'], ['sudoku', '🔢', 'Sudoku'], ['mijnen', '💣', 'Mijnenveger'], ['memory', '🧠', 'Memory'], ['patience', '🃏', 'Patience']];
+const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['moto', '🏍️', 'Moto Stunt'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['blokken', '🧱', 'Blokken'], ['stack', '🏗️', 'Stack Tower'], ['vier', '🔴', 'Vier op een rij'], ['sudoku', '🔢', 'Sudoku'], ['mijnen', '💣', 'Mijnenveger'], ['memory', '🧠', 'Memory'], ['patience', '🃏', 'Patience']];
 function klassement() {
   const pts = new Map();
   for (const id of [...BOARD, 'race', 'vier']) {
