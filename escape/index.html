@@ -1,0 +1,2006 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Escape Room · Game Arcade</title>
+  <meta name="description" content="10 moeilijke 3D-kamers vol codes, sloten en puzzels. Ontsnap zo snel mogelijk: je tijd komt op de ranglijst!">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Crect%20x%3D%2218%22%20y%3D%2210%22%20width%3D%2228%22%20height%3D%2244%22%20rx%3D%222%22%20fill%3D%22%235a3a26%22%20stroke%3D%22%232a1c12%22%20stroke-width%3D%222%22/%3E%3Crect%20x%3D%2222%22%20y%3D%2214%22%20width%3D%2220%22%20height%3D%2216%22%20rx%3D%221%22%20fill%3D%22%237a5132%22/%3E%3Crect%20x%3D%2222%22%20y%3D%2234%22%20width%3D%2220%22%20height%3D%2216%22%20rx%3D%221%22%20fill%3D%22%237a5132%22/%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%2233%22%20r%3D%222.5%22%20fill%3D%22%23d4a63c%22/%3E%3Crect%20x%3D%2234%22%20y%3D%2236%22%20width%3D%2220%22%20height%3D%2216%22%20rx%3D%223%22%20fill%3D%22%23e8282f%22/%3E%3Cpath%20d%3D%22M38%2036%20v-5%20a6%206%200%200%201%2012%200%20v5%22%20stroke%3D%22%23e6e8eb%22%20stroke-width%3D%223%22%20fill%3D%22none%22/%3E%3Ccircle%20cx%3D%2244%22%20cy%3D%2243%22%20r%3D%222.5%22%20fill%3D%22%23fff%22/%3E%3Crect%20x%3D%2243%22%20y%3D%2244%22%20width%3D%222%22%20height%3D%225%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #fff; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+.terug, .geluid { position: fixed; top: 12px; z-index: 5; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); padding: 8px 12px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.terug { left: 12px; } .geluid { right: 12px; }
+.terug:hover, .geluid:hover { background: rgba(255,255,255,0.2); }
+#c { position: fixed; inset: 0; width: 100vw; height: 100vh; box-shadow: none; }
+.hide { display: none !important; }
+button { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+#eTop { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 14px; padding: 8px 10px 8px 16px; border-radius: 14px; background: rgba(14,15,19,0.78); border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(6px); }
+#eTop .tl { display: flex; flex-direction: column; line-height: 1.1; } #eTop .tl span { font-size: 10px; font-weight: 800; color: #9aa1ab; letter-spacing: 1px; } #eTop .tl b { font-size: 14px; }
+#eTime { font: 900 24px ui-monospace, Consolas, monospace; min-width: 92px; text-align: center; }
+#eTop .tr { display: flex; gap: 6px; }
+#eTop button { border: 1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.07); color: #fff; border-radius: 10px; padding: 8px 11px; font-weight: 800; font-size: 13px; cursor: pointer; }
+#eTop button:hover { background: rgba(255,255,255,0.16); } #eTop small { color: #ff8a8f; font-weight: 700; }
+.nav { position: fixed; top: 50%; transform: translateY(-50%); z-index: 5; width: 56px; height: 86px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.2); background: rgba(14,15,19,0.55); color: #fff; font-size: 24px; cursor: pointer; backdrop-filter: blur(4px); }
+.nav:hover { background: rgba(232,40,47,0.8); } #eLeft { left: 12px; } #eRight { right: 12px; }
+#eTip { position: fixed; z-index: 7; pointer-events: none; padding: 5px 10px; border-radius: 8px; background: rgba(14,15,19,0.85); color: #fff; font: 700 13px system-ui, sans-serif; display: none; white-space: nowrap; }
+#eToast { position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%); z-index: 8; max-width: min(640px, 92vw); padding: 12px 18px; border-radius: 12px; background: rgba(14,15,19,0.9); border: 1px solid rgba(255,255,255,0.14); color: #fff; font: 600 15px system-ui, sans-serif; line-height: 1.4; text-align: center; opacity: 0; transition: opacity 0.25s, transform 0.25s; pointer-events: none; }
+#eToast.on { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+#eInv { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+#eSel { font: 700 12px system-ui, sans-serif; color: #c9ced6; min-height: 16px; text-shadow: 0 1px 3px #000; }
+#eSlots { display: flex; gap: 6px; padding: 8px; border-radius: 16px; background: rgba(14,15,19,0.78); border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(6px); max-width: 94vw; overflow-x: auto; }
+.slot { width: 56px; height: 56px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); display: grid; place-items: center; font-size: 28px; cursor: pointer; position: relative; flex: none; }
+.slot:hover { background: rgba(255,255,255,0.12); } .slot.on { border-color: #e8282f; background: rgba(232,40,47,0.25); box-shadow: 0 0 0 2px rgba(232,40,47,0.5); }
+.slot.empty { cursor: default; opacity: 0.35; } .slot.new { animation: pop 0.5s ease; }
+@keyframes pop { 0% { transform: scale(0.4); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+#eOv { position: fixed; inset: 0; z-index: 20; display: none; align-items: center; justify-content: center; padding: 14px; background: rgba(6,7,9,0.72); backdrop-filter: blur(4px); }
+#eOv.on { display: flex; }
+.panel { position: relative; background: linear-gradient(180deg, #1d2026, #15171c); border: 1px solid rgba(255,255,255,0.14); border-radius: 20px; padding: 22px; color: #fff; box-shadow: 0 30px 80px rgba(0,0,0,0.6); max-width: min(760px, 96vw); max-height: 94vh; overflow: auto; animation: rise 0.25s ease both; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+@keyframes rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+.panel h2 { margin: 0 34px 14px 0; font-size: 20px; font-weight: 900; } .panel.small { width: min(400px, 94vw); text-align: center; }
+.panel .x { position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(255,255,255,0.08); color: #fff; font-size: 15px; cursor: pointer; }
+.panel .x:hover { background: #e8282f; }
+.panel button.pri, .panel button.sec, #ePause button, #eDone button { display: block; width: 100%; margin-top: 10px; border: 1px solid rgba(255,255,255,0.16); border-radius: 12px; padding: 12px; font-weight: 800; font-size: 15px; cursor: pointer; background: #262930; color: #fff; }
+.panel button.pri { background: #fff; color: #111214; border-color: #fff; } .panel button.ghost { background: none; color: #9aa1ab; }
+.panel p { color: #c9ced6; line-height: 1.5; }
+.shake { animation: shake 0.4s; } @keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+.okflash { animation: okf 0.6s; } @keyframes okf { 0% { box-shadow: 0 0 0 0 rgba(61,220,132,0.9); } 100% { box-shadow: 0 0 0 30px rgba(61,220,132,0); } }
+/* puzzels */
+.disp { font: 900 34px ui-monospace, Consolas, monospace; letter-spacing: 8px; text-align: center; background: #0b0c10; border: 1px solid rgba(255,255,255,0.16); border-radius: 12px; padding: 12px; margin-bottom: 12px; min-height: 64px; color: #5fd38a; }
+.disp.err { color: #ff5a61; }
+.keys { display: grid; grid-template-columns: repeat(3, 72px); gap: 8px; justify-content: center; }
+.keys button, .wheel button, .seq button, .grid button, .pk { border: 1px solid rgba(255,255,255,0.16); background: linear-gradient(180deg, #30343c, #23262c); color: #fff; border-radius: 12px; font-weight: 900; cursor: pointer; }
+.keys button { height: 58px; font-size: 22px; } .keys button:hover, .wheel button:hover { background: #3a3f48; } .keys button:active { transform: translateY(1px); }
+.wheels { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; }
+.wheel { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.wheel button { width: 54px; height: 30px; font-size: 14px; } .wheel .v { width: 54px; height: 62px; display: grid; place-items: center; background: #0b0c10; border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; font: 900 30px ui-monospace, Consolas, monospace; }
+.seq { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; } .seq button { min-width: 84px; height: 84px; font-size: 16px; padding: 6px 10px; }
+.prog { display: flex; gap: 6px; justify-content: center; margin: 14px 0 4px; } .prog i { width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,0.14); } .prog i.on { background: #5fd38a; }
+.grid { display: grid; gap: 4px; justify-content: center; margin: 0 auto; }
+.grid button { padding: 0; } .lo { width: 58px; height: 58px; } .lo.on { background: radial-gradient(circle, #ffe27a, #e8a714); border-color: #ffd23a; box-shadow: 0 0 18px rgba(255,210,58,0.6); }
+.pipe { width: 64px; height: 64px; background: #111318 !important; } .pipe svg { width: 100%; height: 100%; transition: transform 0.15s; }
+.tile { width: 76px; height: 76px; font: 900 26px ui-monospace, Consolas, monospace; background-size: 100% 100%; } .tile.gap { visibility: hidden; }
+.mm-row { display: flex; gap: 10px; align-items: center; justify-content: center; margin: 4px 0; } .mm-peg { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); } .mm-fb { display: grid; grid-template-columns: repeat(3, 10px); gap: 3px; width: 40px; } .mm-fb i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.12); } .mm-fb i.b { background: #e8282f; } .mm-fb i.w { background: #fff; }
+.mm-pick { display: flex; gap: 8px; justify-content: center; margin: 12px 0; } .mm-pick button { width: 42px; height: 42px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); cursor: pointer; }
+.piano { display: flex; justify-content: center; gap: 3px; margin: 10px 0; } .pk { width: 52px; height: 170px; background: linear-gradient(180deg, #fff, #dfe2e6) !important; color: #111 !important; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; font-size: 15px; } .pk.on { background: #ffd23a !important; }
+.dial { width: 220px; height: 220px; margin: 0 auto 12px; border-radius: 50%; background: radial-gradient(circle, #3a3f48, #16181c); border: 6px solid #5b616b; position: relative; display: grid; place-items: center; font: 900 46px ui-monospace, Consolas, monospace; }
+.dial .mark { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); color: #e8282f; font-size: 18px; }
+.drow { display: flex; gap: 8px; justify-content: center; } .drow button { flex: 1; }
+.hist { text-align: center; color: #9aa1ab; font: 700 14px ui-monospace, Consolas, monospace; min-height: 20px; margin-bottom: 8px; }
+.doc { background: #f4efe2; color: #2b2620; border-radius: 6px; padding: 20px 24px; font: 500 17px Georgia, "Times New Roman", serif; line-height: 1.55; box-shadow: inset 0 0 40px rgba(120,100,60,0.25); max-width: 560px; }
+.doc.mirror { transform: scaleX(-1); } .doc h3 { margin: 0 0 8px; font-size: 19px; }
+.docimg { display: block; max-width: 100%; border-radius: 8px; margin: 0 auto; }
+.stars { position: relative; width: min(520px, 86vw); aspect-ratio: 4/3; margin: 0 auto; background: radial-gradient(circle at 30% 30%, #1b2333, #05070c); border-radius: 12px; overflow: hidden; }
+.stars button { position: absolute; width: 26px; height: 26px; margin: -13px; border-radius: 50%; border: 0; background: radial-gradient(circle, #fff 0 25%, rgba(255,255,255,0.15) 26% 60%, transparent 61%); cursor: pointer; }
+.stars button.on { background: radial-gradient(circle, #ffd23a 0 35%, rgba(255,210,58,0.3) 36% 70%, transparent 71%); }
+.inputrow { display: flex; gap: 8px; } .inputrow input { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: #0b0c10; color: #fff; font: 700 18px ui-monospace, Consolas, monospace; outline: none; -webkit-user-select: text; user-select: text; }
+.inputrow button { border: 0; border-radius: 10px; padding: 0 18px; background: #fff; color: #111; font-weight: 900; cursor: pointer; }
+.screen { background: #0e1a14; color: #7dffb0; font: 600 15px ui-monospace, Consolas, monospace; border-radius: 10px; padding: 16px; line-height: 1.6; border: 2px solid #2d3a33; white-space: pre-wrap; }
+/* menu */
+#eMenu { position: fixed; inset: 0; z-index: 15; overflow-y: auto; background: radial-gradient(ellipse at center, rgba(12,13,16,0.75), rgba(5,6,8,0.96)); display: flex; justify-content: center; padding: 70px 16px 30px; }
+#eMenu.hide { display: none; }
+.mwrap { width: min(1100px, 100%); text-align: center; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.mwrap h1 { margin: 0; font-size: clamp(44px, 8vw, 84px); font-style: italic; font-weight: 900; letter-spacing: -1px; } .mwrap h1 span { color: #e8282f; }
+.mwrap .sub { color: #c9ced6; font-size: 16px; margin: 6px auto 26px; max-width: 640px; }
+#eGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 14px; text-align: left; }
+.room { position: relative; border-radius: 16px; padding: 16px; min-height: 150px; background: linear-gradient(180deg, #24272e, #16181d); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: transform 0.15s, border-color 0.15s; color: #fff; }
+.room:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.4); }
+.room.locked { cursor: default; opacity: 0.45; } .room.locked:hover { transform: none; border-color: rgba(255,255,255,0.1); }
+.room .n { font-size: 34px; font-weight: 900; } .room .nm { font-weight: 800; font-size: 16px; margin: 2px 0 8px; } .room .d { color: #9aa1ab; font-size: 12px; line-height: 1.4; }
+.room .bt { position: absolute; top: 18px; right: 16px; font: 800 14px ui-monospace, Consolas, monospace; } .room .bt.go { color: #ffd23a; font-family: system-ui, sans-serif; font-size: 12px; }
+.room .diff { margin-top: 10px; color: #e8282f; letter-spacing: 2px; font-size: 13px; }
+.how { color: #8a919b; font-size: 13px; margin-top: 22px; line-height: 1.6; }
+#ePause, #eDone { position: fixed; inset: 0; z-index: 25; display: flex; align-items: center; justify-content: center; background: rgba(6,7,9,0.7); backdrop-filter: blur(4px); }
+#eDone .big { font-size: 56px; } #dTime { font: 900 44px ui-monospace, Consolas, monospace; margin: 6px 0; }
+@media (max-width: 700px) { #eTop { gap: 8px; padding: 6px 8px; top: 54px; } #eTime { font-size: 18px; min-width: 70px; } #eTop .tl b { font-size: 12px; } .nav { width: 44px; height: 70px; } .slot { width: 46px; height: 46px; font-size: 22px; } .keys { grid-template-columns: repeat(3, 62px); } .lo { width: 46px; height: 46px; } .pipe { width: 50px; height: 50px; } .tile { width: 62px; height: 62px; } .pk { width: 38px; height: 130px; } }
+</style>
+</head>
+<body>
+  <a class="terug" href="../">← Games</a>
+  <canvas id="c"></canvas>
+  <div id="eTop" class="hide">
+  <div class="tl"><span id="eLvl">LEVEL 1</span><b id="eName">De werkkamer</b></div>
+  <div id="eTime">0:00</div>
+  <div class="tr"><button id="eHint">💡 Hint <small>+60 s</small></button><button id="eMenuBtn">☰</button></div>
+</div>
+<button id="eLeft" class="nav hide" aria-label="Draai links">◀</button>
+<button id="eRight" class="nav hide" aria-label="Draai rechts">▶</button>
+<div id="eTip"></div>
+<div id="eToast"></div>
+<div id="eInv" class="hide"><div id="eSel"></div><div id="eSlots"></div></div>
+<div id="eOv"><div class="panel"><button class="x" id="eOvX">✕</button><h2 id="eOvT"></h2><div id="eOvB"></div></div></div>
+<div id="eMenu">
+  <div class="mwrap">
+    <h1>ESCAPE <span>ROOM</span></h1>
+    <p class="sub">10 kamers. Zoek aanwijzingen, kraak codes en ontsnap zo snel mogelijk. Je tijd komt op de ranglijst.</p>
+    <div id="eGrid"></div>
+    <p class="how">🖱️ Klik op voorwerpen · ◀ ▶ of ← → draaien · klik een voorwerp in je rugzak en daarna ergens op om het te gebruiken · twee voorwerpen na elkaar aanklikken = combineren</p>
+  </div>
+</div>
+<div id="ePause" class="hide">
+  <div class="panel small">
+    <h2>Pauze</h2>
+    <p>De tijd staat stil. Je voortgang wordt bewaard, dus je kunt later verder.</p>
+    <button id="pGo" class="pri">Verder spelen</button>
+    <button id="pMenu">Naar de kamers</button>
+    <button id="pReset" class="ghost">Kamer opnieuw beginnen</button>
+  </div>
+</div>
+<div id="eDone" class="hide">
+  <div class="panel small">
+    <div class="big">🔓</div>
+    <h2>ONTSNAPT!</h2>
+    <div id="dTime"></div>
+    <p id="dInfo"></p>
+    <button id="dNext" class="pri">Volgende kamer ▶</button>
+    <button id="dMenu">Naar de kamers</button>
+  </div>
+</div>
+
+  <script>
+'use strict';
+// ================= Game Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
+const ArcadeCore = (() => {
+  const KEY = 'arcade_settings';
+  const DEF = { music: 0.5, sfx: 0.8, quality: 'normaal', muted: false };
+  let S = { ...DEF };
+  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* standaard */ }
+  const listeners = [];
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* */ }
+    listeners.forEach((f) => f(S));
+  };
+  const set = (k, v) => { S[k] = v; save(); };
+  const sfx = () => (S.muted ? 0 : S.sfx);
+  const musicVol = () => (S.muted ? 0 : S.music);
+  // Hoeveel pixels we tekenen: lager = soepeler op trage apparaten
+  const dprCap = () => ({ hoog: 2, normaal: 1.5, laag: 1 })[S.quality] || 1.5;
+
+  // ---------- Muziek: kleine sequencer met drums, bas, akkoorden en melodie ----------
+  const SCALE = [0, 2, 3, 5, 7, 8, 10]; // mineur
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // Elke game een eigen nummer
+  const SONGS = {
+    menu:     { bpm: 92,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x.....x.x.......', arp: true,  lead: 'triangle', seed: 3, density: 0.35, pad: 'triangle' },
+    race:     { bpm: 128, root: 52, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xo', bass: 'x.xox.xox.xox.xo', arp: true,  lead: 'sawtooth', seed: 11, density: 0.45, pad: 'sawtooth' },
+    meteoren: { bpm: 140, root: 50, prog: [[0, 3, 7], [1, 5, 8], [-2, 2, 5], [0, 3, 7]], kick: 'x..x..x.x..x..x.', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx', bass: 'xxoxxxoxxxoxxxox', arp: false, lead: 'square', seed: 21, density: 0.55, pad: 'sawtooth' },
+    runner:   { bpm: 124, root: 54, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..o...o...o...o.', bass: 'x.x.x.x.x.x.x.x.', arp: true,  lead: 'sawtooth', seed: 31, density: 0.4, pad: 'sawtooth' },
+    snake:    { bpm: 112, root: 60, prog: [[0, 3, 7], [5, 8, 12], [3, 7, 10], [-2, 2, 5]], kick: 'x.....x.x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...o...x...o...', arp: false, lead: 'square', seed: 41, density: 0.6, pad: null },
+    2048:     { bpm: 84,  root: 55, prog: [[0, 3, 7, 10], [-4, 0, 3, 7], [3, 7, 10, 14], [-2, 2, 5, 9]], kick: 'x.........x.....', snare: '....x.......x...', hat: '..x...x...x..xx.', bass: 'x.......x..x....', arp: false, lead: 'triangle', seed: 51, density: 0.25, pad: 'triangle' },
+    blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
+    overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
+    td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    mijnen:   { bpm: 80,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], kick: 'x.........x.....', snare: '................', hat: '........x.......', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 81, density: 0.25, pad: 'triangle' },
+    sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
+    memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
+    vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    escape:   { bpm: 84,  root: 45, prog: [[0, 3, 7], [-4, 0, 3], [-2, 1, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '........x.......', hat: '....x.......x...', bass: 'x.......x...x...', arp: true,  lead: 'triangle', seed: 171, density: 0.22, pad: 'triangle' },
+    moto:     { bpm: 132, root: 50, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.xox.xox.xox.xo', bass: 'x.x.xox.x.x.xox.', arp: true,  lead: 'sawtooth', seed: 151, density: 0.42, pad: 'sawtooth' },
+    tycoon:   { bpm: 96,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [-5, -1, 2]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'triangle', seed: 131, density: 0.32, pad: 'triangle' },
+    patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
+    stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
+  };
+  // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
+  function makeMelody(song) {
+    const R = rng(song.seed);
+    const motif = [];
+    for (let i = 0; i < 32; i++) {
+      if (R() > song.density || i % 2 === 1 && R() < 0.5) { motif.push(null); continue; }
+      const deg = Math.floor(R() * 7) + (R() < 0.3 ? 7 : 0);
+      const len = R() < 0.25 ? 3 : R() < 0.5 ? 2 : 1;
+      motif.push({ deg, len });
+    }
+    const mel = [];
+    for (let bar = 0; bar < 8; bar++) {
+      for (let i = 0; i < 16; i++) {
+        let m = motif[(bar % 2) * 16 + i];
+        if (m && bar >= 4 && bar % 2 === 1 && i > 8) m = { deg: m.deg + 2, len: m.len }; // kleine variatie
+        mel.push(m);
+      }
+    }
+    return mel;
+  }
+  for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
+
+  let ac = null, master = null, delayIn = null, reverbIn = null, duck = null, noise = null, timer = null;
+  let song = null, wanted = null, step = 0, nextT = 0;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Galm: zelf gemaakte impulsrespons (geen bestanden nodig)
+  function makeReverb(sec = 2.2) {
+    const len = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
+  function initAudio() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = musicVol() * 0.5;
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -16; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      const warm = ac.createBiquadFilter(); warm.type = 'highshelf'; warm.frequency.value = 6000; warm.gain.value = -4;
+      master.connect(warm); warm.connect(comp); comp.connect(ac.destination);
+      // 'duck' zakt even weg op elke kick (pompend effect zoals in echte dance-muziek)
+      duck = ac.createGain(); duck.connect(master);
+      // Echo voor melodie
+      delayIn = ac.createGain(); delayIn.gain.value = 0.2;
+      const d = ac.createDelay(); d.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.32;
+      const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2400;
+      delayIn.connect(d); d.connect(dlp); dlp.connect(fb); fb.connect(d); dlp.connect(duck);
+      reverbIn = ac.createGain(); reverbIn.gain.value = 0.28;
+      const rv = makeReverb(); reverbIn.connect(rv); rv.connect(duck);
+      noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    } catch (e) { ac = null; }
+  }
+  function env(g, t, a, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function out(node, pan = 0) {
+    if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; node.connect(p); return p; }
+    return node;
+  }
+  function kick(t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.002, 0.95, 0.28);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    noiseHit(t, 3000, 0.12, 0.012, 0, master);            // tikje voor de aanslag
+    duck.gain.cancelScheduledValues(t);
+    duck.gain.setValueAtTime(0.45, t); duck.gain.linearRampToValueAtTime(1, t + 0.22);
+  }
+  function noiseHit(t, hp, peak, dur, pan = 0, dest = null, type = 'highpass', q = 0.7) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise;
+    f.type = type; f.frequency.value = hp; f.Q.value = q;
+    env(g, t, 0.002, peak, dur);
+    s.connect(f); f.connect(g); out(g, pan).connect(dest || master);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
+    return g;
+  }
+  function snare(t) {
+    const g = noiseHit(t, 1800, 0.32, 0.18, 0, master, 'bandpass', 0.6);
+    g.connect(reverbIn);
+    const o = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    env(g2, t, 0.002, 0.22, 0.1); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.12);
+  }
+  // Toon met twee licht ontstemde oscillatoren en een filter dat 'opengaat'
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006, opt = {}) {
+    const f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.Q.value = opt.q || 0.8;
+    f.frequency.setValueAtTime(cutoff * (opt.sweep ? 0.25 : 1), t);
+    if (opt.sweep) f.frequency.exponentialRampToValueAtTime(cutoff, t + Math.min(dur, 0.08)), f.frequency.exponentialRampToValueAtTime(cutoff * 0.35, t + dur);
+    const n = opt.unison ? 2 : 1;
+    for (let k = 0; k < n; k++) {
+      const o = ac.createOscillator();
+      o.type = type; o.frequency.value = mtof(midi); o.detune.value = n > 1 ? (k ? 9 : -9) : 0;
+      if (opt.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = 7; l.connect(lg); lg.connect(o.detune); l.start(t + 0.12); l.stop(t + dur + 0.05); }
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    env(g, t, attack, vol / n, dur);
+    f.connect(g);
+    const dst = out(g, opt.pan || 0);
+    dst.connect(opt.dry ? master : duck);
+    if (echo) dst.connect(delayIn);
+    if (opt.verb) dst.connect(reverbIn);
+  }
+  function playStep(s, t) {
+    const sp = 60 / song.bpm / 4;
+    const i = s % 16, barN = Math.floor(s / 16), bar = barN % 4, chord = song.prog[bar];
+    const intro = barN < 2 && song.introDone !== true;
+    const fill = barN % 8 === 7 && i >= 12;                       // drumroffel aan het eind van elke 8 maten
+    if (!intro) {
+      if (song.kick[i] === 'x') kick(t);
+      if (song.snare[i] === 'x' || (fill && i % 2 === 0)) snare(t);
+      if (song.hat[i] === 'x') noiseHit(t, 8000, 0.06 + (i % 4 === 2 ? 0.03 : 0), 0.03, i % 2 ? 0.25 : -0.25);
+      if (song.hat[i] === 'o') noiseHit(t, 7000, 0.08, 0.16, 0.2);
+      if (barN % 8 === 0 && i === 0 && song.introDone) noiseHit(t, 5000, 0.12, 1.4, 0, reverbIn);  // bekken
+    }
+    const b = song.bass[i];
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.2, 900, false, 0.004, { sweep: true, unison: true, q: 4 });
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.045, intro ? 700 : 1500, false, 0.35, { unison: true, verb: true, pan: (n % 3 - 1) * 0.3 });
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length] + (barN % 2 && i >= 8 ? 12 : 0), sp * 0.7, 'square', 0.022, 2400, true, 0.003, { pan: ((i / 2) % 2 ? 0.35 : -0.35) });
+    const m = song.mel[s % song.mel.length];
+    if (m && !intro) {
+      const deg = m.deg;
+      const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.055, song.lead === 'sawtooth' ? 2600 : 3800, true, 0.008, { vib: m.len > 1, verb: true, unison: song.lead === 'sawtooth' });
+    }
+  }
+  function tick() {
+    if (!ac || !song) return;
+    const sp = 60 / song.bpm / 4;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
+    while (nextT < ac.currentTime + 0.15) {
+      playStep(step, nextT);
+      nextT += sp;
+      step++;
+      if (step >= 128) { step = 0; song.introDone = true; }
+    }
+  }
+  function startIfWanted() {
+    if (!wanted) return;
+    initAudio();
+    if (!ac) return;
+    if (song !== SONGS[wanted]) { song = SONGS[wanted]; step = 0; nextT = ac.currentTime + 0.1; }
+    if (!timer) timer = setInterval(tick, 25);
+  }
+  // Muziek mag pas starten na een klik of toetsaanslag (regel van browsers)
+  addEventListener('pointerdown', startIfWanted);
+  addEventListener('keydown', startIfWanted);
+  document.addEventListener('visibilitychange', () => {
+    if (!ac) return;
+    if (document.hidden) ac.suspend(); else ac.resume();
+  });
+  listeners.push(() => { if (master) master.gain.setTargetAtTime(musicVol() * 0.5, ac.currentTime, 0.1); });
+
+  const music = { play(name) { wanted = name; if (ac) startIfWanted(); }, status: () => ({ running: !!timer, song: wanted, step, audio: ac ? ac.state : 'geen' }) };
+
+  // ---------- Instellingenpaneel ----------
+  const CSS = `
+  .ac-gear { position: fixed; top: 12px; right: 12px; z-index: 50; width: 42px; height: 42px; border-radius: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ac-gear:hover { background: rgba(255,255,255,0.2); }
+  .ac-gear svg { width: 22px; height: 22px; transition: transform 0.4s ease; }
+  .ac-gear:hover svg { transform: rotate(60deg); }
+  .ac-ov { position: fixed; inset: 0; z-index: 60; background: rgba(5,6,9,0.6); display: none; align-items: center; justify-content: center; padding: 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; }
+  .ac-ov.open { display: flex; }
+  .ac-card { width: min(380px, 100%); background: #16181d; border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 20px 22px; color: #fff;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .ac-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .ac-head b { font-size: 20px; font-weight: 900; }
+  .ac-x { background: rgba(255,255,255,0.1); border: 0; color: #fff; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+  .ac-row { margin: 14px 0; }
+  .ac-lab { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #e6e9ee; }
+  .ac-lab span { color: #9aa1ab; font-family: ui-monospace, Consolas, monospace; }
+  .ac-card input[type=range] { width: 100%; accent-color: #e8282f; height: 22px; }
+  .ac-seg { display: flex; gap: 6px; background: #0e0f13; padding: 4px; border-radius: 12px; }
+  .ac-seg button { flex: 1; border: 0; background: transparent; color: #c9ced6; padding: 9px 0; border-radius: 9px; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .ac-seg button.on { background: #fff; color: #111214; }
+  .ac-hint { font-size: 12px; color: #7d848e; margin-top: 6px; }
+  .ac-check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #e6e9ee; cursor: pointer; }
+  .ac-check input { width: 18px; height: 18px; accent-color: #e8282f; }
+  .ac-danger { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; border: 1px solid rgba(232,40,47,0.6); background: rgba(232,40,47,0.12);
+    color: #ff6b72; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .ac-danger:hover { background: rgba(232,40,47,0.25); }`;
+  const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  let ov = null;
+  function buildPanel() {
+    const st = document.createElement('style');
+    st.textContent = CSS;
+    document.head.appendChild(st);
+    const gear = document.createElement('button');
+    gear.className = 'ac-gear';
+    gear.type = 'button';
+    gear.title = 'Instellingen';
+    gear.setAttribute('aria-label', 'Instellingen');
+    gear.innerHTML = GEAR;
+    document.body.appendChild(gear);
+    ov = document.createElement('div');
+    ov.className = 'ac-ov';
+    ov.innerHTML = `
+      <div class="ac-card" role="dialog" aria-label="Instellingen">
+        <div class="ac-head"><b>⚙ Instellingen</b><button class="ac-x" type="button" aria-label="Sluiten">✕</button></div>
+        <div class="ac-row"><div class="ac-lab">🎵 Muziek <span id="acMv"></span></div><input type="range" min="0" max="100" id="acM"></div>
+        <div class="ac-row"><div class="ac-lab">🔊 Geluidseffecten <span id="acSv"></span></div><input type="range" min="0" max="100" id="acS"></div>
+        <div class="ac-row"><label class="ac-check"><input type="checkbox" id="acMute"> Alles dempen (sneltoets M)</label></div>
+        <div class="ac-row"><div class="ac-lab">🖥 Beeldkwaliteit</div>
+          <div class="ac-seg"><button type="button" data-q="laag">Laag</button><button type="button" data-q="normaal">Normaal</button><button type="button" data-q="hoog">Hoog</button></div>
+          <div class="ac-hint">Laag = soepeler op oudere laptops en telefoons. Hoog = scherper beeld.</div></div>
+        <button class="ac-danger" type="button">🗑 Alle records wissen</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const $ = (id) => ov.querySelector('#' + id);
+    const refresh = () => {
+      $('acM').value = Math.round(S.music * 100); $('acMv').textContent = Math.round(S.music * 100) + '%';
+      $('acS').value = Math.round(S.sfx * 100); $('acSv').textContent = Math.round(S.sfx * 100) + '%';
+      $('acMute').checked = !!S.muted;
+      ov.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('on', b.dataset.q === S.quality));
+    };
+    refresh();
+    listeners.push(refresh);
+    $('acM').addEventListener('input', (e) => { set('music', e.target.value / 100); startIfWanted(); });
+    $('acS').addEventListener('input', (e) => set('sfx', e.target.value / 100));
+    $('acS').addEventListener('change', () => { if (window.Arcade) Arcade.beep(660, 0.08, 'triangle', 0.06); });
+    $('acMute').addEventListener('change', (e) => set('muted', e.target.checked));
+    ov.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => set('quality', b.dataset.q)));
+    ov.querySelector('.ac-danger').addEventListener('click', () => {
+      if (!confirm('Weet je zeker dat je ALLE records, medailles en spookauto\'s wilt wissen? Dit kan niet ongedaan worden.')) return;
+      const kill = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (/^arcade_(best_|2048_state)|^tt2_(bests|ghost)/.test(k)) kill.push(k);
+      }
+      kill.forEach((k) => localStorage.removeItem(k));
+      location.reload();
+    });
+    const close = () => ov.classList.remove('open');
+    ov.querySelector('.ac-x').addEventListener('click', close);
+    ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
+    // Toetsen in het paneel niet doorgeven aan de game
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); e.stopPropagation(); });
+    gear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ov.classList.add('open');
+      // Games pauzeren als het venster de focus verliest: dat doen we hier ook
+      window.dispatchEvent(new Event('blur'));
+      gear.blur();
+    });
+    gear.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM' && !(ov && ov.classList.contains('open'))) set('muted', !S.muted);
+  });
+  if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
+
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
+  return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
+    get settings() { return S; },
+    set, sfx, musicVol, dprCap, music,
+    onChange: (f) => listeners.push(f),
+    isOpen: () => !!(ov && ov.classList.contains('open')),
+  };
+})();
+
+
+// ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
+const Arcade = (() => {
+  const load = (k, d) => { try { const v = localStorage.getItem('arcade_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem('arcade_' + k, JSON.stringify(v)); } catch (e) { /* uit */ } };
+  let audio = null;
+
+  function initAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  addEventListener('pointerdown', initAudio);
+  addEventListener('keydown', initAudio);
+
+  let sfxBus = null, noiseBuf = null;
+  function bus() {
+    if (sfxBus || !audio) return sfxBus;
+    // zachte filter + compressor: effecten klinken voller en minder schel
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const comp = audio.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    lp.connect(comp); comp.connect(audio.destination);
+    sfxBus = lp;
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return sfxBus;
+  }
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    vol *= level * 1.25 * (type === 'square' || type === 'sawtooth' ? 0.8 : 1.1);
+    try {
+      const t = audio.currentTime + delay;
+      const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+      o.type = o2.type = type;
+      o.frequency.setValueAtTime(freq, t); o2.frequency.setValueAtTime(freq, t); o2.detune.value = 7;
+      if (slide) { o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); o2.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      const g2 = audio.createGain(); g2.gain.value = 0.5;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.connect(bus());
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Ruisgeluid: knal, plof, zoef, explosie
+  function noise(dur = 0.2, vol = 0.1, f0 = 3000, f1 = 300, type = 'lowpass', delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      bus();
+      const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+      s.buffer = noiseBuf; f.type = type;
+      f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      g.gain.setValueAtTime(vol * level * 1.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(sfxBus);
+      s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Effecten: deeltjes, schudden, zwevende tekst (zelfde stijl in elke game)
+  function makeFx() {
+    const parts = [], texts = [], rings = [];
+    let shakeT = 0, shakeA = 0, flashA = 0, flashC = '#fff';
+    return {
+      burst(x, y, n = 14, color = '#fff', speed = 180, life = 0.6, size = 3, grav = 200) {
+        const max = ArcadeCore.settings.quality === 'laag' ? 0.5 : 1;
+        for (let i = 0; i < n * max; i++) {
+          const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+          parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.6 + Math.random() * 0.4), max: life, color: Array.isArray(color) ? color[i % color.length] : color, size: size * (0.6 + Math.random() * 0.8), grav });
+        }
+        if (parts.length > 600) parts.splice(0, parts.length - 600);
+      },
+      ring(x, y, color = '#fff', r = 40, life = 0.4) { rings.push({ x, y, color, r, life, max: life }); },
+      text(x, y, t, color = '#fff', size = 18) { texts.push({ x, y, t, color, size, life: 0.9 }); },
+      shake(a = 6, t = 0.25) { shakeA = Math.max(shakeA, a); shakeT = Math.max(shakeT, t); },
+      flash(c = '#fff', a = 0.35) { flashC = c; flashA = Math.max(flashA, a); },
+      update(dt) {
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.grav * dt; p.vx *= 1 - dt * 1.5; p.x += p.vx * dt; p.y += p.vy * dt; }
+        for (let i = texts.length - 1; i >= 0; i--) { const q = texts[i]; q.life -= dt; q.y -= 40 * dt; if (q.life <= 0) texts.splice(i, 1); }
+        for (let i = rings.length - 1; i >= 0; i--) { const q = rings[i]; q.life -= dt; if (q.life <= 0) rings.splice(i, 1); }
+        shakeT = Math.max(0, shakeT - dt); if (!shakeT) shakeA = 0;
+        flashA = Math.max(0, flashA - dt * 2.5);
+      },
+      // roep aan vóór het tekenen van de wereld (ctx.save gebeurt hier)
+      begin(ctx) { ctx.save(); if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeA * 2, (Math.random() - 0.5) * shakeA * 2); },
+      end(ctx) { ctx.restore(); },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const q of rings) { const k = 1 - q.life / q.max; ctx.globalAlpha = 1 - k; ctx.strokeStyle = q.color; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.3 + k), 0, Math.PI * 2); ctx.stroke(); }
+        for (const q of texts) { ctx.globalAlpha = Math.min(1, q.life * 2); text(ctx, q.t, q.x, q.y, q.size, q.color, 'center', '900'); }
+        ctx.restore();
+      },
+      drawFlash(ctx, W, H) { if (flashA > 0) { ctx.save(); ctx.globalAlpha = flashA; ctx.fillStyle = flashC; ctx.fillRect(0, 0, W, H); ctx.restore(); } },
+      clear() { parts.length = 0; texts.length = 0; rings.length = 0; shakeT = 0; },
+      get count() { return parts.length; },
+    };
+  }
+
+  // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
+  function canvas(id, W, H) {
+    const c = document.getElementById(id);
+    const ctx = c.getContext('2d');
+    const view = { W, H, scale: 1 };
+    const fit = () => {
+      const s = Math.min(innerWidth / W, innerHeight / H);
+      const dpr = Math.min(ArcadeCore.dprCap(), devicePixelRatio || 1);
+      c.style.width = Math.floor(W * s) + 'px';
+      c.style.height = Math.floor(H * s) + 'px';
+      c.width = Math.floor(W * s * dpr);
+      c.height = Math.floor(H * s * dpr);
+      view.scale = s * dpr;
+      ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    };
+    fit();
+    addEventListener('resize', fit);
+    ArcadeCore.onChange(fit);
+    view.begin = () => ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    view.toGame = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    };
+    return { c, ctx, view };
+  }
+
+  // Vegen (swipe) op touchscreens: geeft 'links', 'rechts', 'op' of 'neer'
+  function onSwipe(el, fn, onTap) {
+    let sx = 0, sy = 0, st = 0, active = false;
+    el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; st = performance.now(); active = true; });
+    el.addEventListener('pointerup', (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (onTap) onTap(e); return; }
+      if (Math.abs(dx) > Math.abs(dy)) fn(dx > 0 ? 'rechts' : 'links');
+      else fn(dy > 0 ? 'neer' : 'op');
+    });
+  }
+
+  // Tekenhulpjes in dezelfde stijl
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function text(ctx, t, x, y, size, color = '#fff', align = 'center', weight = '700', mono = false) {
+    ctx.font = `${weight} ${size}px ${mono ? 'ui-monospace, Consolas, monospace' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, x, y);
+  }
+  // Knoppen op het canvas (zelfde stijl overal). btn() elke frame opnieuw tekenen; hit() bij klikken.
+  function ui(ctx) {
+    let list = [], hover = null;
+    return {
+      clear() { list = []; },
+      btn(label, x, y, w, h, fn, primary = false, active = false, size = 0) {
+        const on = hover && hover.x >= x && hover.x <= x + w && hover.y >= y && hover.y <= y + h;
+        const g = ctx.createLinearGradient(0, y, 0, y + h);
+        if (primary || active) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe2e6'); }
+        else { g.addColorStop(0, on ? '#30343c' : '#262930'); g.addColorStop(1, on ? '#24272d' : '#1b1d22'); }
+        ctx.fillStyle = g; rr(ctx, x, y, w, h, Math.min(10, h / 3)); ctx.fill();
+        ctx.strokeStyle = primary || active ? 'rgba(255,255,255,0.6)' : on ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, label, x + w / 2, y + h / 2 + 1, size || Math.min(16, h * 0.4), primary || active ? '#111214' : '#ffffff', 'center', '800');
+        list.push({ x, y, w, h, fn });
+      },
+      hit(q) { for (let i = list.length - 1; i >= 0; i--) { const b = list[i]; if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return true; } } return false; },
+      hover(q) { hover = q; },
+    };
+  }
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  // Standaard scherm voor start / pauze / game over
+  function overlay(ctx, W, H, title, lines = [], hint = '') {
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(10, 11, 14, 0.55)'); g.addColorStop(1, 'rgba(4, 5, 7, 0.85)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 40, 400), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const x = (W - pw) / 2, y = (H - ph) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    const cg = ctx.createLinearGradient(0, y, 0, y + ph);
+    cg.addColorStop(0, 'rgba(32, 35, 42, 0.97)'); cg.addColorStop(1, 'rgba(18, 20, 24, 0.97)');
+    ctx.fillStyle = cg;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.stroke();
+    ctx.fillStyle = '#e8282f';
+    rr(ctx, W / 2 - 24, y + 78, 48, 3, 1.5); ctx.fill();
+    text(ctx, title, W / 2, y + 48, 32, '#fff', 'center', '900');
+    lines.forEach((l, i) => {
+      const s = typeof l === 'string' ? { t: l } : l;
+      text(ctx, s.t, W / 2, y + 108 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+    });
+    if (hint) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 450)); text(ctx, hint, W / 2, y + ph - 30, 15, '#ffffff', 'center', '700'); ctx.globalAlpha = 1; }
+  }
+  // Achtergrond met diepte: zacht licht in het midden + vignet
+  function backdrop(ctx, W, H, top = '#15171c', bottom = '#0a0b0e') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.035)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+
+  return {
+    load, save, beep, noise, makeFx, backdrop, ui, fmtTime,
+    get muted() { return !ArcadeCore.sfx(); },
+    best: (game) => load('best_' + game, 0),
+    // Slaat een nieuwe topscore op; geeft true terug als het een record is
+    record: (game, score, lowerIsBetter = false) => {
+      const b = load('best_' + game, 0);
+      if (!b || (lowerIsBetter ? score < b : score > b)) { save('best_' + game, score); return true; }
+      return false;
+    },
+    canvas, onSwipe, rr, text, overlay,
+    touch: matchMedia('(hover: none) and (pointer: coarse)').matches,
+  };
+})();
+
+ArcadeCore.music.play('escape');
+
+
+  </script>
+  <script type="module">
+import * as THREE from '../lib/three.module.js';
+// ================= ESCAPE ROOM · motor (3D-kamer, voorwerpen, rugzak) =================
+const GAME = 'escape';
+const RED = '#e8282f';
+const $ = (id) => document.getElementById(id);
+const RX = 4, RZ = 3, RH = 3.2;           // kamer: 8 x 6 meter, 3,2 hoog
+
+// ---------- willekeur met zaadje (zodat codes elke keer anders zijn, maar bij 'verder spelen' gelijk blijven) ----------
+function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+let R = Math.random;
+const ri = (a, b) => a + Math.floor(R() * (b - a + 1));
+const pick = (arr) => arr[Math.floor(R() * arr.length)];
+const shuffle = (arr) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+// ---------- three.js ----------
+const glc = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas: glc, antialias: true });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0b0c10');
+const camera = new THREE.PerspectiveCamera(64, 1, 0.05, 60);
+function resize() {
+  renderer.setPixelRatio(Math.min(ArcadeCore.dprCap ? ArcadeCore.dprCap() : 2, devicePixelRatio || 1));
+  renderer.setSize(innerWidth, innerHeight, false);
+  glc.style.width = innerWidth + 'px'; glc.style.height = innerHeight + 'px';
+  camera.aspect = innerWidth / innerHeight;
+  camera.fov = camera.aspect < 1 ? 82 : 64;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+// ---------- texturen ----------
+function cv(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); return c; }
+function tex(canvas, rx = 1, ry = 1) { const t = new THREE.CanvasTexture(canvas); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; if (rx !== 1 || ry !== 1) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); } return t; }
+const grain = (g, w, h, n, a) => { for (let i = 0; i < n; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '0,0,0'},${Math.random() * a})`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); } };
+const TEX = {
+  wallpaper: (base, line) => tex(cv(256, 256, (g, w, h) => { g.fillStyle = base; g.fillRect(0, 0, w, h); grain(g, w, h, 3000, 0.05); g.fillStyle = line; for (let x = 0; x < w; x += 32) g.fillRect(x, 0, 10, h); }), 6, 2),
+  plain: (base) => tex(cv(256, 256, (g, w, h) => { g.fillStyle = base; g.fillRect(0, 0, w, h); grain(g, w, h, 5000, 0.06); }), 4, 2),
+  brick: (base) => tex(cv(256, 256, (g, w, h) => { g.fillStyle = '#3a3633'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 32) for (let x = (y / 32) % 2 ? -32 : 0; x < w; x += 64) { g.fillStyle = base; g.fillRect(x + 2, y + 2, 60, 28); g.fillStyle = `rgba(0,0,0,${Math.random() * 0.25})`; g.fillRect(x + 2, y + 2, 60, 28); } grain(g, w, h, 4000, 0.1); }), 4, 2),
+  tiles: (a, b) => tex(cv(256, 256, (g, w, h) => { for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.fillStyle = (x + y) % 2 ? a : b; g.fillRect(x * 64, y * 64, 64, 64); } g.strokeStyle = 'rgba(0,0,0,0.25)'; for (let i = 0; i <= 256; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, h); g.moveTo(0, i); g.lineTo(w, i); g.stroke(); } grain(g, w, h, 3000, 0.06); }), 4, 3),
+  wood: (base) => tex(cv(256, 256, (g, w, h) => { g.fillStyle = base; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 32) { g.fillStyle = `rgba(0,0,0,${0.08 + Math.random() * 0.15})`; g.fillRect(0, y, w, 32); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, y, w, 2); g.fillRect(Math.random() * w, y, 2, 32); } for (let i = 0; i < 60; i++) { g.strokeStyle = 'rgba(0,0,0,0.08)'; g.beginPath(); const yy = Math.random() * h; g.moveTo(0, yy); g.bezierCurveTo(80, yy + 6, 160, yy - 6, 256, yy); g.stroke(); } }), 3, 3),
+  concrete: () => tex(cv(256, 256, (g, w, h) => { g.fillStyle = '#6b6e73'; g.fillRect(0, 0, w, h); grain(g, w, h, 9000, 0.12); }), 3, 3),
+};
+const MAT = (o) => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.8 }, o));
+const M = {
+  wood: MAT({ map: TEX.wood('#7a5132') }), darkwood: MAT({ map: TEX.wood('#4a3020') }), lightwood: MAT({ map: TEX.wood('#b08a5e') }),
+  metal: MAT({ color: '#9aa1ab', roughness: 0.35, metalness: 0.8 }), dark: MAT({ color: '#2a2d33', roughness: 0.6 }), black: MAT({ color: '#121317', roughness: 0.5 }),
+  white: MAT({ color: '#eceef1' }), red: MAT({ color: RED, roughness: 0.4 }), steel: MAT({ color: '#5b616b', roughness: 0.4, metalness: 0.7 }),
+  gold: MAT({ color: '#d4a63c', roughness: 0.3, metalness: 0.9 }), glass: MAT({ color: '#a8d8ff', roughness: 0.05, transparent: true, opacity: 0.35 }),
+  green: MAT({ color: '#3f7a4a' }), cloth: MAT({ color: '#7a2a2e', roughness: 1 }), paper: MAT({ color: '#f2ecdc', roughness: 1 }),
+};
+
+// ---------- bouwstenen ----------
+function mesh(geo, mat, x = 0, y = 0, z = 0) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; return m; }
+const box = (w, h, d, mat, x, y, z) => mesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+const cyl = (r1, r2, h, mat, x, y, z, seg = 20) => mesh(new THREE.CylinderGeometry(r1, r2, h, seg), mat, x, y, z);
+const plane = (w, h, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.receiveShadow = true; return m; };
+const picMat = (canvas) => new THREE.MeshStandardMaterial({ map: tex(canvas), roughness: 0.9 });
+
+// Plaats iets tegen muur w (0 = voor, 1 = rechts, 2 = achter, 3 = links). u = links/rechts langs de muur, y = hoogte, out = afstand van de muur.
+function place(obj, w, u, y, out = 0) {
+  const p = [[u, y, -RZ + out, 0], [RX - out, y, u, -Math.PI / 2], [-u, y, RZ - out, Math.PI], [-RX + out, y, -u, Math.PI / 2]][w];
+  obj.position.set(p[0], p[1], p[2]); obj.rotation.y = p[3];
+  return obj;
+}
+
+const B = {
+  door(color = '#5a3a26') {
+    const g = new THREE.Group(), mat = MAT({ map: TEX.wood(color) });
+    g.add(box(1.24, 2.26, 0.1, M.dark, 0, 1.13, 0.0));
+    const panel = box(1.06, 2.14, 0.08, mat, 0, 1.07, 0.04); g.add(panel);
+    for (const yy of [0.55, 1.55]) g.add(box(0.8, 0.7, 0.02, MAT({ map: TEX.wood(color), color: '#d8d0c8' }), 0, yy, 0.09));
+    g.add(cyl(0.035, 0.035, 0.12, M.gold, 0.42, 1.05, 0.14).rotateX(Math.PI / 2));
+    g.add(box(0.14, 0.22, 0.05, M.black, 0.62, 1.25, 0.08));
+    const led = box(0.03, 0.03, 0.02, MAT({ color: '#ff3b3b', emissive: '#ff2020', emissiveIntensity: 2 }), 0.62, 1.33, 0.11); g.add(led);
+    g.userData.led = led; g.userData.panel = panel;
+    return g;
+  },
+  frame(canvas, w, h, frameMat = M.gold) {
+    const g = new THREE.Group();
+    g.add(box(w + 0.12, h + 0.12, 0.05, frameMat, 0, 0, 0));
+    g.add(plane(w, h, picMat(canvas), 0, 0, 0.03));
+    return g;
+  },
+  poster(canvas, w, h) { const g = new THREE.Group(); g.add(plane(w, h, picMat(canvas), 0, 0, 0.005)); return g; },
+  clock(canvas) {
+    const g = new THREE.Group();
+    const rim = cyl(0.34, 0.34, 0.08, M.black, 0, 0, 0, 40); rim.rotation.x = Math.PI / 2; g.add(rim);
+    const face = new THREE.Mesh(new THREE.CircleGeometry(0.3, 40), picMat(canvas)); face.position.z = 0.045; g.add(face);
+    return g;
+  },
+  desk(w = 1.6, mat = M.wood) {
+    const g = new THREE.Group();
+    g.add(box(w, 0.06, 0.75, mat, 0, 0.78, 0));
+    for (const x of [-w / 2 + 0.05, w / 2 - 0.05]) for (const z of [-0.32, 0.32]) g.add(box(0.06, 0.78, 0.06, M.dark, x, 0.39, z));
+    const drawer = new THREE.Group(); drawer.position.set(w / 4, 0.64, 0.02);
+    drawer.add(box(w / 2 - 0.1, 0.2, 0.7, mat, 0, 0, 0)); drawer.add(box(0.18, 0.03, 0.04, M.metal, 0, 0, 0.37));
+    g.add(drawer); g.userData.drawer = drawer;
+    return g;
+  },
+  table(w = 1.4, d = 0.8, h = 0.76, mat = M.wood) { const g = new THREE.Group(); g.add(box(w, 0.05, d, mat, 0, h, 0)); for (const x of [-w / 2 + 0.06, w / 2 - 0.06]) for (const z of [-d / 2 + 0.06, d / 2 - 0.06]) g.add(box(0.05, h, 0.05, M.dark, x, h / 2, z)); return g; },
+  shelf(w, h, books) {
+    const g = new THREE.Group(), mat = M.darkwood, d = 0.34;
+    g.add(box(w, h, 0.03, mat, 0, h / 2, -d / 2)); for (const x of [-w / 2, w / 2]) g.add(box(0.04, h, d, mat, x, h / 2, 0));
+    const rows = Math.round(h / 0.45);
+    for (let r = 0; r <= rows; r++) g.add(box(w, 0.03, d, mat, 0, (r * h) / rows, 0));
+    const bookMeshes = [];
+    if (books) {
+      for (const bk of books) {
+        const m = box(bk.w || 0.05, bk.h || 0.3, 0.24, MAT({ color: bk.color, roughness: 0.7 }), bk.x, (bk.row * h) / rows + 0.015 + (bk.h || 0.3) / 2, 0);
+        g.add(m); bookMeshes.push(m);
+      }
+    }
+    g.userData.books = bookMeshes;
+    return g;
+  },
+  cabinet(w = 0.9, h = 1.0, d = 0.45, mat = M.wood) {
+    const g = new THREE.Group();
+    g.add(box(w, h, d, mat, 0, h / 2, 0));
+    const doorL = new THREE.Group(); doorL.position.set(-w / 2, h / 2, d / 2 + 0.01);
+    doorL.add(box(w / 2 - 0.01, h - 0.06, 0.02, mat, w / 4, 0, 0)); doorL.add(box(0.02, 0.12, 0.03, M.metal, w / 2 - 0.06, 0, 0.02));
+    const doorR = new THREE.Group(); doorR.position.set(w / 2, h / 2, d / 2 + 0.01);
+    doorR.add(box(w / 2 - 0.01, h - 0.06, 0.02, mat, -w / 4, 0, 0)); doorR.add(box(0.02, 0.12, 0.03, M.metal, -w / 2 + 0.06, 0, 0.02));
+    g.add(doorL, doorR); g.userData.doors = [doorL, doorR];
+    return g;
+  },
+  safe() {
+    const g = new THREE.Group();
+    g.add(box(0.62, 0.62, 0.55, M.steel, 0, 0.31, 0));
+    const door = new THREE.Group(); door.position.set(-0.29, 0.31, 0.28);
+    door.add(box(0.56, 0.56, 0.04, MAT({ color: '#4a4f58', roughness: 0.35, metalness: 0.7 }), 0.29, 0, 0));
+    const dial = cyl(0.08, 0.08, 0.04, M.metal, 0.29, 0.05, 0.04); dial.rotation.x = Math.PI / 2; door.add(dial);
+    door.add(box(0.03, 0.14, 0.04, M.metal, 0.45, -0.12, 0.04));
+    g.add(door); g.userData.door = door;
+    return g;
+  },
+  vent() {
+    const g = new THREE.Group();
+    const cover = new THREE.Group(); g.add(cover);
+    cover.add(box(0.6, 0.4, 0.03, M.metal, 0, 0, 0));
+    for (let i = 0; i < 6; i++) cover.add(box(0.5, 0.03, 0.04, M.steel, 0, -0.15 + i * 0.06, 0.02));
+    for (const x of [-0.26, 0.26]) for (const y of [-0.16, 0.16]) cover.add(cyl(0.015, 0.015, 0.02, M.dark, x, y, 0.03).rotateX(Math.PI / 2));
+    g.add(box(0.56, 0.36, 0.01, M.black, 0, 0, -0.01));
+    g.userData.cover = cover;
+    return g;
+  },
+  rug(canvas, w, d) { const m = plane(w, d, picMat(canvas), 0, 0.006, 0); m.rotation.x = -Math.PI / 2; const g = new THREE.Group(); g.add(m); return g; },
+  plant(h = 0.9) { const g = new THREE.Group(); g.add(cyl(0.16, 0.12, 0.3, MAT({ color: '#b5653c' }), 0, 0.15, 0)); for (let i = 0; i < 7; i++) { const l = mesh(new THREE.ConeGeometry(0.08, h * 0.7, 6), M.green, Math.sin(i) * 0.08, 0.3 + h * 0.3, Math.cos(i * 2) * 0.08); l.rotation.z = Math.sin(i * 3) * 0.4; l.rotation.x = Math.cos(i * 5) * 0.3; g.add(l); } return g; },
+  chair(mat = M.dark) { const g = new THREE.Group(); g.add(box(0.46, 0.05, 0.46, mat, 0, 0.46, 0)); g.add(box(0.46, 0.5, 0.04, mat, 0, 0.72, -0.21)); for (const x of [-0.2, 0.2]) for (const z of [-0.2, 0.2]) g.add(box(0.04, 0.46, 0.04, M.dark, x, 0.23, z)); return g; },
+  lamp() { const g = new THREE.Group(); g.add(cyl(0.12, 0.14, 0.03, M.dark, 0, 0.015, 0)); g.add(cyl(0.012, 0.012, 1.5, M.metal, 0, 0.75, 0)); g.add(cyl(0.12, 0.25, 0.28, MAT({ color: '#f1e6cf', emissive: '#ffdca0', emissiveIntensity: 0.4 }), 0, 1.55, 0, 24)); return g; },
+  chest(mat = M.wood) {
+    const g = new THREE.Group();
+    g.add(box(0.8, 0.42, 0.5, mat, 0, 0.21, 0));
+    const lid = new THREE.Group(); lid.position.set(0, 0.42, -0.25);
+    lid.add(box(0.82, 0.08, 0.52, mat, 0, 0.04, 0.25)); lid.add(box(0.84, 0.02, 0.04, M.gold, 0, 0.04, 0.5));
+    g.add(lid); g.add(box(0.1, 0.12, 0.03, M.gold, 0, 0.38, 0.26)); g.userData.lid = lid;
+    return g;
+  },
+  computer(canvas) {
+    const g = new THREE.Group();
+    g.add(box(0.62, 0.4, 0.04, M.black, 0, 0.32, 0)); g.add(box(0.06, 0.12, 0.06, M.black, 0, 0.06, -0.02)); g.add(box(0.22, 0.02, 0.16, M.black, 0, 0.01, -0.02));
+    const scr = plane(0.56, 0.34, new THREE.MeshBasicMaterial({ map: tex(canvas) }), 0, 0.32, 0.021); g.add(scr);
+    g.add(box(0.46, 0.02, 0.15, M.dark, 0, 0.01, 0.22));
+    g.userData.screen = scr;
+    return g;
+  },
+  candle(h) { const g = new THREE.Group(); g.add(cyl(0.025, 0.025, h, M.white, 0, h / 2, 0, 10)); const f = mesh(new THREE.ConeGeometry(0.012, 0.04, 8), MAT({ color: '#ffcc55', emissive: '#ffaa22', emissiveIntensity: 3 }), 0, h + 0.025, 0); f.castShadow = false; g.add(f); return g; },
+  bin() { const g = new THREE.Group(); g.add(cyl(0.16, 0.13, 0.4, M.steel, 0, 0.2, 0, 16)); const p = mesh(new THREE.IcosahedronGeometry(0.07, 0), M.paper, 0.03, 0.4, 0); g.add(p); return g; },
+  boxGen(w, h, d, mat) { const g = new THREE.Group(); g.add(box(w, h, d, mat, 0, h / 2, 0)); return g; },
+};
+
+// ---------- kamer ----------
+let room = null;
+const clickables = [];
+function newRoom(theme) {
+  if (room) { scene.remove(room); room.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
+  clickables.length = 0;
+  room = new THREE.Group(); scene.add(room);
+  const wallMat = MAT({ map: theme.wall, roughness: 0.95 });
+  const add = (m) => { room.add(m); return m; };
+  const fl = add(plane(RX * 2, RZ * 2, MAT({ map: theme.floor, roughness: 0.85 }), 0, 0, 0)); fl.rotation.x = -Math.PI / 2;
+  const ce = add(plane(RX * 2, RZ * 2, MAT({ color: theme.ceiling || '#d8d6d0' }), 0, RH, 0)); ce.rotation.x = Math.PI / 2;
+  for (let w = 0; w < 4; w++) {
+    const len = w % 2 ? RZ * 2 : RX * 2;
+    const p = place(new THREE.Group(), w, 0, 0, 0);
+    const wall = plane(len, RH, wallMat, 0, RH / 2, 0); p.add(wall);
+    p.add(box(len, 0.12, 0.03, theme.trim || M.darkwood, 0, 0.06, 0.015));
+    add(p);
+  }
+  // licht
+  add(new THREE.HemisphereLight('#f4efe6', '#3a332c', theme.ambient ?? 0.75));
+  const lamp = new THREE.PointLight(theme.light || '#ffe9c9', theme.lightPower ?? 26, 16, 1.6); lamp.position.set(0, RH - 0.4, 0);
+  lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.002; add(lamp);
+  const fix = cyl(0.25, 0.32, 0.12, MAT({ color: '#f3ecd9', emissive: '#ffe2b0', emissiveIntensity: 0.9 }), 0, RH - 0.1, 0); fix.castShadow = false; add(fix);
+  room.userData.lamp = lamp;
+  dress(theme);
+  return room;
+}
+// sfeer: lijst langs het plafond, wandlampjes met eigen licht, raam met uitzicht, kleed
+function dress(theme) {
+  for (let w = 0; w < 4; w++) { const len = w % 2 ? RZ * 2 : RX * 2; const p = place(new THREE.Group(), w, 0, 0, 0); p.add(box(len, 0.08, 0.06, theme.trim || M.darkwood, 0, RH - 0.04, 0.03)); room.add(p); }
+  if (theme.sconce !== false) {
+    for (const [w, u] of [[1, -2.25], [1, 2.25], [3, -2.25], [3, 2.25]]) {
+      const g = new THREE.Group(); g.add(box(0.1, 0.16, 0.06, M.gold, 0, 0, 0.03)); const sh = cyl(0.07, 0.11, 0.16, MAT({ color: '#f4e3c1', emissive: '#ffcf8a', emissiveIntensity: 1.2 }), 0, 0.12, 0.12, 16); sh.castShadow = false; g.add(sh);
+      place(g, w, u, 2.3, 0.02); room.add(g);
+      const l = new THREE.PointLight(theme.light || '#ffd9a0', 2.2, 4, 2); l.position.copy(g.localToWorld(new THREE.Vector3(0, 0.1, 0.3))); room.add(l);
+    }
+  }
+  if (theme.window) {
+    const view = cv(256, 300, (g) => {
+      const night = theme.window !== 'day';
+      const gr = g.createLinearGradient(0, 0, 0, 300); gr.addColorStop(0, night ? '#0b1328' : '#8fb6e0'); gr.addColorStop(1, night ? '#24304d' : '#dfe9f2'); g.fillStyle = gr; g.fillRect(0, 0, 256, 300);
+      if (night) { for (let i = 0; i < 70; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.8})`; g.fillRect(Math.random() * 256, Math.random() * 200, 2, 2); } if (theme.window === 'moon') { g.fillStyle = '#f4f1e0'; g.beginPath(); g.arc(180, 70, 26, 0, 7); g.fill(); } }
+      g.fillStyle = night ? '#121726' : '#9aa6b4'; for (let i = 0; i < 8; i++) { const hh = 60 + Math.random() * 120; g.fillRect(i * 34, 300 - hh, 30, hh); if (night) { g.fillStyle = '#ffd98a'; for (let k = 0; k < 6; k++) if (Math.random() < 0.4) g.fillRect(i * 34 + 6 + (k % 2) * 12, 300 - hh + 10 + Math.floor(k / 2) * 22, 6, 9); g.fillStyle = '#121726'; } }
+    });
+    const win = new THREE.Group();
+    win.add(plane(1.0, 1.2, new THREE.MeshBasicMaterial({ map: tex(view) }), 0, 0, 0.0));
+    win.add(box(1.12, 0.06, 0.08, M.white, 0, 0.63, 0.03)); win.add(box(1.12, 0.06, 0.12, M.white, 0, -0.63, 0.05)); win.add(box(0.06, 1.3, 0.08, M.white, -0.53, 0, 0.03)); win.add(box(0.06, 1.3, 0.08, M.white, 0.53, 0, 0.03)); win.add(box(0.04, 1.2, 0.05, M.white, 0, 0, 0.03)); win.add(box(1.0, 0.04, 0.05, M.white, 0, 0.1, 0.03));
+    place(win, theme.winWall ?? 0, theme.winU ?? -2.55, theme.winY ?? 1.7, 0.01); room.add(win);
+  }
+  if (theme.rug) {
+    const rc = cv(256, 160, (g) => { g.fillStyle = theme.rug; g.fillRect(0, 0, 256, 160); grain(g, 256, 160, 3000, 0.08); g.strokeStyle = 'rgba(255,255,255,0.25)'; g.lineWidth = 5; g.strokeRect(12, 12, 232, 136); g.strokeStyle = 'rgba(0,0,0,0.2)'; g.strokeRect(28, 28, 200, 104); });
+    const rug = plane(2.8, 1.8, picMat(rc), 0, 0.005, 0.2); rug.rotation.x = -Math.PI / 2; room.add(rug);
+  }
+}
+// maak iets klikbaar: label voor de tooltip, fn(G) wordt uitgevoerd bij klikken
+function clickable(obj, label, fn) {
+  obj.userData.label = label; obj.userData.fn = fn;
+  obj.traverse((o) => { if (o.isMesh) { o.userData.owner = obj; clickables.push(o); } });
+  return obj;
+}
+
+// ---------- camera: vier muren ----------
+let view = 0, yaw = 0, yawT = 0;
+const VIEWYAW = [0, -Math.PI / 2, -Math.PI, Math.PI / 2];
+function turn(d) { view = (view + d + 4) % 4; yawT += d * -Math.PI / 2; }
+function updateCam(dt) {
+  yaw += (yawT - yaw) * Math.min(1, dt * 7);
+  const dir = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const back = camera.aspect < 1 ? 1.9 : 1.25;
+  camera.position.set(-dir.x * back, 1.62, -dir.z * back);
+  camera.rotation.set(-0.06, yaw, 0, 'YXZ');
+}
+
+// ---------- tweens (laden, deuren, deksels) ----------
+const tweens = [];
+function tween(obj, prop, axis, to, dur = 0.6) { tweens.push({ obj, prop, axis, from: obj[prop][axis], to, t: 0, dur }); }
+function updateTweens(dt) {
+  for (let i = tweens.length - 1; i >= 0; i--) {
+    const w = tweens[i]; w.t += dt; const k = Math.min(1, w.t / w.dur), e = 1 - Math.pow(1 - k, 3);
+    w.obj[w.prop][w.axis] = w.from + (w.to - w.from) * e;
+    if (k >= 1) tweens.splice(i, 1);
+  }
+}
+
+// ---------- muisklik / aanwijzen ----------
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+let hoverObj = null;
+function pickAt(e) {
+  mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects(clickables, false)[0];
+  return hit ? hit.object.userData.owner : null;
+}
+function setHover(o) {
+  if (hoverObj === o) return;
+  const glow = (obj, on) => obj && obj.traverse((m) => { if (m.isMesh && m.material && m.material.emissive) { if (on) { m.userData.em = m.material.emissive.getHex(); m.userData.ei = m.material.emissiveIntensity; m.material = m.material.clone(); m.material.emissive.set('#5a3a2a'); m.material.emissiveIntensity = 0.35; } else if (m.userData.em != null) { m.material.emissive.setHex(m.userData.em); m.material.emissiveIntensity = m.userData.ei; } } });
+  glow(hoverObj, false); hoverObj = o; glow(hoverObj, true);
+  glc.style.cursor = o ? 'pointer' : 'default';
+}
+
+// ---------- berichten ----------
+let toastT = null;
+function say(text, ms = 3200) {
+  const t = $('eToast'); t.innerHTML = text; t.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms);
+}
+const sfx = {
+  click: () => Arcade.beep(520, 0.04, 'square', 0.03),
+  ok: () => { Arcade.beep(660, 0.08, 'triangle', 0.06); Arcade.beep(990, 0.14, 'triangle', 0.06, 0, 0.08); },
+  bad: () => Arcade.beep(140, 0.22, 'sawtooth', 0.05),
+  item: () => { Arcade.beep(880, 0.06, 'sine', 0.06); Arcade.beep(1320, 0.1, 'sine', 0.05, 0, 0.06); },
+  open: () => Arcade.noise(0.35, 0.06, 1200, 200),
+  win: () => [523, 659, 784, 1046, 1318].forEach((f, i) => Arcade.beep(f, 0.18, 'triangle', 0.07, 0, i * 0.1)),
+};
+// ================= ESCAPE ROOM · puzzels (schermen die over de kamer heen komen) =================
+const OV = {
+  open(title, el, onClose) {
+    $('eOvT').textContent = title;
+    const b = $('eOvB'); b.innerHTML = ''; if (typeof el === 'string') b.innerHTML = el; else b.appendChild(el);
+    $('eOv').classList.add('on'); OV.onClose = onClose || null; OV.isOpen = true;
+  },
+  close() { $('eOv').classList.remove('on'); OV.isOpen = false; const f = OV.onClose; OV.onClose = null; if (f) f(); },
+  isOpen: false,
+};
+$('eOvX').addEventListener('click', () => OV.close());
+$('eOv').addEventListener('pointerdown', (e) => { if (e.target.id === 'eOv') OV.close(); });
+const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+function solved(panelEl, fn) { sfx.ok(); panelEl.classList.add('okflash'); setTimeout(() => { OV.close(); fn(); }, 550); }
+function wrong(el) { sfx.bad(); el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+
+const PZ = {
+  // cijferslot. answer: string
+  keypad(title, answer, onOk, opts = {}) {
+    const wrap = h('div'); let v = '';
+    const disp = h('div', 'disp', '&nbsp;'); wrap.appendChild(disp);
+    if (opts.note) wrap.prepend(h('p', '', opts.note));
+    const keys = h('div', 'keys');
+    const upd = () => { disp.classList.remove('err'); disp.textContent = v.padEnd(answer.length, '·'); };
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '✓'].forEach((k) => {
+      const b = h('button', '', k);
+      b.onclick = () => {
+        sfx.click();
+        if (k === 'C') v = '';
+        else if (k === '✓') { if (v === answer) return solved(wrap.closest('.panel') || wrap, onOk); wrong(disp); disp.classList.add('err'); disp.textContent = 'FOUT'; v = ''; return; }
+        else if (v.length < answer.length) v += k;
+        upd();
+        if (v.length === answer.length && opts.auto !== false && v === answer) solved(wrap.closest('.panel') || wrap, onOk);
+      };
+      keys.appendChild(b);
+    });
+    wrap.appendChild(keys); upd();
+    OV.open(title, wrap);
+    const kd = (e) => { if (!OV.isOpen) { removeEventListener('keydown', kd); return; } if (/^[0-9]$/.test(e.key) && v.length < answer.length) { v += e.key; upd(); sfx.click(); if (v.length === answer.length && v === answer) solved(wrap.closest('.panel'), onOk); } if (e.key === 'Backspace') { v = v.slice(0, -1); upd(); } if (e.key === 'Enter') keys.lastChild.click(); };
+    addEventListener('keydown', kd);
+  },
+  // draaischijven met eigen tekens (letters, symbolen, kleuren). answer: array van indexen
+  wheels(title, symbols, answer, onOk, opts = {}) {
+    const wrap = h('div'); if (opts.note) wrap.appendChild(h('p', '', opts.note));
+    const row = h('div', 'wheels'); const val = answer.map(() => 0);
+    const draw = (vEl, i) => { const s = symbols[val[i]]; if (typeof s === 'object') { vEl.innerHTML = ''; vEl.style.background = s.c; vEl.textContent = s.t || ''; } else { vEl.textContent = s; } };
+    answer.forEach((_, i) => {
+      const w = h('div', 'wheel'), up = h('button', '', '▲'), v = h('div', 'v'), dn = h('button', '', '▼');
+      up.onclick = () => { val[i] = (val[i] + 1) % symbols.length; draw(v, i); sfx.click(); };
+      dn.onclick = () => { val[i] = (val[i] - 1 + symbols.length) % symbols.length; draw(v, i); sfx.click(); };
+      draw(v, i); w.append(up, v, dn); row.appendChild(w);
+    });
+    const go = h('button', 'pri', 'Openen');
+    go.onclick = () => { if (val.every((x, i) => x === answer[i])) solved(wrap.closest('.panel'), onOk); else wrong(row); };
+    wrap.append(row, go); OV.open(title, wrap);
+  },
+  letters(title, word, onOk, opts) { const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); PZ.wheels(title, A, word.toUpperCase().split('').map((c) => A.indexOf(c)), onOk, opts); },
+  // knoppen in de goede volgorde indrukken. items: [{label, color}], answer: indexen
+  sequence(title, items, answer, onOk, opts = {}) {
+    const wrap = h('div'); if (opts.note) wrap.appendChild(h('p', '', opts.note));
+    const row = h('div', 'seq'), prog = h('div', 'prog'); let pos = 0;
+    const dots = answer.map(() => { const d = h('i'); prog.appendChild(d); return d; });
+    items.forEach((it, i) => {
+      const b = h('button', '', it.label || '');
+      if (it.color) { b.style.background = it.color; b.style.color = it.text || '#111'; }
+      b.onclick = () => {
+        if (opts.tone) Arcade.beep(opts.tone[i], 0.25, 'triangle', 0.07); else sfx.click();
+        if (i === answer[pos]) { dots[pos].classList.add('on'); pos++; if (pos === answer.length) solved(wrap.closest('.panel'), onOk); }
+        else { pos = 0; dots.forEach((d) => d.classList.remove('on')); wrong(row); }
+      };
+      row.appendChild(b);
+    });
+    wrap.append(row, prog); OV.open(title, wrap);
+  },
+  // schuifpuzzel n x n; img = canvas (optioneel) die zichtbaar wordt als hij klopt
+  sliding(title, n, img, onOk, moves = 220) {
+    const wrap = h('div'); wrap.appendChild(h('p', '', 'Schuif de stukjes op hun plek. Klik op een stukje naast het lege vakje.'));
+    const grid = h('div', 'grid'); const S = n > 3 ? 64 : 84;
+    grid.style.gridTemplateColumns = `repeat(${n}, ${S}px)`;
+    let cells = [...Array(n * n).keys()];      // cells[pos] = tegelnummer, n*n-1 = gat
+    let gap = n * n - 1;
+    for (let k = 0; k < moves; k++) { const nb = [gap - 1, gap + 1, gap - n, gap + n].filter((p) => p >= 0 && p < n * n && (Math.abs((p % n) - (gap % n)) + Math.abs(Math.floor(p / n) - Math.floor(gap / n)) === 1)); const p = nb[Math.floor(Math.random() * nb.length)]; [cells[p], cells[gap]] = [cells[gap], cells[p]]; gap = p; }
+    const url = img ? img.toDataURL() : null;
+    const draw = () => {
+      grid.innerHTML = '';
+      cells.forEach((t, p) => {
+        const b = h('button', 'tile' + (t === n * n - 1 ? ' gap' : ''), url ? '' : String(t + 1));
+        b.style.width = b.style.height = S + 'px';
+        if (url && t !== n * n - 1) { b.style.backgroundImage = `url(${url})`; b.style.backgroundSize = `${n * S}px ${n * S}px`; b.style.backgroundPosition = `-${(t % n) * S}px -${Math.floor(t / n) * S}px`; }
+        b.onclick = () => {
+          const dx = Math.abs((p % n) - (gap % n)), dy = Math.abs(Math.floor(p / n) - Math.floor(gap / n));
+          if (dx + dy !== 1) return;
+          [cells[p], cells[gap]] = [cells[gap], cells[p]]; gap = p; sfx.click(); draw();
+          if (cells.every((x, i) => x === i)) solved(wrap.closest('.panel'), onOk);
+        };
+        grid.appendChild(b);
+      });
+    };
+    draw(); wrap.appendChild(grid); OV.open(title, wrap);
+  },
+  // alle lampjes uit (of aan). Klik = lampje + buren wisselen
+  lightsOut(title, n, presses, onOk) {
+    const wrap = h('div'); wrap.appendChild(h('p', '', 'Klik op een lampje: dat lampje en de lampjes eromheen (boven, onder, links, rechts) wisselen. Zet ze <b>allemaal uit</b>.'));
+    const grid = h('div', 'grid'); grid.style.gridTemplateColumns = `repeat(${n}, auto)`;
+    const on = Array(n * n).fill(false);
+    const tog = (p) => { const x = p % n, y = Math.floor(p / n); for (const [a, b] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + a, yy = y + b; if (xx >= 0 && yy >= 0 && xx < n && yy < n) on[yy * n + xx] = !on[yy * n + xx]; } };
+    do { on.fill(false); for (let k = 0; k < presses; k++) tog(Math.floor(Math.random() * n * n)); } while (!on.some(Boolean));
+    const btns = on.map((_, p) => { const b = h('button', 'lo'); b.onclick = () => { tog(p); sfx.click(); draw(); if (!on.some(Boolean)) solved(wrap.closest('.panel'), onOk); }; grid.appendChild(b); return b; });
+    const draw = () => btns.forEach((b, p) => b.classList.toggle('on', on[p]));
+    draw(); wrap.appendChild(grid); OV.open(title, wrap);
+  },
+  // buizen/draden: draai de stukjes zodat stroom van links (pijl) naar rechts loopt
+  pipes(title, n, onOk, opts = {}) {
+    const wrap = h('div'); wrap.appendChild(h('p', '', opts.note || 'Klik op een stukje om het te draaien. Verbind de ingang links met de uitgang rechts.'));
+    // pad maken (random walk zonder dubbel bezoek)
+    const D = [[1, 0], [0, 1], [-1, 0], [0, -1]];   // 0 = rechts, 1 = onder, 2 = links, 3 = boven
+    let path;
+    const r0 = Math.floor(Math.random() * n);
+    for (let tries = 0; tries < 400; tries++) {
+      path = [[0, r0]]; const seen = new Set(['0,' + r0]);
+      let ok = false;
+      for (let s = 0; s < n * n * 2; s++) {
+        const [x, y] = path[path.length - 1];
+        if (x === n - 1 && path.length > n + 1) { ok = true; break; }
+        const opt = D.map((d, i) => [x + d[0], y + d[1], i]).filter(([a, b]) => a >= 0 && b >= 0 && a < n && b < n && !seen.has(a + ',' + b) && !(a === n - 1 && path.length < n));
+        if (!opt.length) break;
+        const w = opt.map((o) => (o[2] === 0 ? 2 : 1)); let r = Math.random() * w.reduce((a, b) => a + b), k = 0; while (r > w[k]) { r -= w[k]; k++; }
+        const [a, b] = opt[k]; path.push([a, b]); seen.add(a + ',' + b);
+      }
+      if (ok) break;
+    }
+    const conn = Array.from({ length: n * n }, () => new Set());
+    path.forEach(([x, y], i) => {
+      const c = conn[y * n + x];
+      const prev = i ? path[i - 1] : [x - 1, y], next = i < path.length - 1 ? path[i + 1] : [x + 1, y];
+      for (const [a, b] of [prev, next]) c.add(D.findIndex((d) => d[0] === a - x && d[1] === b - y));
+    });
+    const SH = [[0, 2], [0, 1], [0, 1, 2]];   // recht, bocht, T
+    const cells = conn.map((c) => { let base; if (c.size) { const a = [...c]; const straight = (a[0] + 2) % 4 === a[1]; base = straight ? [0, 2] : [0, 1]; } else base = SH[Math.floor(Math.random() * 3)]; return { base, rot: Math.floor(Math.random() * 4) }; });
+    const dirs = (cell) => cell.base.map((d) => (d + cell.rot) % 4);
+    const grid = h('div', 'grid'); grid.style.gridTemplateColumns = `repeat(${n}, auto)`;
+    const svg = (cell, lit) => { const col = lit ? '#e8282f' : '#6b717b'; const seg = (d) => { const [x2, y2] = [[50, 0], [0, 50], [-50, 0], [0, -50]][d]; return `<line x1="50" y1="50" x2="${50 + x2}" y2="${50 + y2}" stroke="${col}" stroke-width="16" stroke-linecap="round"/>`; }; return `<svg viewBox="0 0 100 100">${cell.base.map(seg).join('')}<circle cx="50" cy="50" r="10" fill="${col}"/></svg>`; };
+    const btns = cells.map((cell, p) => { const b = h('button', 'pipe'); b.onclick = () => { cell.rot = (cell.rot + 1) % 4; sfx.click(); draw(); }; grid.appendChild(b); return b; });
+    const flow = () => {
+      const lit = new Set(); const st = [[0, r0, 2]];
+      while (st.length) {
+        const [x, y, from] = st.pop(); const p = y * n + x; if (lit.has(p)) continue;
+        const ds = dirs(cells[p]); if (!ds.includes(from)) continue;
+        lit.add(p);
+        for (const d of ds) { const a = x + D[d][0], b = y + D[d][1]; if (a === n && d === 0) lit.add('out' + y); if (a >= 0 && b >= 0 && a < n && b < n) st.push([a, b, (d + 2) % 4]); }
+      }
+      return lit;
+    };
+    const endY = path[path.length - 1][1];
+    let done = false;
+    const draw = () => {
+      const lit = flow();
+      btns.forEach((b, p) => { b.innerHTML = svg(cells[p], lit.has(p)); });
+      if (!done && lit.has('out' + endY)) { done = true; setTimeout(() => solved(wrap.closest('.panel'), onOk), 250); }
+    };
+    const frame = h('div'); frame.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px';
+    const inA = h('div', '', '▶'), outA = h('div', '', '▶'); inA.style.cssText = `color:#e8282f;font-size:22px;align-self:flex-start;margin-top:${r0 * 68 + 18}px`; outA.style.cssText = `color:#5fd38a;font-size:22px;align-self:flex-start;margin-top:${endY * 68 + 18}px`;
+    frame.append(inA, grid, outA); wrap.appendChild(frame);
+    draw(); OV.open(title, wrap);
+    if (n > 5 || innerWidth < 700) { inA.style.display = outA.style.display = 'none'; btns[r0 * n].style.boxShadow = 'inset 4px 0 0 #e8282f'; btns[endY * n + n - 1].style.boxShadow = 'inset -4px 0 0 #5fd38a'; }
+  },
+  // mastermind: raad de kleurcode met hints (rood = goede kleur op goede plek, wit = goede kleur op verkeerde plek)
+  mastermind(title, ncol, len, tries, onOk) {
+    const COLS = ['#e8282f', '#2f7de8', '#3ddc84', '#ffd23a', '#ffffff', '#a65fe8', '#ff8c2a'].slice(0, ncol);
+    const wrap = h('div');
+    wrap.appendChild(h('p', '', `Raad de geheime code van ${len} kleuren (kleuren kunnen dubbel voorkomen). Na elke poging: <b style="color:#e8282f">●</b> = goede kleur op de goede plek, <b>○</b> = goede kleur, verkeerde plek. Je hebt ${tries} pogingen.`));
+    let secret, guess, rows;
+    const board = h('div'), cur = h('div', 'mm-row'), pickRow = h('div', 'mm-pick');
+    const reset = () => { secret = Array.from({ length: len }, () => Math.floor(Math.random() * ncol)); guess = []; rows = 0; board.innerHTML = ''; drawCur(); };
+    const drawCur = () => { cur.innerHTML = ''; for (let i = 0; i < len; i++) { const p = h('div', 'mm-peg'); if (guess[i] != null) p.style.background = COLS[guess[i]]; cur.appendChild(p); } const b = h('button', '', '⌫'); b.style.cssText = 'border:0;background:none;color:#fff;font-size:18px;cursor:pointer'; b.onclick = () => { guess.pop(); drawCur(); }; cur.appendChild(b); };
+    COLS.forEach((c, i) => { const b = h('button'); b.style.background = c; b.onclick = () => { if (guess.length < len) { guess.push(i); sfx.click(); drawCur(); } }; pickRow.appendChild(b); });
+    const go = h('button', 'pri', 'Controleer');
+    go.onclick = () => {
+      if (guess.length < len) return wrong(cur);
+      let bl = 0, wh = 0; const s = secret.slice(), g = guess.slice();
+      for (let i = 0; i < len; i++) if (g[i] === s[i]) { bl++; s[i] = g[i] = -1; }
+      for (let i = 0; i < len; i++) if (g[i] >= 0) { const k = s.indexOf(g[i]); if (k >= 0) { wh++; s[k] = -2; } }
+      const r = h('div', 'mm-row'); guess.forEach((x) => { const p = h('div', 'mm-peg'); p.style.background = COLS[x]; r.appendChild(p); });
+      const fb = h('div', 'mm-fb'); for (let i = 0; i < len; i++) { const d = h('i'); if (i < bl) d.className = 'b'; else if (i < bl + wh) d.className = 'w'; fb.appendChild(d); } r.appendChild(fb);
+      board.appendChild(r); rows++; guess = []; drawCur(); sfx.click();
+      if (bl === len) return solved(wrap.closest('.panel'), onOk);
+      if (rows >= tries) { wrong(board); say('Alle pogingen op! Het slot kiest een <b>nieuwe</b> code.'); setTimeout(reset, 900); }
+    };
+    wrap.append(board, cur, pickRow, go); reset(); OV.open(title, wrap);
+  },
+  // piano: speel de melodie. answer: ['C','E',...]
+  piano(title, answer, onOk, opts = {}) {
+    const NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C2'], FREQ = [262, 294, 330, 349, 392, 440, 494, 523];
+    const wrap = h('div'); if (opts.note) wrap.appendChild(h('p', '', opts.note));
+    const keys = h('div', 'piano'); let played = [];
+    const hist = h('div', 'hist', '&nbsp;');
+    NOTES.forEach((n, i) => { const b = h('button', 'pk', opts.labels === false ? '' : n.replace('2', '')); b.onclick = () => { Arcade.beep(FREQ[i], 0.5, 'triangle', 0.09); b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 160); played.push(n); played = played.slice(-answer.length); hist.textContent = '♪ '.repeat(played.length); if (played.join() === answer.join()) setTimeout(() => solved(wrap.closest('.panel'), onOk), 300); }; keys.appendChild(b); });
+    wrap.append(keys, hist); OV.open(title, wrap);
+  },
+  // kluisdraaier: draai links/rechts naar getallen. answer: [['L',12],['R',7],['L',24]]
+  dial(title, answer, onOk, opts = {}) {
+    const wrap = h('div'); if (opts.note) wrap.appendChild(h('p', '', opts.note));
+    const N = 40; let v = 0, dir = null, seq = [];
+    const dial = h('div', 'dial'); const num = h('span', '', '0'); dial.append(h('span', 'mark', '▼'), num);
+    const hist = h('div', 'hist', 'Draai de knop…');
+    const showH = () => { hist.textContent = seq.concat(dir ? [[dir, v]] : []).map(([d, n]) => (d === 'L' ? '⟲' : '⟳') + n).join('  ') || 'Draai de knop…'; };
+    const step = (d) => { if (dir && dir !== d) seq.push([dir, v]); dir = d; v = (v + (d === 'R' ? 1 : -1) + N) % N; num.textContent = v; Arcade.beep(1800, 0.015, 'square', 0.02); showH(); };
+    let hold = null;
+    const mk = (lab, d) => { const b = h('button', 'sec', lab); const start = () => { step(d); hold = setInterval(() => step(d), 110); }; b.onpointerdown = start; b.onpointerup = b.onpointerleave = () => clearInterval(hold); return b; };
+    const row = h('div', 'drow'); row.append(mk('⟲ Links', 'L'), mk('Rechts ⟳', 'R'));
+    const go = h('button', 'pri', 'Hendel overhalen'), clr = h('button', 'sec', 'Opnieuw beginnen');
+    go.onclick = () => { const all = seq.concat(dir ? [[dir, v]] : []); if (all.length === answer.length && all.every(([d, n], i) => d === answer[i][0] && n === answer[i][1])) solved(wrap.closest('.panel'), onOk); else { wrong(dial); seq = []; dir = null; showH(); } };
+    clr.onclick = () => { seq = []; dir = null; showH(); };
+    wrap.append(dial, hist, row, go, clr); OV.open(title, wrap);
+  },
+  // sterren aanklikken in de juiste volgorde. pts: [[x%, y%]], answer: indexen
+  stars(title, pts, answer, onOk, opts = {}) {
+    const wrap = h('div'); if (opts.note) wrap.appendChild(h('p', '', opts.note));
+    const sky = h('div', 'stars'); let pos = 0;
+    const svgNS = 'http://www.w3.org/2000/svg'; const lines = document.createElementNS(svgNS, 'svg'); lines.setAttribute('viewBox', '0 0 100 100'); lines.setAttribute('preserveAspectRatio', 'none'); lines.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none'; sky.appendChild(lines);
+    for (let i = 0; i < 60; i++) { const d = h('i'); d.style.cssText = `position:absolute;left:${Math.random() * 100}%;top:${Math.random() * 100}%;width:2px;height:2px;background:rgba(255,255,255,${0.2 + Math.random() * 0.5});border-radius:50%`; sky.appendChild(d); }
+    const btns = pts.map(([x, y], i) => { const b = h('button'); b.style.left = x + '%'; b.style.top = y + '%'; b.onclick = () => {
+      Arcade.beep(600 + pos * 80, 0.1, 'sine', 0.05);
+      if (i === answer[pos]) { b.classList.add('on'); if (pos > 0) { const [x1, y1] = pts[answer[pos - 1]]; const l = document.createElementNS(svgNS, 'line'); l.setAttribute('x1', x1); l.setAttribute('y1', y1); l.setAttribute('x2', x); l.setAttribute('y2', y); l.setAttribute('stroke', '#ffd23a'); l.setAttribute('stroke-width', '0.6'); lines.appendChild(l); } pos++; if (pos === answer.length) solved(wrap.closest('.panel'), onOk); }
+      else { pos = 0; btns.forEach((x) => x.classList.remove('on')); lines.innerHTML = ''; wrong(sky); }
+    }; sky.appendChild(b); return b; });
+    wrap.appendChild(sky); OV.open(title, wrap);
+  },
+  // tekst intypen (wachtwoord)
+  text(title, answer, onOk, opts = {}) {
+    const wrap = h('div'); if (opts.screen) wrap.appendChild(h('div', 'screen', opts.screen)); if (opts.note) wrap.appendChild(h('p', '', opts.note));
+    const row = h('div', 'inputrow'), inp = h('input'), go = h('button', '', 'OK');
+    inp.placeholder = opts.placeholder || 'Typ hier…'; inp.autocomplete = 'off';
+    const check = () => { if (inp.value.trim().toLowerCase().replace(/\s+/g, '') === answer.toLowerCase().replace(/\s+/g, '')) solved(wrap.closest('.panel'), onOk); else { wrong(row); inp.value = ''; } };
+    go.onclick = check; inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') check(); };
+    row.append(inp, go); wrap.style.marginTop = '12px'; wrap.appendChild(row); OV.open(title, wrap);
+    setTimeout(() => inp.focus(), 50);
+  },
+  // document of plaatje bekijken
+  doc(title, html, opts = {}) { const d = h('div', 'doc' + (opts.mirror ? ' mirror' : ''), html); if (opts.style) d.style.cssText += opts.style; OV.open(title, d); },
+  img(title, canvas, extra = '') { const w = h('div'); const i = h('img', 'docimg'); i.src = canvas.toDataURL(); w.appendChild(i); if (extra) w.appendChild(h('p', '', extra)); OV.open(title, w); },
+  screen(title, text) { OV.open(title, h('div', 'screen', text)); },
+};
+// ================= ESCAPE ROOM · de 10 kamers =================
+// Elke kamer: build(G) bouwt de 3D-kamer en legt de puzzels vast. Codes worden met R() gekozen,
+// dus elke poging is anders (oplossingen doorgeven werkt niet).
+
+// ---------- tekenhulpjes voor aanwijzingen ----------
+const HAND = '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
+function paperCv(w, h, lines, opts = {}) {
+  return cv(w, h, (g) => {
+    g.fillStyle = opts.bg || '#f2ecdc'; g.fillRect(0, 0, w, h); grain(g, w, h, 2500, 0.05);
+    g.fillStyle = opts.color || '#2b2620'; g.textBaseline = 'top';
+    let y = opts.pad || 24;
+    for (const l of lines) { const s = typeof l === 'string' ? { t: l } : l; g.font = `${s.b ? '700 ' : ''}${s.size || 26}px ${s.font || HAND}`; g.textAlign = s.align || 'left'; g.fillStyle = s.color || opts.color || '#2b2620'; g.fillText(s.t, s.align === 'center' ? w / 2 : 26, y); y += (s.size || 26) * 1.45; }
+  });
+}
+function clockCv(hh, mm) {
+  return cv(256, 256, (g) => {
+    g.fillStyle = '#f4f1ea'; g.beginPath(); g.arc(128, 128, 126, 0, 7); g.fill();
+    g.fillStyle = '#222'; g.font = '700 26px Georgia'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let i = 1; i <= 12; i++) { const a = (i / 12) * Math.PI * 2 - Math.PI / 2; g.fillText(String(i), 128 + Math.cos(a) * 98, 128 + Math.sin(a) * 98); }
+    for (let i = 0; i < 60; i++) { const a = (i / 60) * Math.PI * 2; g.fillRect(128 + Math.cos(a) * 116 - 1, 128 + Math.sin(a) * 116 - 1, i % 5 ? 2 : 4, i % 5 ? 2 : 4); }
+    const hand = (a, len, wdt, col) => { g.strokeStyle = col; g.lineWidth = wdt; g.lineCap = 'round'; g.beginPath(); g.moveTo(128, 128); g.lineTo(128 + Math.cos(a) * len, 128 + Math.sin(a) * len); g.stroke(); };
+    hand(((hh % 12) + mm / 60) / 12 * Math.PI * 2 - Math.PI / 2, 58, 9, '#111');
+    hand((mm / 60) * Math.PI * 2 - Math.PI / 2, 88, 5, '#111');
+    g.fillStyle = RED; g.beginPath(); g.arc(128, 128, 7, 0, 7); g.fill();
+  });
+}
+const COLORS = { rood: '#d42a32', blauw: '#2f6fd4', groen: '#2f9e5b', geel: '#f0c419', paars: '#8a4fd1', oranje: '#ee7a22', wit: '#f4f5f7', zwart: '#1b1d22', roze: '#f07ab0', bruin: '#8a5a32' };
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+const word = (list) => pick(list);
+const caesar = (s, k) => s.toUpperCase().replace(/[A-Z]/g, (c) => String.fromCharCode(((c.charCodeAt(0) - 65 + k + 26) % 26) + 65));
+const roman = (n) => { const m = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']]; let s = ''; for (const [v, r] of m) while (n >= v) { s += r; n -= v; } return s; };
+
+// ---------- voorwerpen (rugzak) ----------
+const ITEMS = {};
+function item(id, name, icon, view) { ITEMS[id] = { id, name, icon, view }; return id; }
+
+// standaard deur: klikken = slot(en) proberen
+function exitDoor(G, w, u, check) {
+  const d = place(B.door(G.theme.door), w, u, 0, 0.02); room.add(d);
+  if (G.f.door) d.userData.panel.rotation.y = -1.4;
+  clickable(d, 'Deur', () => {
+    if (G.f.door) return G.win();
+    check(() => { G.set('door'); d.userData.led.material = MAT({ color: '#3ddc84', emissive: '#22ff77', emissiveIntensity: 2 }); tween(d.userData.panel, 'rotation', 'y', -1.4, 1.2); sfx.open(); setTimeout(() => G.win(), 900); });
+  });
+  return d;
+}
+const deco = {
+  plant: (w, u, out = 0.35) => room.add(place(B.plant(), w, u, 0, out)),
+  lamp: (w, u, out = 0.3) => room.add(place(B.lamp(), w, u, 0, out)),
+  chair: (w, u, out = 0.6, rot = 0) => { const c = place(B.chair(), w, u, 0, out); c.rotation.y += rot; room.add(c); return c; },
+};
+function herring(obj, label, text) { room.add(obj); clickable(obj, label, () => say(text)); return obj; }
+
+const LEVELS = [
+  // =====================================================================================
+  {
+    name: 'De werkkamer', diff: 2,
+    desc: 'Een stoffige studeerkamer. De deur zit op slot met een code van zes cijfers.',
+    theme: { wall: () => TEX.wallpaper('#6d5a48', 'rgba(255,255,255,0.05)'), floor: () => TEX.wood('#6a4a30'), door: '#5a3a26', window: 'day' },
+    build(G) {
+      const hh = ri(1, 12), mm = ri(1, 11) * 5;
+      const drawerCode = String(hh).padStart(2, '0') + String(mm).padStart(2, '0');
+      const door = Array.from({ length: 6 }, () => ri(0, 9)).join('');
+      const palette = ['rood', 'blauw', 'groen', 'geel', 'paars', 'oranje'];
+      const order = shuffle(palette).slice(0, 4);
+      item('schroevendraaier', 'Schroevendraaier', '🪛');
+      item('sleuteltje', 'Klein sleuteltje', '🗝️');
+      item('briefA', 'Briefje (oneven)', '📜', () => PZ.doc('Briefje', `<h3>Deurcode</h3>Plek 1, 3 en 5:<br><b style="font-size:30px;letter-spacing:6px">${door[0]} · ${door[2]} · ${door[4]}</b>`));
+      item('briefB', 'Briefje (even)', '📜', () => PZ.doc('Briefje', `<h3>Deurcode</h3>Plek 2, 4 en 6:<br><b style="font-size:30px;letter-spacing:6px">${door[1]} · ${door[3]} · ${door[5]}</b>`));
+      exitDoor(G, 0, 2.5, (ok) => PZ.keypad('Deur: 6 cijfers', door, ok));
+      // klok
+      const clk = clockCv(hh, mm); const clock = place(B.clock(clk), 0, -0.6, 2.25, 0.05); room.add(clock);
+      clickable(clock, 'Klok', () => PZ.img('De klok staat stil', clk, 'Hij tikt niet meer…'));
+      // bureau met la
+      const desk = place(B.desk(1.7), 3, 0.3, 0, 0.45); room.add(desk);
+      const note = box(0.21, 0.005, 0.28, M.paper, -0.45, 0.815, 0.05); note.rotation.y = 0.3; desk.add(note);
+      clickable(desk, 'Bureau', () => PZ.doc('Briefje op het bureau', 'Ik vergeet ook álles… De code van mijn bureaula is gewoon het tijdstip waarop die oude klok is blijven stilstaan.<br><br><i>(eerst de uren, dan de minuten, 4 cijfers)</i>'));
+      const dr = desk.userData.drawer; if (G.f.drawer) dr.position.z = 0.42;
+      clickable(dr, 'Bureaula', () => {
+        if (G.f.drawer) return say(G.f.gotScrew ? 'De la is leeg.' : '');
+        PZ.keypad('Cijferslot van de la', drawerCode, () => { G.set('drawer'); tween(dr, 'position', 'z', 0.42); sfx.open(); G.give('schroevendraaier'); G.set('gotScrew'); say('In de la ligt een <b>schroevendraaier</b>.'); });
+      });
+      deco.chair(3, 0.3, 1.2, Math.PI);
+      deco.lamp(3, -2.1);
+      // ventilatierooster
+      const vent = place(B.vent(), 1, -1.6, 0.45, 0.02); room.add(vent);
+      if (G.f.vent) { vent.userData.cover.rotation.x = -1.4; vent.userData.cover.position.y = -0.2; }
+      clickable(vent, 'Ventilatierooster', () => {
+        if (G.f.vent) return say(G.has('sleuteltje') || G.f.cabinet ? 'Een donkere schacht. Verder is hij leeg.' : '');
+        if (G.sel !== 'schroevendraaier') return say('Het rooster zit vast met vier schroefjes.');
+        G.set('vent'); G.take('schroevendraaier'); tween(vent.userData.cover, 'rotation', 'x', -1.4); tween(vent.userData.cover, 'position', 'y', -0.2); sfx.open();
+        G.give('sleuteltje'); say('Achter het rooster ligt een <b>klein sleuteltje</b>.');
+      });
+      // kastje
+      const cab = place(B.cabinet(0.9, 1.0, 0.45), 1, 1.2, 0, 0.24); room.add(cab);
+      if (G.f.cabinet) { cab.userData.doors[0].rotation.y = -1.8; cab.userData.doors[1].rotation.y = 1.8; }
+      clickable(cab, 'Kastje', () => {
+        if (G.f.cabinet) return say('Een leeg kastje.');
+        if (G.sel !== 'sleuteltje') return say('Het kastje zit op slot. Een klein sleutelgat.');
+        G.set('cabinet'); G.take('sleuteltje'); tween(cab.userData.doors[0], 'rotation', 'y', -1.8); tween(cab.userData.doors[1], 'rotation', 'y', 1.8); sfx.open();
+        G.give('briefA'); say('In het kastje ligt een <b>briefje</b>. Klik erop in je rugzak om het te lezen.');
+      });
+      // schilderij met boeken
+      const pc = cv(400, 300, (g) => { g.fillStyle = '#e9e1cf'; g.fillRect(0, 0, 400, 300); g.fillStyle = '#5a3a26'; g.fillRect(40, 236, 320, 14); order.forEach((c, i) => { g.fillStyle = COLORS[c]; g.fillRect(70 + i * 70, 96 - (i % 2) * 20, 50, 140 + (i % 2) * 20); g.fillStyle = 'rgba(255,255,255,0.4)'; g.fillRect(78 + i * 70, 120, 34, 6); }); g.fillStyle = '#3a2f25'; g.font = 'italic 22px Georgia'; g.textAlign = 'center'; g.fillText('"Orde is alles"', 200, 282); });
+      const paint = place(B.frame(pc, 1.0, 0.75), 2, -1.4, 1.75, 0.03); room.add(paint);
+      clickable(paint, 'Schilderij', () => PZ.img('Schilderij', pc));
+      // boekenkast met geheim vak
+      const books = []; let x = -0.5;
+      const shelfCols = shuffle(palette.concat(palette));
+      shelfCols.forEach((c, i) => { const w = 0.06 + R() * 0.04; books.push({ color: COLORS[c], x, row: i < 6 ? 2 : 3, w, h: 0.26 + R() * 0.1 }); x += w + 0.01; if (i === 5) x = -0.5; });
+      const shelf = place(B.shelf(1.2, 1.8, books), 2, 1.6, 0, 0.2); room.add(shelf);
+      clickable(shelf, 'Boekenkast', () => {
+        if (G.f.books) return say('Het geheime vakje is leeg.');
+        PZ.sequence('Boeken uittrekken', palette.map((c) => ({ label: cap(c), color: COLORS[c], text: c === 'geel' ? '#111' : '#fff' })), order.map((c) => palette.indexOf(c)),
+          () => { G.set('books'); G.give('briefB'); say('Klik! Achter de boeken gaat een vakje open. Er ligt een <b>briefje</b> in.'); }, { note: 'Er zijn een paar losse boeken. Trek ze uit in de juiste volgorde…' });
+      });
+      // afleiding
+      herring(place(B.bin(), 0, -2.6, 0, 0.3), 'Prullenbak', 'Een prop papier: <i>"Boodschappen: melk, brood, kattenvoer."</i> Niets nuttigs.');
+      const rugC = cv(256, 160, (g) => { g.fillStyle = '#7a2a2e'; g.fillRect(0, 0, 256, 160); g.strokeStyle = '#d4a63c'; g.lineWidth = 6; g.strokeRect(14, 14, 228, 132); g.strokeRect(34, 34, 188, 92); });
+      herring(B.rug(rugC, 2.6, 1.6), 'Kleed', 'Je tilt het kleed op… alleen stof.');
+      deco.plant(0, -3.2);
+      return {
+        hints: () => !G.f.drawer ? 'Lees het briefje op het bureau en kijk goed naar de klok.' : !G.f.vent ? 'Met de schroevendraaier krijg je een rooster open. Selecteer hem in je rugzak en klik op het rooster.' : !G.f.cabinet ? 'Het sleuteltje past op het kastje.' : !G.f.books ? 'Het schilderij laat een volgorde van boeken zien.' : 'Je hebt twee briefjes: oneven plekken en even plekken. Zet de cijfers om en om.',
+        solution: () => `La: ${drawerCode} · Boeken: ${order.join(', ')} · Deur: ${door}`,
+      };
+    },
+  },
+  // =====================================================================================
+  {
+    name: 'Het laboratorium', diff: 3,
+    desc: 'Een verlaten lab. Iets verbergt een geheime boodschap… maar je ziet hem niet.',
+    theme: { wall: () => TEX.tiles('#dfe6e8', '#cfd8db'), floor: () => TEX.tiles('#9aa3a8', '#8a9398'), door: '#8a9398', light: '#e9f4ff', window: 'day', winU: -2.75, sconce: false },
+    build(G) {
+      const vals = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 3); const [a, b, c] = vals;
+      const boardCode = `${a}${b}${c}`;
+      const EL = [['H', 1], ['He', 2], ['Li', 3], ['Be', 4], ['B', 5], ['C', 6], ['N', 7], ['O', 8], ['F', 9], ['Ne', 10], ['Na', 11], ['Mg', 12], ['Al', 13], ['Si', 14], ['P', 15], ['S', 16], ['Cl', 17], ['Ar', 18]];
+      const pe = shuffle(EL.slice(0, 9)).slice(0, 3); const perCode = pe.map((e) => e[1]).join('');
+      const fl = ['rood', 'blauw', 'groen', 'geel', 'paars'], flOrder = shuffle(fl).slice(0, 4);
+      item('uvleeg', 'UV-lamp (leeg)', '🔦', () => say('Een UV-lamp. Er zit geen batterij in.'));
+      item('batterij', 'Batterij', '🔋');
+      item('uv', 'UV-lamp (werkt!)', '🟣');
+      item('pas', 'Toegangspas', '💳');
+      G.combine('uvleeg', 'batterij', 'uv', 'Je stopt de batterij in de lamp. Hij geeft paars licht!');
+      exitDoor(G, 0, 2.6, (ok) => {
+        if (!G.f.card) { if (G.sel !== 'pas') return say('Naast de deur zit een paslezer. Zonder pas gebeurt er niets.'); G.take('pas'); G.set('card'); say('Piep! De pas is goedgekeurd. Nu het stroompaneel nog…'); }
+        PZ.lightsOut('Stroompaneel van de deur', 4, 7, ok);
+      });
+      // whiteboard
+      const wb = cv(512, 320, (g) => { g.fillStyle = '#fbfbf8'; g.fillRect(0, 0, 512, 320); g.fillStyle = '#1d3f8f'; g.font = '34px ' + HAND; g.fillText(`▲ + ▲ = ${a + a}`, 40, 70); g.fillText(`▲ + ● = ${a + b}`, 40, 130); g.fillText(`● × ■ = ${b * c}`, 40, 190); g.fillStyle = '#b01c22'; g.fillText('Kastje:  ▲ ● ■', 40, 270); });
+      const board = place(B.frame(wb, 1.6, 1.0, M.metal), 0, -0.8, 1.7, 0.03); room.add(board);
+      clickable(board, 'Whiteboard', () => PZ.img('Whiteboard', wb));
+      // hangkastje
+      const cab = place(B.cabinet(0.8, 0.6, 0.35, M.white), 1, -1.3, 1.5, 0.19); room.add(cab);
+      if (G.f.cab) { cab.userData.doors[0].rotation.y = -1.8; cab.userData.doors[1].rotation.y = 1.8; }
+      clickable(cab, 'Hangkastje met cijferslot', () => { if (G.f.cab) return say('Leeg.'); PZ.keypad('Hangkastje (3 cijfers)', boardCode, () => { G.set('cab'); tween(cab.userData.doors[0], 'rotation', 'y', -1.8); tween(cab.userData.doors[1], 'rotation', 'y', 1.8); sfx.open(); G.give('uvleeg'); say('In het kastje: een <b>UV-lamp</b>. Er zit geen batterij in.'); }); });
+      // periodiek systeem
+      const ps = cv(640, 380, (g) => { g.fillStyle = '#eef2f4'; g.fillRect(0, 0, 640, 380); g.fillStyle = '#1b1d22'; g.font = '700 26px system-ui'; g.fillText('Periodiek systeem (deel)', 20, 36); EL.forEach(([s, n], i) => { const x = 20 + (i % 9) * 68, y = 60 + Math.floor(i / 9) * 110; const k = pe.findIndex((e) => e[0] === s); g.fillStyle = k >= 0 ? '#ffe9a8' : '#ffffff'; g.fillRect(x, y, 62, 96); g.strokeStyle = '#555'; g.strokeRect(x, y, 62, 96); g.fillStyle = '#333'; g.font = '14px system-ui'; g.fillText(n, x + 5, y + 18); g.font = '700 30px system-ui'; g.fillText(s, x + 8, y + 62); if (k >= 0) { g.fillStyle = RED; g.beginPath(); g.arc(x + 50, y + 16, 12, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '700 15px system-ui'; g.fillText(k + 1, x + 45, y + 21); } }); g.fillStyle = '#1b1d22'; g.font = '18px ' + HAND; g.fillText('Laatje labtafel: volg de rode nummers (1-2-3).', 20, 350); });
+      const poster = place(B.poster(ps, 1.6, 0.95), 1, 1.1, 1.75, 0.02); room.add(poster);
+      clickable(poster, 'Poster', () => PZ.img('Poster', ps));
+      // labtafel met laatje + flessen
+      const lab = place(B.desk(1.8, M.white), 3, 0.2, 0, 0.45); room.add(lab);
+      const dr = lab.userData.drawer; if (G.f.labDr) dr.position.z = 0.42;
+      clickable(dr, 'Laatje labtafel', () => { if (G.f.labDr) return say('Leeg.'); PZ.keypad('Laatje', perCode, () => { G.set('labDr'); tween(dr, 'position', 'z', 0.42); sfx.open(); G.give('batterij'); say('Er ligt een <b>batterij</b> in.'); }); });
+      const rack = new THREE.Group(); rack.add(box(0.9, 0.03, 0.2, M.steel, 0, 0, 0));
+      fl.forEach((c, i) => { const f = cyl(0.045, 0.06, 0.24, MAT({ color: COLORS[c], transparent: true, opacity: 0.8, roughness: 0.1 }), -0.36 + i * 0.18, 0.13, 0, 14); rack.add(f); });
+      rack.position.set(-0.3, 0.83, 0); lab.add(rack);
+      clickable(rack, 'Flessenrek', () => {
+        if (G.f.flasks) return say('De machine is stil.');
+        PZ.sequence('Chemische machine', fl.map((c) => ({ label: cap(c), color: COLORS[c], text: c === 'geel' ? '#111' : '#fff' })), flOrder.map((c) => fl.indexOf(c)), () => { G.set('flasks'); G.give('pas'); say('Borrel, borrel… de machine spuugt een <b>toegangspas</b> uit!'); }, { note: 'Giet de flessen in de machine. De verkeerde volgorde laat alles weglopen…' });
+      });
+      herring(place(B.boxGen(0.25, 0.4, 0.25, M.black), 3, -1.5, 0.81, 0.3), 'Microscoop', 'Je ziet een cel onder de microscoop. Interessant, maar niet nuttig.');
+      // muur met geheime tekst
+      const secret = place(B.poster(cv(64, 64, (g) => { g.fillStyle = '#f4f6f6'; g.fillRect(0, 0, 64, 64); }), 1.8, 1.1), 2, 0.4, 1.6, 0.02); room.add(secret);
+      clickable(secret, 'Lege witte muur', () => {
+        if (G.sel === 'uv' || G.f.seen) { G.set('seen'); return PZ.doc('Onder het UV-licht…', `<div style="background:#1a0a2e;color:#d9a8ff;padding:20px;border-radius:8px;text-shadow:0 0 12px #b76bff;font-family:${HAND};font-size:26px;text-align:center">Mix: ${flOrder.map(cap).join(' → ')}</div>`); }
+        say(G.has('uvleeg') ? 'Een lege muur. Misschien heb je speciaal licht nodig…' : 'Een opvallend lege, witte muur…');
+      });
+      deco.plant(2, -3); herring(place(B.boxGen(0.6, 0.9, 0.5, M.white), 2, -2, 0, 0.26), 'Gootsteen', 'Er komt geen water uit de kraan.');
+      return {
+        hints: () => !G.f.cab ? 'Los de som op het whiteboard op: wat is ▲, ● en ■ waard?' : !G.f.labDr ? 'De poster heeft drie rode nummers. Welke getallen staan er in die vakjes?' : !G.has('uv') && !G.f.seen ? 'Combineer: klik de lamp aan in je rugzak en daarna de batterij.' : !G.f.seen ? 'Selecteer de werkende UV-lamp en schijn op de lege witte muur.' : !G.f.flasks ? 'Klik het flessenrek aan en giet ze in de volgorde van de UV-tekst.' : 'Gebruik de pas op de deur en zet alle lampjes uit.',
+        solution: () => `Kastje: ${boardCode} · Laatje: ${perCode} · Flessen: ${flOrder.join(', ')}`,
+      };
+    },
+  },
+  // =====================================================================================
+  {
+    name: 'De bibliotheek', diff: 3,
+    desc: 'Duizenden boeken, kaarslicht en een geheime boekenkast-deur.',
+    theme: { wall: () => TEX.wallpaper('#3c2a22', 'rgba(212,166,60,0.08)'), floor: () => TEX.wood('#4a3020'), door: '#3a2416', lightPower: 18, light: '#ffd9a0', window: 'moon', winU: -2.4, rug: '#5a1d22' },
+    build(G) {
+      const N = ri(4, 9);
+      const wordAns = pick(['DRAAK', 'TOREN', 'MOLEN', 'KROON', 'STORM', 'PAREL', 'ZWAAN', 'GRAAF']);
+      const secretW = caesar(wordAns, N);
+      const thick = shuffle([0.05, 0.08, 0.11, 0.14]); const nums = Array.from({ length: 4 }, () => ri(1, 9));
+      const safeCode = [3, 2, 1, 0].map((r) => nums[thick.indexOf([0.05, 0.08, 0.11, 0.14][r])]).join('');
+      const mapCode = String(ri(100, 999));
+      item('loep', 'Vergrootglas', '🔍'); item('slinger', 'Slinger', '🔧');
+      // deur = boekenkast
+      const dShelf = place(B.shelf(1.4, 2.2, Array.from({ length: 22 }, (_, i) => ({ color: pick(['#5a2a22', '#2a3a5a', '#2f4a32', '#6b5a3a', '#3a2a4a']), x: -0.62 + (i % 11) * 0.115, row: 1 + Math.floor(i / 11) * 2, w: 0.09, h: 0.3 + R() * 0.08 }))), 0, 2.4, 0, 0.2); room.add(dShelf);
+      if (G.f.door) dShelf.position.x -= 1.5;
+      clickable(dShelf, 'Boekenkast (beweegt een beetje?)', () => {
+        if (G.f.door) return G.win();
+        if (!G.f.mapCode) return PZ.keypad('Geheim cijferslot achter een boek', mapCode, () => { G.set('mapCode'); say('Klik… er komt een gat vrij voor een <b>slinger</b>.'); });
+        if (G.sel !== 'slinger') return say('In de kast zit een gat. Daar past een slinger in.');
+        G.take('slinger'); G.set('door'); sfx.open(); tween(dShelf, 'position', 'x', dShelf.position.x - 1.5, 1.6); setTimeout(() => G.win(), 1500);
+      });
+      // kaarsen op tafel
+      const tbl = place(B.table(1.4, 0.8), 3, 0, 0, 0.6); room.add(tbl);
+      for (let i = 0; i < N; i++) { const cnd = B.candle(0.1 + R() * 0.18); cnd.position.set(-0.55 + (i % 5) * 0.27, 0.785, -0.2 + Math.floor(i / 5) * 0.3); tbl.add(cnd); }
+      const book = box(0.3, 0.06, 0.22, MAT({ color: '#6b1d1d' }), 0.3, 0.82, 0.18); tbl.add(book);
+      clickable(tbl, 'Leestafel', () => PZ.doc('Opengeslagen boek', `<h3>Het geheime woord</h3>Het licht is de sleutel. Schuif elke letter <b>terug</b> in het alfabet, zo vaak als er kaarsen branden.<br><br><span style="font-size:34px;letter-spacing:8px;font-weight:700">${secretW}</span>`));
+      // kist met letterslot
+      const chest = place(B.chest(M.darkwood), 1, -1.2, 0, 0.3); room.add(chest);
+      if (G.f.chest) chest.userData.lid.rotation.x = -1.6;
+      clickable(chest, 'Kist met letterslot', () => { if (G.f.chest) return say('De kist is leeg.'); PZ.letters('Letterslot (5 letters)', wordAns, () => { G.set('chest'); tween(chest.userData.lid, 'rotation', 'x', -1.6); sfx.open(); G.give('loep'); say('In de kist ligt een <b>vergrootglas</b>.'); }); });
+      // vier boeken van verschillende dikte
+      const shelf4 = place(B.shelf(1.0, 1.4, thick.map((w, i) => ({ color: ['#7a2a2e', '#2a4a7a', '#3a6a3a', '#7a6a2a'][i], x: -0.3 + i * 0.2, row: 2, w, h: 0.36 }))), 2, 1.2, 0, 0.2); room.add(shelf4);
+      clickable(shelf4, 'Vier oude boeken', () => {
+        if (G.sel === 'loep' || G.f.lens) { G.set('lens'); const c = cv(520, 300, (g) => { g.fillStyle = '#2a1d16'; g.fillRect(0, 0, 520, 300); thick.forEach((w, i) => { const bw = w * 900; const x = 40 + i * 120; g.fillStyle = ['#7a2a2e', '#2a4a7a', '#3a6a3a', '#7a6a2a'][i]; g.fillRect(x, 40, bw, 220); g.fillStyle = '#d4a63c'; g.font = '700 22px Georgia'; g.textAlign = 'center'; g.fillText(nums[i], x + bw / 2, 150); }); }); return PZ.img('Door het vergrootglas', c, 'Op elke rug staat een piepklein cijfer.'); }
+        say('Vier oude boeken, elk anders dik. Op de ruggen staat iets heel kleins…');
+      });
+      const sign = place(B.poster(paperCv(360, 160, [{ t: 'Kluis:', size: 30 }, { t: 'Van dik naar dun.', size: 30 }]), 0.7, 0.32), 2, 1.2, 1.75, 0.02); room.add(sign);
+      clickable(sign, 'Bordje', () => PZ.doc('Bordje', '<h3>Kluis</h3>Van dik naar dun.'));
+      // kluis
+      const safe = place(B.safe(), 2, -1.4, 0, 0.3); room.add(safe);
+      if (G.f.safe) safe.userData.door.rotation.y = -1.9;
+      clickable(safe, 'Kluis', () => { if (G.f.safe) return say('Leeg.'); PZ.keypad('Kluis (4 cijfers)', safeCode, () => { G.set('safe'); tween(safe.userData.door, 'rotation', 'y', -1.9); sfx.open(); G.give('slinger'); say('In de kluis: een <b>slinger</b>.'); }); });
+      // kaart in stukken
+      const mapC = cv(300, 300, (g) => { g.fillStyle = '#e8d9b0'; g.fillRect(0, 0, 300, 300); g.strokeStyle = '#8a6a3a'; g.lineWidth = 3; g.beginPath(); g.moveTo(20, 250); g.bezierCurveTo(80, 120, 160, 260, 280, 60); g.stroke(); g.fillStyle = '#8a1d1d'; g.font = '700 70px Georgia'; g.textAlign = 'center'; g.fillText(mapCode, 150, 170); g.font = '18px Georgia'; g.fillText('code van de kast', 150, 210); g.fillStyle = RED; g.beginPath(); g.arc(250, 70, 10, 0, 7); g.fill(); });
+      const mapF = place(B.frame(cv(300, 300, (g) => { g.fillStyle = '#e8d9b0'; g.fillRect(0, 0, 300, 300); for (let i = 0; i < 9; i++) { g.strokeStyle = '#8a6a3a'; g.strokeRect((i % 3) * 100 + R() * 10, Math.floor(i / 3) * 100 + R() * 10, 90, 90); } }), 0.7, 0.7, M.darkwood), 1, 1.3, 1.65, 0.03); room.add(mapF);
+      clickable(mapF, 'Kaart in stukjes', () => { if (G.f.map) return PZ.img('Kaart', mapC); PZ.sliding('Leg de kaart weer goed', 3, mapC, () => { G.set('map'); PZ.img('Kaart', mapC); }); });
+      herring(place(B.lamp(), 3, -2.3, 0, 0.3), 'Leeslamp', 'Een warme leeslamp.');
+      deco.chair(3, 0.6, 1.2, Math.PI);
+      return {
+        hints: () => !G.f.chest ? `Tel de kaarsen. Schuif elke letter zo veel plekken terug (B met 2 terug = Z).` : !G.f.lens ? 'Gebruik het vergrootglas op de vier boeken.' : !G.f.safe ? 'Zet de cijfers in volgorde van het dikste naar het dunste boek.' : !G.f.map ? 'De kaart aan de muur is een schuifpuzzel.' : !G.f.mapCode ? 'De code op de kaart opent de bewegende boekenkast.' : 'Gebruik de slinger op de boekenkast.',
+        solution: () => `Kaarsen: ${N} · Woord: ${wordAns} · Kluis: ${safeCode} · Kast: ${mapCode}`,
+      };
+    },
+  },
+  // =====================================================================================
+  {
+    name: 'Het kantoor', diff: 3,
+    desc: 'Inloggen, tellen en stroom maken. De baas is zijn wachtwoord vergeten…',
+    theme: { wall: () => TEX.plain('#c9ccd1'), floor: () => TEX.tiles('#5b616b', '#545a63'), door: '#6b717b', light: '#f4f7ff', window: 'day', winWall: 2, winU: 0, sconce: false },
+    build(G) {
+      const dog = pick(['Bobby', 'Rex', 'Luna', 'Max', 'Bella', 'Dobby', 'Pip', 'Sam']);
+      const age = ri(3, 12), year = 2026, birth = year - age;
+      const pass = (dog + birth).toLowerCase();
+      const nCh = ri(2, 5), nPl = ri(1, 4), nLa = ri(1, 3);
+      const safeCode = `${nCh}${nPl}${nLa}`;
+      item('zekering', 'Zekering', '🔌');
+      exitDoor(G, 0, 2.6, (ok) => { if (!G.f.power) return say('De deur is elektrisch. Er staat geen stroom op.'); ok(); });
+      // bureau + computer
+      const desk = place(B.desk(1.8, M.lightwood), 0, -0.9, 0, 0.45); room.add(desk);
+      const scr = cv(512, 300, (g) => { g.fillStyle = '#0e2a4a'; g.fillRect(0, 0, 512, 300); g.fillStyle = '#fff'; g.font = '700 30px system-ui'; g.textAlign = 'center'; g.fillText('🔒 Inloggen', 256, 130); g.font = '18px system-ui'; g.fillText('Wachtwoord vereist', 256, 170); });
+      const pc = B.computer(scr); pc.position.set(-0.2, 0.81, -0.1); desk.add(pc);
+      const post = box(0.08, 0.08, 0.005, MAT({ color: '#ffe36b' }), 0.24, 0.5, 0.03); pc.add(post);
+      clickable(pc, 'Computer', () => {
+        if (G.f.login) return PZ.screen('E-mail van de baas', `Van: baas@kantoor.nl\nOnderwerp: nieuwe kluiscode\n\nHoi! De kluiscode is veranderd.\nTel in dit kantoor:\n  1. de bureaustoelen\n  2. de planten\n  3. de staande lampen\nZet de aantallen achter elkaar.\n\nGroet, de baas`);
+        PZ.text('Inloggen', pass, () => { G.set('login'); say('Ingelogd! Er staat een nieuwe e-mail klaar.'); }, { screen: 'Gebruiker: baas\nWachtwoord: ********', note: 'Op het geeltje staat: <i>"wachtwoord = naam van de hond + geboortejaar (zonder spaties)"</i>', placeholder: 'wachtwoord' });
+      });
+      const photoC = cv(300, 300, (g) => { g.fillStyle = '#bcd7e8'; g.fillRect(0, 0, 300, 300); g.fillStyle = '#6a8f4a'; g.fillRect(0, 210, 300, 90); g.fillStyle = '#8a5a32'; g.beginPath(); g.ellipse(150, 190, 80, 50, 0, 0, 7); g.fill(); g.beginPath(); g.arc(210, 130, 40, 0, 7); g.fill(); g.beginPath(); g.ellipse(230, 100, 12, 24, 0.5, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(222, 125, 5, 0, 7); g.fill(); g.fillStyle = RED; g.fillRect(180, 160, 50, 10); g.fillStyle = '#d4a63c'; g.beginPath(); g.arc(205, 182, 14, 0, 7); g.fill(); g.fillStyle = '#111'; g.font = '700 11px system-ui'; g.textAlign = 'center'; g.fillText(dog.toUpperCase(), 205, 186); });
+      const photo = place(B.frame(photoC, 0.22, 0.22, M.dark), 0, -1.55, 0.95, 0.12); photo.rotation.x = -0.2; room.add(photo);
+      clickable(photo, 'Fotolijstje', () => PZ.img('Fotolijstje', photoC, 'Kijk eens naar dat penningje aan de halsband…'));
+      const calC = cv(420, 420, (g) => { g.fillStyle = '#fff'; g.fillRect(0, 0, 420, 420); g.fillStyle = RED; g.fillRect(0, 0, 420, 70); g.fillStyle = '#fff'; g.font = '700 34px system-ui'; g.textAlign = 'center'; g.fillText(`Maart ${year}`, 210, 48); g.fillStyle = '#333'; g.font = '20px system-ui'; for (let d = 1; d <= 31; d++) { const x = 40 + ((d - 1) % 7) * 56, y = 110 + Math.floor((d - 1) / 7) * 62; g.fillText(d, x, y); if (d === 14) { g.strokeStyle = RED; g.lineWidth = 3; g.beginPath(); g.arc(x, y - 6, 22, 0, 7); g.stroke(); g.fillStyle = RED; g.font = '16px ' + HAND; g.fillText(`🐶 wordt ${age}!`, x, y + 26); g.fillStyle = '#333'; g.font = '20px system-ui'; } } });
+      const cal = place(B.poster(calC, 0.7, 0.7), 1, -1.0, 1.7, 0.02); room.add(cal);
+      clickable(cal, 'Kalender', () => PZ.img('Kalender', calC));
+      // spullen om te tellen (verspreid)
+      const spots = [[0, 1.0], [1, 0.6], [1, 2.0], [2, -2.6], [2, 0.2], [2, 2.6], [3, -1.8], [3, 0.4], [3, 2.0], [0, -2.6], [0, 0.6]];
+      const sp = shuffle(spots); let k = 0;
+      for (let i = 0; i < nCh; i++) { const [w, u] = sp[k++]; deco.chair(w, u, 0.55, R() * 0.8 - 0.4); }
+      for (let i = 0; i < nPl; i++) { const [w, u] = sp[k++]; deco.plant(w, u, 0.3); }
+      for (let i = 0; i < nLa; i++) { const [w, u] = sp[k++]; deco.lamp(w, u, 0.3); }
+      // kluis
+      const safe = place(B.safe(), 3, -0.8, 0, 0.3); room.add(safe);
+      if (G.f.safe) safe.userData.door.rotation.y = -1.9;
+      clickable(safe, 'Kluis', () => { if (G.f.safe) return say('Leeg.'); PZ.keypad('Kluis (3 cijfers)', safeCode, () => { G.set('safe'); tween(safe.userData.door, 'rotation', 'y', -1.9); sfx.open(); G.give('zekering'); say('In de kluis ligt een <b>zekering</b>.'); }); });
+      // stroomkast
+      const fb = place(B.boxGen(0.5, 0.7, 0.18, M.steel), 1, 1.4, 1.1, 0.1); room.add(fb);
+      clickable(fb, 'Stroomkast', () => {
+        if (G.f.power) return say('De stroom staat aan. De deur is open!');
+        if (!G.f.fuse) { if (G.sel !== 'zekering') return say('Er ontbreekt een zekering.'); G.take('zekering'); G.set('fuse'); }
+        PZ.pipes('Verbind de stroomdraden', 5, () => { G.set('power'); say('Zzzt… <b>stroom</b>! De deur maakt een klikgeluid.'); });
+      });
+      return {
+        hints: () => !G.f.login ? 'De naam van de hond staat op het penningje (fotolijstje). Hoe oud wordt hij volgens de kalender? Reken het geboortejaar uit.' : !G.f.safe ? 'Tel alle stoelen, planten en staande lampen in de héle kamer (draai rond!).' : !G.f.fuse ? 'Gebruik de zekering op de stroomkast.' : !G.f.power ? 'Draai de draden zodat de stroom van links naar rechts loopt.' : 'Ga naar de deur.',
+        solution: () => `Wachtwoord: ${pass} · Kluis: ${safeCode}`,
+      };
+    },
+  },
+  // =====================================================================================
+  {
+    name: 'De kelder', diff: 4,
+    desc: 'Donker, vochtig en vol rommel. Zonder licht kom je hier niet ver.',
+    theme: { wall: () => TEX.brick('#6a5a4e'), floor: () => TEX.concrete(), door: '#4a4f58', lightPower: 5, ambient: 0.22, light: '#ffcf8a', window: 'night', winU: -1.2, winY: 2.55, sconce: false },
+    build(G) {
+      const cols = ['rood', 'blauw', 'groen', 'geel', 'paars', 'wit'];
+      const cans = shuffle(cols).slice(0, 4); const nums = shuffle([1, 2, 3, 4]);
+      const lockAns = [1, 2, 3, 4].map((n) => cols.indexOf(cans[nums.indexOf(n)]));
+      const wires = ['rood', 'oranje', 'geel', 'groen', 'blauw', 'paars'];
+      const skip = pick(wires); const wireOrder = wires.filter((w) => w !== skip);
+      const wirePos = shuffle(wires);
+      const dd = ri(1, 28), mmn = ri(1, 12); const pad = String(dd).padStart(2, '0') + String(mmn).padStart(2, '0');
+      item('zaklamp', 'Zaklamp', '🔦'); item('kniptang', 'Kniptang', '✂️'); item('sleutel', 'Roestige sleutel', '🗝️');
+      const light = () => { if (G.has('zaklamp') || G.f.lamp) { room.userData.lamp.intensity = 14; } };
+      exitDoor(G, 0, 2.6, (ok) => {
+        if (!G.f.wires) return say('Over de deur zit een kastje vol draden met een rood lampje. Eerst onschadelijk maken!');
+        if (!G.f.key) { if (G.sel !== 'sleutel') return say('Het slot op de deur heeft een sleutel nodig.'); G.take('sleutel'); G.set('key'); say('De sleutel draait! Nu nog het cijferslot aan de ketting.'); }
+        PZ.keypad('Hangslot aan de ketting (4 cijfers)', pad, ok);
+      });
+      // verfblikken op plank
+      const shelf = place(B.shelf(1.3, 1.4), 1, -1.0, 0, 0.2); room.add(shelf);
+      cans.forEach((c, i) => {
+        const can = new THREE.Group(); can.add(cyl(0.1, 0.1, 0.2, MAT({ color: '#8a9098', metalness: 0.6, roughness: 0.4 }), 0, 0.1, 0));
+        const lbl = cv(128, 64, (g) => { g.fillStyle = COLORS[c]; g.fillRect(0, 0, 128, 64); g.fillStyle = c === 'wit' || c === 'geel' ? '#111' : '#fff'; g.font = '900 44px system-ui'; g.textAlign = 'center'; g.fillText(nums[i], 64, 48); });
+        const l = new THREE.Mesh(new THREE.CylinderGeometry(0.102, 0.102, 0.12, 20, 1, true), picMat(lbl)); l.position.y = 0.1; l.rotation.y = Math.PI; can.add(l);
+        can.position.set(-0.45 + i * 0.3, 0.725, 0.02); shelf.add(can);
+      });
+      clickable(shelf, 'Verfblikken', () => say('Vier blikken verf. Op elk blik staat een groot cijfer geverfd.'));
+      // gereedschapskist
+      const tb = place(B.chest(MAT({ color: '#b52a2a', roughness: 0.5 })), 3, 0.8, 0, 0.3); tb.scale.set(0.8, 0.8, 0.8); room.add(tb);
+      if (G.f.tool) tb.userData.lid.rotation.x = -1.6;
+      clickable(tb, 'Gereedschapskist (kleurenslot)', () => {
+        if (G.f.tool) return say('Leeg.');
+        PZ.wheels('Kleurenslot', cols.map((c) => ({ c: COLORS[c], t: '' })), lockAns, () => { G.set('tool'); tween(tb.userData.lid, 'rotation', 'x', -1.6); sfx.open(); G.give('zaklamp'); G.give('kniptang'); light(); say('Een <b>zaklamp</b> en een <b>kniptang</b>! Het wordt al wat lichter.'); }, { note: 'Vier kleuren. Welke volgorde?' });
+      });
+      // donkere hoek (met zaklamp)
+      const corner = place(B.poster(cv(64, 64, (g) => { g.fillStyle = '#2a2420'; g.fillRect(0, 0, 64, 64); }), 1.6, 1.4), 2, 1.6, 1.0, 0.02); room.add(corner);
+      clickable(corner, 'Donkere hoek', () => {
+        if (G.sel !== 'zaklamp' && !G.f.corner) return say('Het is hier pikkedonker. Je ziet niks.');
+        G.set('corner');
+        PZ.doc('In het licht van de zaklamp…', `<p>In de muur is iets gekrast:</p><div style="font-size:30px;font-family:${HAND};text-align:center">Overstroming<br><b>${dd} / ${mmn}</b></div><p>En op een vochtig briefje:</p><div style="font-family:${HAND};font-size:20px">"Draden? Knip ze in de volgorde van de regenboog. Maar <b>${skip}</b> nooit knippen!"</div>`);
+      });
+      // onder de trap
+      const stairs = new THREE.Group(); for (let i = 0; i < 6; i++) stairs.add(box(1.0, 0.2, 0.3, M.darkwood, 0, 0.1 + i * 0.4, -i * 0.3 + 0.8)); place(stairs, 3, -1.6, 0, 1.0); room.add(stairs);
+      clickable(stairs, 'Onder de trap', () => {
+        if (G.f.stairs) return say('Niks meer te vinden.');
+        if (G.sel !== 'zaklamp') return say('Te donker om onder de trap te kijken.');
+        G.set('stairs'); G.give('sleutel'); say('Met de zaklamp zie je iets glimmen: een <b>roestige sleutel</b>!');
+      });
+      // draden boven de deur
+      const wb = place(B.boxGen(0.6, 0.35, 0.12, M.dark), 0, 2.6, 2.5, 0.08); room.add(wb);
+      clickable(wb, 'Kastje met draden', () => {
+        if (G.f.wires) return say('Het lampje is groen. Veilig.');
+        if (G.sel !== 'kniptang') return say('Zes gekleurde draden en een knipperend rood lampje. Je hebt iets nodig om te knippen.');
+        PZ.sequence('Knip de draden', wirePos.map((c) => ({ label: '✂️', color: COLORS[c] })), wireOrder.map((c) => wirePos.indexOf(c)), () => { G.set('wires'); say('Het lampje springt op <b>groen</b>. Pfoe!'); }, { note: 'Fout geknipt? Dan komen alle draden terug en begin je opnieuw.' });
+      });
+      herring(place(B.boxGen(0.5, 0.5, 0.5, M.lightwood), 2, -1.5, 0, 0.3), 'Doos', 'Oude kerstversiering. Niks bruikbaars.');
+      herring(place(B.boxGen(0.6, 1.2, 0.6, M.white), 2, -2.6, 0, 0.32), 'Wasmachine', 'Een kapotte wasmachine.');
+      light();
+      return {
+        hints: () => !G.f.tool ? 'Zet de kleuren van de verfblikken op volgorde van hun cijfer (1, 2, 3, 4).' : !G.f.corner ? 'Selecteer de zaklamp en schijn in de donkere hoek.' : !G.f.stairs ? 'Kijk met de zaklamp onder de trap.' : !G.f.wires ? 'Regenboog: rood, oranje, geel, groen, blauw, paars. Sla de verboden kleur over. Gebruik de kniptang.' : 'Sleutel in de deur, en de datum in de muur is de code (dag + maand, 4 cijfers).',
+        solution: () => `Kleurenslot: ${[1, 2, 3, 4].map((n) => cans[nums.indexOf(n)]).join(', ')} · Draden: ${wireOrder.join(', ')} · Hangslot: ${pad}`,
+      };
+    },
+  },
+  // =====================================================================================
+  {
+    name: 'Het observatorium', diff: 4,
+    desc: 'Sterren, planeten en een koepeldeur met een slot dat je moet ráden.',
+    theme: { wall: () => TEX.wallpaper('#1d2236', 'rgba(255,255,255,0.03)'), floor: () => TEX.wood('#3a3040'), door: '#2a2d3a', lightPower: 14, light: '#cfd8ff', ceiling: '#0b0e1a', window: 'night', winU: -1.2, rug: '#2a3050' },
+    build(G) {
+      // sterrenbeeld: 6 sterren met vaste vorm, verschoven in het telescoopbeeld
+      const shape = [[0, 0], [12, 4], [22, 2], [30, 10], [28, 24], [40, 28]];
+      const ox = ri(10, 45), oy = ri(15, 45);
+      const pts = shape.map(([x, y]) => [ox + x, oy + y]);
+      for (let i = 0; i < 9; i++) pts.push([ri(5, 95), ri(5, 95)]);
+      const idx = shuffle([...pts.keys()]); const P = idx.map((i) => pts[i]); const answer = [0, 1, 2, 3, 4, 5].map((i) => idx.indexOf(i));
+      const planets = ['Mercurius', 'Venus', 'Aarde', 'Mars', 'Jupiter', 'Saturnus', 'Uranus', 'Neptunus'];
+      const size = [0.05, 0.08, 0.085, 0.06, 0.2, 0.17, 0.135, 0.11];
+      const pn = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 8);
+      const domeCode = [4, 5, 6].map((i) => pn[i]).join('');
+      item('lens', 'Lens', '🔘'); item('koepelsleutel', 'Koepelsleutel', '🔑');
+      exitDoor(G, 0, 2.6, (ok) => {
+        if (!G.f.key) { if (G.sel !== 'koepelsleutel') return say('De koepeldeur heeft een sleutelgat én een kleurencode-paneel.'); G.take('koepelsleutel'); G.set('key'); }
+        PZ.mastermind('Kleurencode van de koepel', 6, 4, 9, ok);
+      });
+      // sterrenkaart
+      const mapC = cv(420, 320, (g) => { g.fillStyle = '#0b1020'; g.fillRect(0, 0, 420, 320); for (let i = 0; i < 80; i++) { g.fillStyle = `rgba(255,255,255,${R() * 0.5})`; g.fillRect(R() * 420, R() * 320, 2, 2); } g.strokeStyle = '#ffd23a'; g.lineWidth = 2; g.beginPath(); shape.forEach(([x, y], i) => { const X = 80 + x * 6, Y = 70 + y * 6; i ? g.lineTo(X, Y) : g.moveTo(X, Y); }); g.stroke(); shape.forEach(([x, y], i) => { const X = 80 + x * 6, Y = 70 + y * 6; g.fillStyle = '#fff'; g.beginPath(); g.arc(X, Y, 6, 0, 7); g.fill(); g.fillStyle = '#ffd23a'; g.font = '700 16px system-ui'; g.fillText(i + 1, X - 4, Y - 12); }); g.fillStyle = '#c9ced6'; g.font = 'italic 20px Georgia'; g.fillText('De Steelpan — volg 1 t/m 6', 70, 300); });
+      const smap = place(B.frame(mapC, 1.3, 1.0, M.dark), 1, 0, 1.7, 0.03); room.add(smap);
+      clickable(smap, 'Sterrenkaart', () => PZ.img('Sterrenkaart', mapC));
+      // telescoop
+      const tel = new THREE.Group(); tel.add(cyl(0.03, 0.03, 1.1, M.dark, 0, 0.55, 0)); const tube = cyl(0.09, 0.07, 1.1, MAT({ color: '#e8eaee', metalness: 0.5, roughness: 0.3 }), 0, 1.2, 0); tube.rotation.z = 1.0; tel.add(tube); for (const a of [0, 2.1, 4.2]) tel.add(box(0.03, 0.03, 0.6, M.dark, Math.cos(a) * 0.2, 0.02, Math.sin(a) * 0.2).rotateY(a));
+      place(tel, 3, -0.5, 0, 1.2); room.add(tel);
+      clickable(tel, 'Telescoop', () => {
+        if (G.f.stars) return say('De telescoop heeft je al alles laten zien.');
+        if (!G.f.lens) { if (G.sel !== 'lens') return say('Er zit geen lens in de telescoop.'); G.take('lens'); G.set('lens'); }
+        PZ.stars('Door de telescoop', P, answer, () => { G.set('stars'); G.give('koepelsleutel'); say('Een klepje in de telescoop springt open: een <b>koepelsleutel</b>!'); }, { note: 'Klik de sterren van het sterrenbeeld aan, in de goede volgorde.' });
+      });
+      // planeten op plank
+      const shelf = place(B.shelf(2.0, 0.9), 2, 0, 0, 0.2); room.add(shelf);
+      planets.forEach((p, i) => { const m = mesh(new THREE.SphereGeometry(size[i], 20, 14), MAT({ color: ['#9a8f84', '#e0c18a', '#3f7ae0', '#c4502e', '#d8b48a', '#e6d29a', '#9adbe8', '#4a6ae0'][i], roughness: 0.6 }), -0.85 + i * 0.245, 0.45 + size[i] + 0.03, 0); shelf.add(m); const plq = cv(64, 40, (g) => { g.fillStyle = '#d4a63c'; g.fillRect(0, 0, 64, 40); g.fillStyle = '#111'; g.font = '900 28px system-ui'; g.textAlign = 'center'; g.fillText(pn[i], 32, 31); }); const pl = plane(0.07, 0.045, picMat(plq), -0.85 + i * 0.245, 0.48, 0.17); shelf.add(pl); });
+      clickable(shelf, 'Planeten', () => PZ.doc('Bordje bij de planeten', `<h3>Ons zonnestelsel</h3>Mercurius · Venus · Aarde · Mars · Jupiter · Saturnus · Uranus · Neptunus<br><br><i>"Het kastje opent met de nummers van de <b>drie grootste</b> planeten, van groot naar klein."</i>`));
+      const cab = place(B.cabinet(0.7, 0.8, 0.4, M.dark), 2, -2.4, 0, 0.22); room.add(cab);
+      if (G.f.cab) { cab.userData.doors[0].rotation.y = -1.8; cab.userData.doors[1].rotation.y = 1.8; }
+      clickable(cab, 'Kastje', () => { if (G.f.cab) return say('Leeg.'); PZ.keypad('Kastje (3 cijfers)', domeCode, () => { G.set('cab'); tween(cab.userData.doors[0], 'rotation', 'y', -1.8); tween(cab.userData.doors[1], 'rotation', 'y', 1.8); sfx.open(); G.give('lens'); say('In het kastje ligt een <b>lens</b>.'); }); });
+      deco.chair(3, 1.5, 0.8); herring(place(B.boxGen(0.9, 0.8, 0.5, M.darkwood), 3, 1.5, 0, 0.3), 'Bureau', 'Oude aantekeningen over kometen.');
+      return {
+        hints: () => !G.f.cab ? 'De grootste planeten zijn Jupiter, Saturnus en Uranus. Welke nummers staan eronder?' : !G.f.lens ? 'Zet de lens in de telescoop.' : !G.f.stars ? 'Zoek de vorm van de sterrenkaart terug tussen de sterren in de telescoop.' : !G.f.key ? 'Gebruik de koepelsleutel op de deur.' : 'Mastermind: probeer eerst elke kleur, en gebruik de rode en witte bolletjes om te puzzelen.',
+        solution: () => `Kastje: ${domeCode} · Sterren: volg de vorm · Koepel: raden (mastermind)`,
+      };
+    },
+  },
+  // =====================================================================================
+  {
+    name: 'De kluiszaal', diff: 4,
+    desc: 'Een bankkluis met lasers, een draaislot en een boekhouding vol cijfers.',
+    theme: { wall: () => TEX.plain('#8a8f97'), floor: () => TEX.tiles('#3a3e46', '#33373e'), door: '#9aa1ab', light: '#ffffff', rug: '#7a1d22' },
+    build(G) {
+      const n = [ri(2, 39), ri(2, 39), ri(2, 39)]; const dirs = ['L', 'R', 'L'];
+      const amounts = Array.from({ length: 6 }, () => ri(1200, 9800));
+      const diff = String(Math.max(...amounts) - Math.min(...amounts)).padStart(4, '0');
+      item('pasA', 'Kluispas A', '💳'); item('pasB', 'Kluispas B', '💳'); item('lasersleutel', 'Lasersleutel', '🔑');
+      exitDoor(G, 0, 2.6, (ok) => {
+        if (!(G.has('pasA') && G.has('pasB'))) return say('De kluisdeur heeft twee paslezers: A en B.');
+        G.take('pasA'); G.take('pasB'); ok();
+      });
+      // drie schilderijen met romeinse cijfers
+      const walls = [[1, -1.2], [2, 1.5], [3, 1.0]];
+      const order = shuffle([0, 1, 2]);
+      order.forEach((k, j) => {
+        const pc = cv(300, 380, (g) => { g.fillStyle = ['#2a3a5a', '#5a2a3a', '#2a5a4a'][j]; g.fillRect(0, 0, 300, 380); g.fillStyle = '#f4efe2'; g.font = '700 80px Georgia'; g.textAlign = 'center'; g.fillText(roman(n[k]), 150, 200); g.font = '60px system-ui'; g.fillText(dirs[k] === 'L' ? '⟲' : '⟳', 150, 300); g.fillStyle = '#d4a63c'; for (let d = 0; d <= k; d++) { g.beginPath(); g.arc(30 + d * 22, 30, 7, 0, 7); g.fill(); } });
+        const [w, u] = walls[j]; const p = place(B.frame(pc, 0.6, 0.76), w, u, 1.7, 0.03); room.add(p);
+        clickable(p, 'Schilderij', () => PZ.img('Schilderij', pc, 'Rechtsboven… nee, linksboven staan gouden stipjes.'));
+      });
+      const safe = place(B.safe(), 2, -1.6, 0, 0.3); safe.scale.set(1.3, 1.3, 1.3); room.add(safe);
+      if (G.f.safe) safe.userData.door.rotation.y = -1.9;
+      clickable(safe, 'Kluis met draaiknop', () => { if (G.f.safe) return say('Leeg.'); PZ.dial('Draaislot', dirs.map((d, i) => [d, n[i]]), () => { G.set('safe'); tween(safe.userData.door, 'rotation', 'y', -1.9); sfx.open(); G.give('pasA'); say('Kluispas <b>A</b>!'); }, { note: 'Draai naar elk getal in de goede richting. Wissel van richting om een getal vast te zetten. Dan de hendel overhalen.' }); });
+      // boekhouding
+      const desk = place(B.desk(1.6, M.darkwood), 3, -1.2, 0, 0.45); room.add(desk);
+      const ledger = box(0.4, 0.03, 0.3, MAT({ color: '#2a4a3a' }), -0.3, 0.83, 0.05); desk.add(ledger);
+      clickable(ledger, 'Kasboek', () => PZ.doc('Kasboek', `<h3>Overboekingen</h3>${amounts.map((x, i) => `Transactie ${i + 1}: € ${x.toLocaleString('nl-NL')}`).join('<br>')}<br><br><i>"Bureaula: het verschil tussen de grootste en de kleinste overboeking."</i>`));
+      const dr = desk.userData.drawer; if (G.f.drawer) dr.position.z = 0.42;
+      clickable(dr, 'Bureaula', () => { if (G.f.drawer) return say('Leeg.'); PZ.keypad('Bureaula (4 cijfers)', diff, () => { G.set('drawer'); tween(dr, 'position', 'z', 0.42); sfx.open(); G.give('lasersleutel'); say('Een <b>lasersleutel</b>.'); }); });
+      // laserkast
+      const lz = place(B.boxGen(0.8, 1.6, 0.4, M.black), 1, 1.4, 0, 0.22); room.add(lz);
+      const beam = box(0.02, 1.2, 0.02, MAT({ color: '#ff2020', emissive: '#ff0000', emissiveIntensity: 3 }), 0, 0.8, 0.22); lz.add(beam);
+      clickable(lz, 'Laserkast', () => {
+        if (G.f.laser) return say('De lasers staan uit.');
+        if (!G.f.lkey) { if (G.sel !== 'lasersleutel') return say('Achter een glazen wand ligt een pas, beschermd door lasers. Er zit een sleutelgat in.'); G.take('lasersleutel'); G.set('lkey'); }
+        PZ.pipes('Leid de laser naar de ontvanger', 6, () => { G.set('laser'); beam.visible = false; G.give('pasB'); say('De lasers gaan uit. Kluispas <b>B</b>!'); }, { note: 'Draai de spiegels zodat de laser van links naar de ontvanger rechts gaat.' });
+      });
+      if (G.f.laser) beam.visible = false;
+      deco.chair(3, -1.2, 1.1, Math.PI);
+      return {
+        hints: () => !G.f.drawer ? 'Zoek het grootste en kleinste bedrag in het kasboek en trek ze van elkaar af.' : !G.f.laser ? 'Gebruik de lasersleutel op de laserkast en leid de laser naar rechts.' : !G.f.safe ? 'Drie schilderijen: Romeins getal + draairichting. De gouden stipjes (1, 2, 3) geven de volgorde.' : 'Je hebt beide passen: naar de deur!',
+        solution: () => `Draaislot: ${dirs.map((d, i) => d + n[i]).join(' ')} · Bureaula: ${diff}`,
+      };
+    },
+  },
+  // =====================================================================================
+  {
+    name: 'Het spookhuis', diff: 5,
+    desc: 'Een piano die zichzelf speelt, een spiegel vol geheimen en portretten die je aanstaren.',
+    theme: { wall: () => TEX.wallpaper('#2a1f2e', 'rgba(140,60,90,0.08)'), floor: () => TEX.wood('#2e2220'), door: '#2a1c18', lightPower: 9, ambient: 0.3, light: '#ffb98a', window: 'moon', winU: -1.0, rug: '#3a1d2a' },
+    build(G) {
+      const NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+      const mel = Array.from({ length: 6 }, () => pick(NOTES));
+      const mword = pick(['SCHEDEL', 'SPOOKJE', 'KANDELA', 'GRAFZERK', 'VAMPIER', 'DOODKIST']);
+      const ARW = ['↑', '→', '↓', '←']; const look = Array.from({ length: 4 }, () => ri(0, 3));
+      item('zilversleutel', 'Zilveren sleutel', '🗝️'); item('lucifers', 'Lucifers', '🔥');
+      exitDoor(G, 0, 2.6, (ok) => {
+        if (!G.f.skey) { if (G.sel !== 'zilversleutel') return say('Een zilveren sleutelgat… en een slot met pijltjes.'); G.take('zilversleutel'); G.set('skey'); }
+        PZ.wheels('Pijlenslot', ARW, look, ok, { note: 'Vier pijlen. Waar kijken ze naar?' });
+      });
+      // muziekblad (notenbalk)
+      const staffY = { C: 125, D: 117.5, E: 110, F: 102.5, G: 95, A: 87.5, B: 80 };
+      const sheet = cv(520, 200, (g) => { g.fillStyle = '#f4efe2'; g.fillRect(0, 0, 520, 200); g.strokeStyle = '#222'; g.lineWidth = 2; for (let i = 0; i < 5; i++) { g.beginPath(); g.moveTo(30, 80 + i * 15 - 30 + 30); g.lineTo(500, 80 + i * 15 - 30 + 30); g.stroke(); } mel.forEach((nn, i) => { const x = 90 + i * 66, y = staffY[nn] + 20; g.fillStyle = '#111'; g.beginPath(); g.ellipse(x, y, 10, 7.5, -0.3, 0, 7); g.fill(); g.fillRect(x + 8, y - 48, 2.5, 48); if (nn === 'C') { g.beginPath(); g.moveTo(x - 16, y); g.lineTo(x + 16, y); g.stroke(); } }); g.font = '50px serif'; g.fillText('𝄞', 32, 132); });
+      const legend = cv(520, 220, (g) => { g.fillStyle = '#e9e1cf'; g.fillRect(0, 0, 520, 220); g.fillStyle = '#222'; g.font = '700 22px Georgia'; g.fillText('Muziekles: waar staat welke noot?', 20, 32); g.strokeStyle = '#222'; for (let i = 0; i < 5; i++) { g.beginPath(); g.moveTo(30, 80 + i * 15); g.lineTo(500, 80 + i * 15); g.stroke(); } NOTES.forEach((nn, i) => { const x = 70 + i * 62, y = staffY[nn] + 20; g.beginPath(); g.ellipse(x, y, 10, 7.5, -0.3, 0, 7); g.fill(); if (nn === 'C') { g.beginPath(); g.moveTo(x - 16, y); g.lineTo(x + 16, y); g.stroke(); } g.font = '700 20px system-ui'; g.fillText(nn, x - 7, 190); }); });
+      const piano = new THREE.Group(); piano.add(box(1.5, 1.1, 0.6, M.black, 0, 0.55, 0)); piano.add(box(1.4, 0.05, 0.25, M.white, 0, 0.75, 0.38)); piano.add(box(1.5, 0.08, 0.32, M.black, 0, 0.72, 0.4));
+      piano.add(plane(0.5, 0.2, picMat(sheet), 0, 1.25, 0.2).rotateX(-0.2));
+      place(piano, 3, 0, 0, 0.35); room.add(piano);
+      clickable(piano, 'Piano', () => {
+        if (G.f.piano) return say('De piano zwijgt.');
+        PZ.img('Muziekblad op de piano', sheet, '<button class="pri" id="playP">Piano spelen</button>');
+        setTimeout(() => { const b = document.getElementById('playP'); if (b) b.onclick = () => PZ.piano('Piano', mel, () => { G.set('piano'); G.give('zilversleutel'); say('Een klepje in de piano springt open: een <b>zilveren sleutel</b>!'); }, { note: 'Speel de melodie van het muziekblad.' }); }, 30);
+      });
+      const leg = place(B.frame(legend, 1.0, 0.42, M.darkwood), 3, -1.8, 1.7, 0.03); room.add(leg);
+      clickable(leg, 'Muziekles', () => PZ.img('Muziekles', legend));
+      // spiegel
+      const mir = new THREE.Group(); mir.add(box(0.8, 1.3, 0.04, M.gold, 0, 0, 0)); mir.add(plane(0.7, 1.2, MAT({ color: '#a8b4c0', metalness: 1, roughness: 0.08 }), 0, 0, 0.025));
+      place(mir, 1, 0.2, 1.6, 0.03); room.add(mir);
+      clickable(mir, 'Spiegel', () => PZ.doc('In de spiegel verschijnt iets…', `<div style="font-size:44px;letter-spacing:6px;text-align:center;font-family:${HAND}">${mword}</div>`, { mirror: true, style: 'background:#cfd8e0' }));
+      // kist met letterslot
+      const chest = place(B.chest(M.darkwood), 1, -1.8, 0, 0.3); room.add(chest);
+      if (G.f.chest) chest.userData.lid.rotation.x = -1.6;
+      clickable(chest, 'Kist', () => { if (G.f.chest) return say('Leeg.'); PZ.letters(`Letterslot (${mword.length} letters)`, mword, () => { G.set('chest'); tween(chest.userData.lid, 'rotation', 'x', -1.6); sfx.open(); G.give('lucifers'); say('In de kist: <b>lucifers</b>.'); }); });
+      // kandelaar + portretten
+      const cand = new THREE.Group(); cand.add(cyl(0.03, 0.08, 0.9, M.gold, 0, 0.45, 0)); [-0.15, 0, 0.15].forEach((x) => { const c = B.candle(0.18); c.position.set(x, 0.9, 0); if (!G.f.lit) c.children[1].visible = false; cand.add(c); });
+      place(cand, 2, 0, 0.8, 0.3); room.add(cand);
+      const lightIt = () => { room.userData.lamp.intensity = 20; cand.children.forEach((c) => c.children && c.children[1] && (c.children[1].visible = true)); };
+      if (G.f.lit) lightIt();
+      clickable(cand, 'Kandelaar', () => { if (G.f.lit) return say('De kaarsen branden.'); if (G.sel !== 'lucifers') return say('Een kandelaar zonder vlammetjes.'); G.take('lucifers'); G.set('lit'); lightIt(); say('De kaarsen gaan aan. Nu zie je de portretten goed!'); });
+      look.forEach((d, i) => {
+        const pc = cv(240, 300, (g) => { g.fillStyle = '#3a2a2a'; g.fillRect(0, 0, 240, 300); g.fillStyle = '#d8b89a'; g.beginPath(); g.ellipse(120, 140, 64, 80, 0, 0, 7); g.fill(); const off = [[0, -8], [10, 0], [0, 8], [-10, 0]][d]; for (const ex of [95, 145]) { g.fillStyle = '#fff'; g.beginPath(); g.ellipse(ex, 125, 14, 10, 0, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(ex + off[0], 125 + off[1], 6, 0, 7); g.fill(); } g.strokeStyle = '#6a3a2a'; g.lineWidth = 3; g.beginPath(); g.arc(120, 175, 20, 0.2, Math.PI - 0.2); g.stroke(); g.fillStyle = '#d4a63c'; g.font = '700 30px Georgia'; g.textAlign = 'center'; g.fillText(['I', 'II', 'III', 'IV'][i], 120, 285); });
+        const p = place(B.frame(pc, 0.48, 0.6), 2, -2.7 + i * 0.9 + (i > 1 ? 1.8 : 0), 1.75, 0.03); room.add(p);
+        clickable(p, 'Portret ' + ['I', 'II', 'III', 'IV'][i], () => { if (!G.f.lit) return say('Te donker om het portret goed te zien.'); PZ.img('Portret ' + ['I', 'II', 'III', 'IV'][i], pc); });
+      });
+      return {
+        hints: () => !G.f.chest ? 'Wat staat er in de spiegel? Lees het in spiegelbeeld.' : !G.f.lit ? 'Steek de kaarsen van de kandelaar aan.' : !G.f.piano ? 'Gebruik de muziekles om de noten op het muziekblad te lezen en speel ze.' : 'De ogen van portret I t/m IV kijken een kant op: dat is het pijlenslot.',
+        solution: () => `Piano: ${mel.join(' ')} · Spiegel: ${mword} · Pijlen: ${look.map((d) => ARW[d]).join(' ')}`,
+      };
+    },
+  },
+  // =====================================================================================
+  {
+    name: 'Het treinstation', diff: 5,
+    desc: 'Een vertrekbord, een kluisje en een poortje. Heb jij je kaartje al?',
+    theme: { wall: () => TEX.tiles('#c8c2b4', '#bdb6a6'), floor: () => TEX.tiles('#6b6257', '#5e564c'), door: '#3a4f6a', light: '#fff4e0', window: 'day', winU: 0.4, sconce: false },
+    build(G) {
+      const DEST = ['Amsterdam', 'Utrecht', 'Rotterdam', 'Den Haag', 'Leiden', 'Haarlem', 'Gouda', 'Zwolle'];
+      let trains;
+      for (;;) {
+        trains = Array.from({ length: 9 }, () => ({ t: ri(12, 16) * 60 + ri(0, 11) * 5, d: pick(DEST), p: ri(1, 8), nr: ri(1000, 9999) }));
+        trains.sort((a, b) => a.t - b.t);
+        const ok = trains.filter((x) => x.t > 14 * 60 && x.p % 2 === 0 && x.d !== 'Amsterdam');
+        if (new Set(trains.map((x) => x.t)).size === trains.length && ok.length >= 2 && trains.some((x) => x.t > 14 * 60 && x.p % 2 === 0 && x.d === 'Amsterdam')) { trains.ans = ok[0].nr; break; }
+      }
+      const tm = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
+      const holes = Array.from({ length: 16 }, () => R() < 0.4); if (holes.filter(Boolean).length < 4) holes[0] = holes[5] = holes[10] = holes[15] = true;
+      item('kaartje', 'Treinkaartje', '🎫', () => { const c = cv(360, 220, (g) => { g.fillStyle = '#f2e6c8'; g.fillRect(0, 0, 360, 220); g.fillStyle = '#3a4f6a'; g.fillRect(0, 0, 360, 40); g.fillStyle = '#fff'; g.font = '700 20px system-ui'; g.fillText('NS · ENKELE REIS', 14, 27); holes.forEach((hh, i) => { const x = 120 + (i % 4) * 34, y = 70 + Math.floor(i / 4) * 34; g.fillStyle = hh ? '#1b1d22' : 'rgba(0,0,0,0.1)'; g.beginPath(); g.arc(x, y, hh ? 11 : 4, 0, 7); g.fill(); }); }); PZ.img('Treinkaartje', c, 'Er zijn gaatjes in geprikt.'); });
+      exitDoor(G, 0, 2.6, (ok) => { if (!G.f.gate) return say('Eerst door het poortje…'); if (!G.f.power) return say('De uitgang zit dicht: de wissels staan verkeerd.'); ok(); });
+      // vertrekbord
+      const board = cv(720, 420, (g) => { g.fillStyle = '#0c2340'; g.fillRect(0, 0, 720, 420); g.fillStyle = '#ffd23a'; g.font = '700 26px system-ui'; g.fillText('VERTREK', 20, 38); g.font = '700 18px ui-monospace, monospace'; g.fillStyle = '#9fb7d8'; g.fillText('TIJD   TREIN  NAAR          SPOOR', 20, 72); trains.forEach((x, i) => { g.fillStyle = '#fff'; g.fillText(`${tm(x.t).padStart(5)}  ${x.nr}   ${x.d.padEnd(12)}  ${x.p}`, 20, 108 + i * 34); }); });
+      const bd = place(B.frame(board, 2.0, 1.17, M.black), 1, 0, 1.75, 0.03); room.add(bd);
+      clickable(bd, 'Vertrekbord', () => PZ.img('Vertrekbord', board));
+      const note = place(B.poster(paperCv(300, 200, ['Mijn trein…'], { pad: 30 }), 0.3, 0.2), 3, -1.9, 1.3, 0.02); room.add(note);
+      clickable(note, 'Briefje op het prikbord', () => PZ.doc('Briefje', '"Ik weet mijn treinnummer niet meer… Mijn trein vertrok <b>na 14:00</b>, vanaf een <b>even</b> spoor, en <b>níet</b> naar Amsterdam. Het was de <b>eerste</b> trein die daaraan voldeed. Dat nummer is de code van mijn kluisje."'));
+      // kluisjes
+      const lockers = new THREE.Group(); for (let i = 0; i < 6; i++) { lockers.add(box(0.4, 0.5, 0.45, MAT({ color: i === 4 ? '#c44a3a' : '#6a8aa8', metalness: 0.4, roughness: 0.4 }), -0.42 + (i % 3) * 0.42, 0.3 + Math.floor(i / 3) * 0.52, 0)); }
+      place(lockers, 3, 0.6, 0, 0.24); room.add(lockers);
+      clickable(lockers, 'Kluisjes', () => { if (G.f.locker) return say('Je kluisje is leeg.'); PZ.keypad('Kluisje (4 cijfers)', String(trains.ans), () => { G.set('locker'); G.give('kaartje'); sfx.open(); say('In het kluisje: een <b>treinkaartje</b> met gaatjes erin.'); }); });
+      // poortje
+      const gate = new THREE.Group(); gate.add(box(0.2, 1.0, 0.8, M.steel, -0.5, 0.5, 0)); gate.add(box(0.2, 1.0, 0.8, M.steel, 0.5, 0.5, 0)); const bar = box(0.8, 0.06, 0.06, M.red, 0, 0.85, 0); gate.add(bar); gate.add(box(0.12, 0.12, 0.02, M.black, -0.5, 1.02, 0.3));
+      place(gate, 2, -1.2, 0, 1.0); room.add(gate); if (G.f.gate) bar.rotation.z = 1.4;
+      clickable(gate, 'Poortje', () => {
+        if (G.f.gate) return say('Het poortje staat open.');
+        if (!G.has('kaartje')) return say('Het poortje wil een kaartje zien. Op het scherm staat een raster van 4 × 4 knopjes.');
+        const wrap = h('div'); wrap.appendChild(h('p', '', 'Druk de knopjes in volgens het patroon van je kaartje (klik je kaartje in je rugzak om het te bekijken).'));
+        const grid = h('div', 'grid'); grid.style.gridTemplateColumns = 'repeat(4, auto)'; const st = Array(16).fill(false);
+        st.forEach((_, i) => { const b = h('button', 'lo'); b.onclick = () => { st[i] = !st[i]; b.classList.toggle('on', st[i]); sfx.click(); }; grid.appendChild(b); });
+        const go = h('button', 'pri', 'Controleer'); go.onclick = () => { if (st.every((x, i) => x === holes[i])) solved(wrap.closest('.panel'), () => { G.set('gate'); tween(bar, 'rotation', 'z', 1.4); say('Piep! Het poortje gaat open.'); }); else wrong(grid); };
+        wrap.append(grid, go); OV.open('Poortje', wrap);
+      });
+      // wisselkast
+      const sw = place(B.boxGen(0.9, 1.1, 0.3, MAT({ color: '#3a4f6a' })), 2, 1.6, 0.5, 0.16); room.add(sw);
+      clickable(sw, 'Wisselkast', () => { if (!G.f.gate) return say('De wisselkast staat achter het poortje.'); if (G.f.power) return say('De wissels staan goed.'); PZ.pipes('Zet de wissels goed', 6, () => { G.set('power'); say('Alle wissels staan goed! De uitgang gaat van het slot.'); }, { note: 'Draai de stukken spoor zodat de trein van links naar rechts kan rijden.' }); });
+      herring(place(B.boxGen(1.6, 0.45, 0.45, M.lightwood), 0, -1.2, 0, 0.3), 'Bankje', 'Een bankje. Er ligt een oude krant op.');
+      herring(place(B.bin(), 0, -2.6, 0, 0.3), 'Prullenbak', 'Lege koffiebekers.');
+      return {
+        hints: () => !G.f.locker ? 'Zoek op het vertrekbord: na 14:00, even spoor, niet naar Amsterdam, de vroegste. Dat treinnummer is de code.' : !G.f.gate ? 'Bekijk je kaartje (klik erop in je rugzak) en druk dezelfde gaatjes in bij het poortje.' : !G.f.power ? 'Zet de wissels goed in de wisselkast.' : 'Naar de uitgang!',
+        solution: () => `Kluisje: ${trains.ans} · Poort: zie kaartje`,
+      };
+    },
+  },
+  // =====================================================================================
+  {
+    name: 'De grote ontsnapping', diff: 5,
+    desc: 'De laatste kamer. Vier stations, vier cijfers, één deur. Alles wat je geleerd hebt.',
+    theme: { wall: () => TEX.brick('#4a4f58'), floor: () => TEX.concrete(), door: '#1b1d22', light: '#ffe6d0', lightPower: 18, window: 'night', winU: -1.0, rug: '#3a3e46' },
+    build(G) {
+      const digs = Array.from({ length: 4 }, () => ri(0, 9));
+      const colorsSt = shuffle(['rood', 'blauw', 'groen', 'geel']);
+      const doorOrder = shuffle([0, 1, 2, 3]);
+      const doorCode = doorOrder.map((i) => digs[i]).join('');
+      const NW = ['NUL', 'EEN', 'TWEE', 'DRIE', 'VIER', 'VIJF', 'ZES', 'ZEVEN', 'ACHT', 'NEGEN'];
+      const hh = ri(2, 11);
+      item('cijfer0', 'Kaartje 1', '🟥'); item('cijfer1', 'Kaartje 2', '🟦'); item('cijfer2', 'Kaartje 3', '🟩'); item('cijfer3', 'Kaartje 4', '🟨');
+      [0, 1, 2, 3].forEach((i) => { ITEMS['cijfer' + i].icon = { rood: '🟥', blauw: '🟦', groen: '🟩', geel: '🟨' }[colorsSt[i]]; ITEMS['cijfer' + i].name = `${cap(colorsSt[i])} kaartje`; ITEMS['cijfer' + i].view = () => PZ.doc(`${cap(colorsSt[i])} kaartje`, `<div style="text-align:center;font-size:72px;font-weight:900;color:${COLORS[colorsSt[i]]}">${digs[i]}</div>`); });
+      const giveDigit = (i) => { G.set('d' + i); G.give('cijfer' + i); say(`Je krijgt een <b>${colorsSt[i]} kaartje</b> met een cijfer erop.`); };
+      exitDoor(G, 0, 2.6, (ok) => PZ.keypad('De laatste deur (4 cijfers)', doorCode, ok, { note: `Op de deur zitten vier gekleurde stippen: <span style="font-size:26px">${doorOrder.map((i) => ({ rood: '🔴', blauw: '🔵', groen: '🟢', geel: '🟡' }[colorsSt[i]])).join(' ')}</span>` }));
+      const station = (w, u, label, col, fn) => { const s = place(B.boxGen(0.9, 1.1, 0.4, M.dark), w, u, 0, 0.22); s.add(box(0.3, 0.3, 0.02, MAT({ color: COLORS[col], emissive: COLORS[col], emissiveIntensity: 0.4 }), 0, 0.85, 0.21)); room.add(s); clickable(s, label, fn); return s; };
+      station(1, -1.2, 'Station: lampjes', colorsSt[0], () => G.f.d0 ? say('Dit station is klaar.') : PZ.lightsOut('Lampjes', 5, 9, () => giveDigit(0)));
+      const pic = cv(320, 320, (g) => { g.fillStyle = '#e9e1cf'; g.fillRect(0, 0, 320, 320); g.fillStyle = COLORS[colorsSt[1]]; g.font = '900 220px system-ui'; g.textAlign = 'center'; g.fillText(digs[1], 160, 240); g.strokeStyle = '#8a7a5a'; for (let i = 0; i < 12; i++) { g.beginPath(); g.moveTo(R() * 320, 0); g.lineTo(R() * 320, 320); g.stroke(); } });
+      station(1, 1.2, 'Station: schuifpuzzel', colorsSt[1], () => G.f.d1 ? say('Dit station is klaar.') : PZ.sliding('Schuifpuzzel (4 × 4)', 4, pic, () => { G.set('d1'); G.give('cijfer1'); PZ.img('Klaar!', pic, `Het cijfer staat erop. Je krijgt ook een ${colorsSt[1]} kaartje.`); }, 400));
+      station(2, -1.0, 'Station: kleurcode', colorsSt[2], () => G.f.d2 ? say('Dit station is klaar.') : PZ.mastermind('Kleurcode (5 kleuren)', 6, 5, 10, () => giveDigit(2)));
+      const clk = clockCv(hh, 0); const clock = place(B.clock(clk), 3, 0, 2.2, 0.05); room.add(clock);
+      clickable(clock, 'Klok', () => PZ.img('Klok', clk));
+      const cipher = caesar(NW[digs[3]], hh);
+      station(2, 1.4, 'Station: geheimschrift', colorsSt[3], () => {
+        if (G.f.d3) return say('Dit station is klaar.');
+        PZ.text('Geheimschrift', NW[digs[3]], () => giveDigit(3), { screen: `Versleuteld:  ${cipher}\n\nSleutel: het uur op de klok.\nSchuif elke letter zo vaak terug.`, note: 'Typ het ontcijferde woord.', placeholder: 'woord' });
+      });
+      herring(place(B.boxGen(1.2, 0.8, 0.6, M.wood), 3, -1.8, 0, 0.32), 'Werkbank', 'Een werkbank met krassen. Iemand heeft hier lang gezeten…');
+      return {
+        hints: () => !G.f.d0 ? 'Elk station geeft een gekleurd kaartje met een cijfer. Begin bijvoorbeeld bij de lampjes.' : !G.f.d1 ? 'Schuifpuzzel: werk eerst de bovenste rij af, dan de linker kolom.' : !G.f.d2 ? 'Kleurcode: gebruik de rode en witte bolletjes slim.' : !G.f.d3 ? 'Kijk hoe laat het is op de klok en schuif elke letter zo veel plekken terug.' : 'Zet de cijfers van je kaartjes in de volgorde van de gekleurde stippen op de deur.',
+        solution: () => `Cijfers: ${colorsSt.map((c, i) => c + '=' + digs[i]).join(', ')} · Deur: ${doorCode} · Woord: ${NW[digs[3]]}`,
+      };
+    },
+  },
+];
+// ================= ESCAPE ROOM · spelverloop, rugzak, menu, opslaan =================
+const NLV = LEVELS.length;
+let bests = Arcade.load('escape_bests', {});          // { level: seconden }
+let prog = Arcade.load('escape_prog', null);          // lopende kamer: { li, seed, t, f, inv, hints }
+const unlocked = (i) => i === 0 || bests[i - 1] != null || Arcade.load('escape_unlockall', false);
+const fmt = (s) => { s = Math.max(0, Math.floor(s)); const hh = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60; return (hh ? hh + ':' + String(m).padStart(2, '0') : m) + ':' + String(r).padStart(2, '0'); };
+
+let state = 'menu';   // menu | play | pause | done
+let level = null, info = null;
+const G = {
+  li: 0, seed: 0, t: 0, f: {}, inv: [], sel: null, hints: 0, theme: null, combos: [],
+  has: (id) => G.inv.includes(id),
+  give(id) { if (!G.inv.includes(id)) G.inv.push(id); sfx.item(); drawInv(id); save(); },
+  take(id) { G.inv = G.inv.filter((x) => x !== id); if (G.sel === id) G.sel = null; drawInv(); save(); },
+  set(k, v = true) { G.f[k] = v; save(); },
+  combine(a, b, res, msg) { G.combos.push({ a, b, res, msg }); },
+  win() { finish(); },
+};
+
+// ---------- opslaan ----------
+function save() {
+  if (state !== 'play' && state !== 'pause') return;
+  prog = { li: G.li, seed: G.seed, t: G.t, f: G.f, inv: G.inv, hints: G.hints };
+  Arcade.save('escape_prog', prog);
+}
+setInterval(() => { if (state === 'play') save(); }, 4000);
+addEventListener('pagehide', save);
+
+// ---------- kamer starten ----------
+function startLevel(i, fresh) {
+  const cont = !fresh && prog && prog.li === i;
+  G.li = i; G.seed = cont ? prog.seed : Math.floor(Math.random() * 1e9);
+  G.t = cont ? prog.t : 0; G.f = cont ? Object.assign({}, prog.f) : {}; G.inv = cont ? prog.inv.slice() : []; G.hints = cont ? prog.hints || 0 : 0;
+  G.sel = null; G.combos = [];
+  for (const k in ITEMS) delete ITEMS[k];
+  level = LEVELS[i];
+  const th = level.theme;
+  G.theme = Object.assign({}, th, { wall: th.wall(), floor: th.floor() });
+  R = rng(G.seed);
+  newRoom(G.theme);
+  info = level.build(G);
+  R = Math.random;
+  view = 0; yaw = yawT = 0;
+  $('eLvl').textContent = `KAMER ${i + 1}`; $('eName').textContent = level.name;
+  state = 'play'; showUi();
+  drawInv(); save();
+  say(cont ? 'Je gaat verder waar je gebleven was.' : `<b>${level.name}</b><br>${level.desc}`, 4500);
+  ArcadeCore.music.play && ArcadeCore.music.play('escape');
+}
+function finish() {
+  if (state === 'done') return;
+  state = 'done'; OV.isOpen && OV.close();
+  const t = G.t, prev = bests[G.li], rec = prev == null || t < prev;
+  if (rec) { bests[G.li] = Math.round(t * 10) / 10; Arcade.save('escape_bests', bests); }
+  const n = Object.keys(bests).length; Arcade.save('best_escape', n);
+  prog = null; Arcade.save('escape_prog', null);
+  sfx.win();
+  $('dTime').textContent = fmt(t);
+  $('dInfo').innerHTML = (rec ? (prev != null ? `🏆 Nieuw record! (was ${fmt(prev)})` : '🏆 Nieuw record!') : `Record: ${fmt(prev)}`) + (G.hints ? `<br><small>${G.hints} hint${G.hints > 1 ? 's' : ''} gebruikt (+${G.hints} min)</small>` : '');
+  $('dNext').style.display = G.li + 1 < NLV ? '' : 'none';
+  showUi();
+}
+
+// ---------- UI ----------
+function showUi() {
+  const play = state === 'play';
+  for (const id of ['eTop', 'eLeft', 'eRight', 'eInv']) $(id).classList.toggle('hide', !(play || state === 'pause'));
+  $('eMenu').classList.toggle('hide', state !== 'menu');
+  $('ePause').classList.toggle('hide', state !== 'pause');
+  $('eDone').classList.toggle('hide', state !== 'done');
+  if (state === 'menu') drawMenu();
+}
+function drawInv(newId) {
+  const box = $('eSlots'); box.innerHTML = '';
+  const n = Math.max(6, G.inv.length);
+  for (let i = 0; i < n; i++) {
+    const id = G.inv[i], it = id && ITEMS[id];
+    const s = document.createElement('div'); s.className = 'slot' + (it ? '' : ' empty') + (id && id === G.sel ? ' on' : '') + (id && id === newId ? ' new' : '');
+    if (it) {
+      s.textContent = it.icon; s.title = it.name;
+      s.onclick = () => {
+        if (G.sel && G.sel !== id) {   // combineren
+          const c = G.combos.find((x) => (x.a === G.sel && x.b === id) || (x.b === G.sel && x.a === id));
+          if (c) { G.take(c.a); G.take(c.b); G.give(c.res); say(c.msg); G.sel = null; drawInv(c.res); return; }
+        }
+        G.sel = G.sel === id ? null : id; sfx.click(); drawInv();
+        if (G.sel && it.view) it.view();
+      };
+    }
+    box.appendChild(s);
+  }
+  $('eSel').innerHTML = G.sel ? `In je hand: <b>${ITEMS[G.sel].name}</b> · klik ergens op om het te gebruiken` : (G.inv.length ? 'Klik op een voorwerp om het te pakken (of te bekijken)' : '');
+}
+function drawMenu() {
+  const g = $('eGrid'); g.innerHTML = '';
+  LEVELS.forEach((lv, i) => {
+    const open = unlocked(i), bt = bests[i], cont = prog && prog.li === i;
+    const d = document.createElement('div'); d.className = 'room' + (open ? '' : ' locked');
+    d.innerHTML = `<div class="n">${i + 1}</div><div class="nm">${lv.name}</div><div class="d">${open ? lv.desc : 'Ontsnap eerst uit kamer ' + i}</div><div class="diff">${'★'.repeat(lv.diff)}<span style="color:#3a3e46">${'★'.repeat(5 - lv.diff)}</span></div>` +
+      (cont ? `<div class="bt go">▶ verder (${fmt(prog.t)})</div>` : bt != null ? `<div class="bt">${fmt(bt)}</div>` : open ? '' : '<div class="bt">🔒</div>');
+    if (open) d.onclick = () => startLevel(i);
+    g.appendChild(d);
+  });
+}
+$('eLeft').onclick = () => turn(-1); $('eRight').onclick = () => turn(1);
+$('eMenuBtn').onclick = () => { if (state === 'play') { state = 'pause'; save(); showUi(); } };
+$('pGo').onclick = () => { state = 'play'; showUi(); };
+$('pMenu').onclick = () => { save(); state = 'menu'; showUi(); };
+$('pReset').onclick = () => { if (confirmReset()) { prog = null; Arcade.save('escape_prog', null); startLevel(G.li, true); } };
+let resetArm = 0; function confirmReset() { if (Date.now() - resetArm < 3000) return true; resetArm = Date.now(); $('pReset').textContent = 'Zeker weten? Klik nog een keer'; setTimeout(() => ($('pReset').textContent = 'Kamer opnieuw beginnen'), 3000); return false; }
+$('dNext').onclick = () => startLevel(G.li + 1, true);
+$('dMenu').onclick = () => { state = 'menu'; showUi(); };
+$('eHint').onclick = () => {
+  if (state !== 'play' || !info) return;
+  G.hints++; G.t += 60; save();
+  say('💡 ' + info.hints(), 9000);
+};
+addEventListener('keydown', (e) => {
+  if (e.target && e.target.tagName === 'INPUT') return;
+  if (state === 'play' && !OV.isOpen) {
+    if (e.key === 'ArrowLeft' || e.key === 'a') turn(-1);
+    if (e.key === 'ArrowRight' || e.key === 'd') turn(1);
+    if (e.key === 'Escape') { state = 'pause'; save(); showUi(); }
+  } else if (OV.isOpen && e.key === 'Escape') OV.close();
+  else if (state === 'pause' && e.key === 'Escape') { state = 'play'; showUi(); }
+});
+
+// klikken in de kamer
+let downAt = null;
+glc.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+glc.addEventListener('pointerup', (e) => {
+  if (state !== 'play' || OV.isOpen || !downAt) return;
+  if (Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 12) return;
+  const o = pickAt(e);
+  if (o && o.userData.fn) { sfx.click(); o.userData.fn(G); drawInv(); }
+  else if (G.sel) { G.sel = null; drawInv(); }
+});
+glc.addEventListener('pointermove', (e) => {
+  if (state !== 'play' || OV.isOpen || e.pointerType === 'touch') { $('eTip').style.display = 'none'; return; }
+  const o = pickAt(e); setHover(o);
+  const tip = $('eTip');
+  if (o) { tip.style.display = 'block'; tip.textContent = (G.sel ? ITEMS[G.sel].icon + ' → ' : '') + o.userData.label; tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px'; }
+  else tip.style.display = 'none';
+});
+// vegen op touchscreens = draaien
+let sw = null;
+glc.addEventListener('touchstart', (e) => { if (e.touches.length === 1) sw = [e.touches[0].clientX, e.touches[0].clientY]; }, { passive: true });
+glc.addEventListener('touchend', (e) => { if (!sw || state !== 'play') return; const t = e.changedTouches[0], dx = t.clientX - sw[0]; if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(t.clientY - sw[1]) * 1.5) turn(dx > 0 ? -1 : 1); sw = null; }, { passive: true });
+
+// ---------- menu-achtergrond: een rustige kamer ----------
+function menuRoom() {
+  R = rng(7); level = LEVELS[0]; const th = level.theme;
+  G.theme = Object.assign({}, th, { wall: th.wall(), floor: th.floor() }); G.f = {}; G.inv = [];
+  for (const k in ITEMS) delete ITEMS[k];
+  newRoom(G.theme); level.build(G); R = Math.random;
+}
+menuRoom();
+
+// ---------- lus ----------
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (state === 'play' && document.visibilityState === 'visible') { G.t += dt; $('eTime').textContent = fmt(G.t); }
+  if (state === 'menu') { yawT += dt * 0.12; }
+  updateCam(dt); updateTweens(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+showUi();
+requestAnimationFrame(loop);
+window.__esc = { G, startLevel, get info() { return info; }, get state() { return state; }, LEVELS, finish, PZ, OV, clickables, ITEMS };
+
+// ---------- admin-voordelen ----------
+ArcadeCore.cheat('🔎 Toon de oplossing van deze kamer', () => { if (info) say('🛠️ ' + info.solution(), 12000); });
+ArcadeCore.cheat('🚪 Kamer meteen uitspelen', () => { if (state === 'play') finish(); });
+ArcadeCore.cheat('🔓 Alle kamers ontgrendelen', () => { Arcade.save('escape_unlockall', true); drawMenu(); });
+ArcadeCore.cheat('⏱️ Tijd van deze kamer op 0', () => { G.t = 0; });
+
+  </script>
+  <script type="module" src="../auth.js?v=15"></script>
+</body>
+</html>

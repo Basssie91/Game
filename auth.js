@@ -162,16 +162,18 @@ function scoresOf(d) {
   return o;
 }
 // racegames: beste tijd per level (seconden)
-const TIMED = { race: 12, moto: 10 };
+const TIMED = { race: 12, moto: 10, escape: 10 };
 function timesOf(d) {
   const o = {};
   const r = J(d.tt2_bests2);
   if (r && typeof r === 'object') { o.race = {}; for (const k in r) { const t = r[k] && typeof r[k] === 'object' ? r[k].t : r[k]; if (typeof t === 'number' && t > 0) o.race[k] = Math.round(t * 100) / 100; } }
-  const m = J(d.arcade_moto_bests);
-  if (m && typeof m === 'object') { o.moto = {}; for (const k in m) if (typeof m[k] === 'number' && m[k] > 0) o.moto[k] = Math.round(m[k] * 100) / 100; }
+  for (const g of ['moto', 'escape']) {
+    const m = J(d['arcade_' + g + '_bests']);
+    if (m && typeof m === 'object') { o[g] = {}; for (const k in m) if (typeof m[k] === 'number' && m[k] > 0) o[g][k] = Math.round(m[k] * 100) / 100; }
+  }
   return o;
 }
-const fmtT = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r < 10 ? '0' : ''}${r.toFixed(2)}`; };
+const fmtT = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return s >= 600 ? `${m}:${String(Math.floor(r)).padStart(2, '0')}` : `${m}:${r < 10 ? '0' : ''}${r.toFixed(2)}`; };
 // records die geen score zijn (tijden/zetten), alleen om te laten zien op je profiel
 function extraOf(d) {
   const o = {};
@@ -335,7 +337,7 @@ function renderBoard() {
 }
 
 // ---------- Profiel ----------
-const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['moto', '🏍️', 'Moto Stunt'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['blokken', '🧱', 'Blokken'], ['stack', '🏗️', 'Stack Tower'], ['vier', '🔴', 'Vier op een rij'], ['sudoku', '🔢', 'Sudoku'], ['mijnen', '💣', 'Mijnenveger'], ['memory', '🧠', 'Memory'], ['patience', '🃏', 'Patience']];
+const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['moto', '🏍️', 'Moto Stunt'], ['escape', '🔐', 'Escape Room'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['blokken', '🧱', 'Blokken'], ['stack', '🏗️', 'Stack Tower'], ['vier', '🔴', 'Vier op een rij'], ['sudoku', '🔢', 'Sudoku'], ['mijnen', '💣', 'Mijnenveger'], ['memory', '🧠', 'Memory'], ['patience', '🃏', 'Patience']];
 // snelste tijden op één level
 function levelRanking(id, l) {
   return boardPlayers.filter((p) => p.times && p.times[id] && p.times[id][l] != null).map((p) => ({ p, v: p.times[id][l] })).sort((a, b) => a.v - b.v);
@@ -349,7 +351,7 @@ function gameRanking(id) {
   }
   return boardPlayers.filter((p) => p.scores && p.scores[id] > 0).map((p) => ({ p, v: p.scores[id] })).sort((a, b) => b.v - a.v);
 }
-const KL_GAMES = ['race', 'moto', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'vier'];
+const KL_GAMES = ['race', 'moto', 'escape', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'blokken', 'stack', 'vier'];
 function klassement() {
   const pts = new Map();
   for (const id of KL_GAMES) gameRanking(id).slice(0, 3).forEach((r, i) => pts.set(r.p.uid, (pts.get(r.p.uid) || 0) + 3 - i));
