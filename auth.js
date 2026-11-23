@@ -114,9 +114,18 @@ function wipeLocal() {
   Object.keys(collect()).forEach((k) => localStorage.removeItem(k));
   for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('tt2_ghost')) localStorage.removeItem(k); }
 }
+let killed = false;
+async function accountGone() {
+  killed = true; ready = false;
+  wipeLocal(); myName = ''; remote = {};
+  try { await fb.signOut(fb.auth); } catch (e) { /* toch doorgaan */ }
+  setTimeout(() => alert('Dit account is verwijderd door de beheerder. Je kunt er niet meer mee spelen.'), 50);
+}
 async function pull() {
   const snap = await fb.getDoc(ref());
   const d = snap.exists() ? snap.data() : {};
+  if (d.deleted) { await accountGone(); throw Object.assign(new Error('Account verwijderd'), { code: 'account-deleted' }); }
+  killed = false;
   remote = d.data || {};
   myName = d.name || '';
   // heeft de admin de records van dit account gewist? Dan ook hier wissen (één keer)
@@ -138,7 +147,7 @@ async function pull() {
   return remote;
 }
 async function push(force) {
-  if (!user || !ready) return;
+  if (!user || !ready || killed) return;
   let data = mergeObjs(collect(), remote);
   let s = JSON.stringify(data);
   if (!force && s === lastSent) return;
@@ -149,7 +158,7 @@ async function push(force) {
     await fb.setDoc(ref(), { data, email: user.email, updated: fb.serverTimestamp() }, { merge: true });
     lastSent = s; remote = data; setStatus('saved');
     await pushBoard(data);
-  } catch (e) { setStatus('error', e); }
+  } catch (e) { if (!killed) setStatus('error', e); }
 }
 
 // ---------- Openbare ranglijst (ook gelezen door de Discord-bot) ----------
@@ -181,7 +190,7 @@ function extraOf(d) {
   return o;
 }
 async function pushBoard(data, force) {
-  if (!user || !myName) return;
+  if (!user || !myName || killed) return;
   const d = data || mergeObjs(collect(), remote);
   const scores = scoresOf(d), extra = extraOf(d), times = timesOf(d);
   const since = (user.metadata && user.metadata.creationTime) || '';
@@ -488,6 +497,7 @@ function adminTools() {
       await push(true);
       if (IS_HUB) loadBoard();
     } catch (e) {
+      if (killed) return;
       setStatus('error', e);
       if (IS_HUB) { const m = $('acctMenu'); if (m) $('acctErr').textContent = errText(e); }
     }

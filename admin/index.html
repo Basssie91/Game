@@ -127,6 +127,15 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
           <tbody id="rows"></tbody>
         </table>
       </div>
+      <div id="delWrap" style="display:none">
+        <h3>Verwijderde accounts</h3>
+        <div class="box scroll" style="padding:6px 10px">
+          <table>
+            <thead><tr><th>E-mail</th><th>Naam</th><th>Verwijderd</th><th></th></tr></thead>
+            <tbody id="delRows"></tbody>
+          </table>
+        </div>
+      </div>
 
       <h3>Beste per game</h3>
       <div class="box scroll" style="padding:6px 10px">
@@ -145,6 +154,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
     <div class="rows" id="mRows"></div>
     <div class="mbtns">
       <button class="red" id="mWipe">🗑️ Alles wissen</button>
+      <button class="red" id="mDel" style="background:#7a1418">❌ Account verwijderen</button>
       <button class="ghost" id="mClose">Sluiten</button>
     </div>
     <div class="msg" id="mMsg"></div>
@@ -217,11 +227,14 @@ function recordsOf(d) {   // [[id, naam, waarde]]
   }
   return out;
 }
+let deleted = [];
 async function load() {
   $('rows').innerHTML = '<tr><td colspan="6">Laden…</td></tr>';
   try {
     const snap = await fb.getDocs(fb.collection(fb.db, 'users'));
     users = snap.docs.map((s) => { const x = s.data(); return { uid: s.id, email: x.email || '(geen e-mail)', t: ms(x.updated), data: x.data || {}, raw: x }; });
+    deleted = users.filter((u) => u.raw.deleted);
+    users = users.filter((u) => !u.raw.deleted);
     users.sort((a, b) => b.t - a.t);
     render();
   } catch (e) {
@@ -241,6 +254,8 @@ function render() {
     return `<tr><td>${esc(u.email)}${me && u.uid === me.uid ? '<span class="me">JIJ</span>' : ''}</td><td>${u.raw.name ? '<b>' + esc(u.raw.name) + '</b>' : '<span class="dim">geen naam</span>'}</td><td>${ago(u.t)}</td><td class="num hide-sm">${n}/${GAMES.length}</td><td class="num hide-sm">${ty ? 'Level ' + ty : '–'}</td>
       <td><div class="acts"><button data-v="${u.uid}">Bekijk</button></div></td></tr>`;
   }).join('') || '<tr><td colspan="6">Geen accounts gevonden.</td></tr>';
+  $('delWrap').style.display = deleted.length ? '' : 'none';
+  $('delRows').innerHTML = deleted.map((u) => `<tr><td>${esc(u.email)}</td><td>${u.raw.deletedName ? esc(u.raw.deletedName) : '<span class="dim">geen naam</span>'}</td><td>${ago(ms(u.raw.deleted))}</td><td><div class="acts"><button data-restore="${u.uid}" title="Kan weer inloggen, maar begint opnieuw">Herstellen</button></div></td></tr>`).join('');
   // beste per game (alleen games met een getal als score)
   $('bests').innerHTML = GAMES.map(([id, naam]) => {
     let best = null;
@@ -265,6 +280,7 @@ $('rows').addEventListener('click', (e) => {
   $('mSub').textContent = 'Laatst actief: ' + ago(open.t);
   showRows();
   $('mWipe').textContent = '🗑️ Alles wissen'; $('mWipe').dataset.sure = ''; $('mWipe').disabled = false; $('mMsg').textContent = '';
+  $('mDel').textContent = '❌ Account verwijderen'; $('mDel').dataset.sure = ''; $('mDel').disabled = !!(me && open.uid === me.uid); $('mDel').title = me && open.uid === me.uid ? 'Je eigen account kun je niet verwijderen' : '';
   $('modal').classList.add('open');
 });
 function showRows() {
@@ -380,6 +396,28 @@ $('mWipe').addEventListener('click', async () => {
     b.textContent = '✔ Gewist';
     load();
   } catch (e) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (e.code || e.message); b.disabled = false; }
+});
+// ---------- Account verwijderen ----------
+$('mDel').addEventListener('click', async () => {
+  const b = $('mDel');
+  if (!open || (me && open.uid === me.uid)) return;
+  if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = '⚠️ Echt verwijderen? Klik nog een keer'; return; }
+  b.disabled = true;
+  try {
+    // alles weg; alleen een markering blijft over, zodat dit account niet meer kan spelen
+    await fb.setDoc(fb.doc(fb.db, 'users', open.uid), { deleted: fb.serverTimestamp(), email: open.email, deletedName: open.raw.name || '' });
+    await fb.deleteDoc(fb.doc(fb.db, 'leaderboard', open.uid)).catch(() => {});
+    $('mMsg').className = 'msg ok'; $('mMsg').textContent = 'Account verwijderd. Records, naam en ranglijst zijn weg, en met dit account kan niemand meer inloggen.';
+    b.textContent = '✔ Verwijderd';
+    load();
+  } catch (e) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (e.code || e.message); b.disabled = false; }
+});
+$('delRows').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-restore]'); if (!b) return;
+  if (!b.classList.contains('sure')) { b.classList.add('sure'); b.textContent = 'Zeker?'; return; }
+  b.disabled = true;
+  try { await fb.deleteDoc(fb.doc(fb.db, 'users', b.dataset.restore)); load(); }
+  catch (err) { b.textContent = 'Lukt niet'; }
 });
   </script>
 </body>
