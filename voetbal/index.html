@@ -590,6 +590,7 @@ const T = Arcade.text, RR = Arcade.rr;
 // ---------- Veld ----------
 const FX0 = 70, FX1 = 890, FY0 = 106, FY1 = 516, MIDX = (FX0 + FX1) / 2, MIDY = (FY0 + FY1) / 2;
 const GOAL_H = 134, GOAL_D = 40, GY0 = MIDY - GOAL_H / 2, GY1 = MIDY + GOAL_H / 2;
+const RECHARGE = 5; // na zoveel eigen beurten is je powerup weer klaar
 const DR = 21, KR = 25, BR = 12, VMAX = 1150, PULL = 150, WIN_GOALS = 3, TURN_T = 15;
 
 // ---------- Powerups ----------
@@ -620,7 +621,7 @@ const saveTour = () => Arcade.save(TOUR_KEY, tour);
 let state = 'menu'; // menu | pick | play | goal | over | pause
 let mode = 'bot';   // bot | vriend
 let S = null;       // physics-wereld
-let goals = [0, 0], turn = 0, turnT = TURN_T, picks = [[], []], used = [{}, {}], pickFor = 0, pickSel = [];
+let goals = [0, 0], turn = 0, turnT = TURN_T, picks = [[], []], used = [{}, {}], cd = [0, 0], pickFor = 0, pickSel = [];
 let pull = null, skip = [false, false], turbo = false, magnetNext = false, target = null, aim = null, moving = false, shooter = -1;
 let goalT = 0, goalBy = 0, overInfo = null, toast = '', toastT = 0, botT = 0, botPlan = null, shots = 0, clock = 0;
 let botGuardT = -1, cheatFreeze = false, prevState = 'play', newRecord = false;
@@ -741,7 +742,7 @@ const whistle = () => { Arcade.beep(2200, 0.12, 'sine', 0.05); Arcade.beep(2300,
 // ---------- Wedstrijd ----------
 function say(t) { toast = t; toastT = 2.2; }
 function startMatch() {
-  S = newWorld(); used = [{}, {}]; skip = [false, false]; botPlan = null; botGuardT = -1; pull = null; turbo = false; magnetNext = false; target = null; aim = null; moving = false; shots = 0;
+  S = newWorld(); used = [{}, {}]; cd = [0, 0]; skip = [false, false]; botPlan = null; botGuardT = -1; pull = null; turbo = false; magnetNext = false; target = null; aim = null; moving = false; shots = 0;
   if (mode === 'bot') {
     goals = tour && tour.g ? tour.g.slice() : [0, 0];
     picks[1] = shuffle(PU_KEYS.slice()).slice(0, 1);
@@ -754,6 +755,7 @@ function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.fl
 function beginTurn(t) {
   turn = t; turnT = TURN_T; target = null; aim = null; turbo = false; magnetNext = false; S.mag = -1;
   S.stone[t] = false;
+  if (cd[t] > 0 && --cd[t] === 0) { used[t] = {}; say(`♻️ ${names()[t]}: powerup weer opgeladen!`); Arcade.beep(660, 0.1, 'triangle', 0.05); Arcade.beep(990, 0.15, 'triangle', 0.05, 0, 0.1); }
   for (const o of S.d) if (o.team === t) { if (o.giant) { o.giant = false; o.r = o.num === 'K' ? KR : DR; o.m = o.num === 'K' ? 1.3 : 1; } o.pin = false; }
   if (isBot(t)) { botT = 0.9 + Math.random() * 0.5; botPlan = null; }
   else if (mode === 'bot') botGuardT = 0.4 + Math.random() * 1.2;
@@ -776,7 +778,7 @@ function usePower(t, k) {
   if (used[t][k] || moving || state !== 'play') return false;
   if (turn !== t && k !== 'stone') return false; // de stenen goal mag je ook in de beurt van de tegenstander zetten
   if (!picks[t].includes(k)) return false;
-  used[t][k] = true;
+  used[t][k] = true; cd[t] = RECHARGE;
   const col = PU[k].c;
   if (k === 'stone') { S.stone[t] = true; fx.burst(t ? FX1 : FX0, MIDY, 20, ['#e0a050', '#8a5a2a'], 160); Arcade.noise(0.3, 0.12, 900, 120); }
   if (k === 'turbo') { turbo = true; Arcade.beep(300, 0.3, 'sawtooth', 0.05, 500); }
@@ -1176,14 +1178,15 @@ function drawHUD() {
     ctx.strokeStyle = active ? '#ffd23f' : can ? PU[k].c : 'rgba(255,255,255,0.12)'; ctx.lineWidth = active ? 2.5 : 1.5; ctx.stroke();
     T(ctx, PU[k].i, x + 24, y + 26, 22);
     T(ctx, mode === 'vriend' && j ? `Speler ${pt + 1}: ${PU[k].n}` : PU[k].n, x + 44, y + 19, 13, '#fff', 'left', '800');
-    T(ctx, active ? 'Actief!' : u ? 'Gebruikt' : Arcade.touch ? 'Tik om in te zetten' : mode === 'vriend' && j ? 'Klik om in te zetten' : 'Klik of toets 1', x + 44, y + 36, 11, active ? '#ffd23f' : '#9aa1ab', 'left', '700');
+    T(ctx, active ? 'Actief!' : u ? (cd[pt] === 1 ? 'Volgende beurt klaar' : `Klaar over ${cd[pt]} beurten`) : Arcade.touch ? 'Tik om in te zetten' : mode === 'vriend' && j ? 'Klik om in te zetten' : 'Klik of toets 1', x + 44, y + 36, 11, active ? '#ffd23f' : '#9aa1ab', 'left', '700');
     ctx.globalAlpha = 1;
+    if (u && !active) { ctx.fillStyle = PU[k].c; RR(ctx, x + 8, y + h - 6, (w - 16) * (1 - cd[pt] / RECHARGE), 3, 1.5); ctx.fill(); }
     if (can) ui.btn('', x, y, w, h, () => usePower(pt, k), false, false); // klikgebied (onzichtbaar)
   });
   // powerups van de bot (klein, bovenaan rechts)
   if (mode === 'bot') {
     T(ctx, 'Powerup bot:', W / 2 + 272, 40, 12, '#9aa1ab', 'left', '700');
-    picks[1].forEach((k, j) => { ctx.globalAlpha = used[1][k] ? 0.25 : 1; T(ctx, PU[k].i, W / 2 + 364 + j * 24, 40, 17); ctx.globalAlpha = 1; });
+    picks[1].forEach((k, j) => { ctx.globalAlpha = used[1][k] ? 0.25 : 1; T(ctx, PU[k].i, W / 2 + 364 + j * 24, 40, 17); ctx.globalAlpha = 1; if (used[1][k]) T(ctx, String(cd[1]), W / 2 + 380 + j * 24, 50, 11, '#ffd23f', 'center', '900'); });
   }
   if (toastT > 0) {
     ctx.globalAlpha = Math.min(1, toastT * 2);
@@ -1228,7 +1231,7 @@ function drawMenu() {
   T(ctx, 'Wie is de beste?', vx + cw / 2, 260, 13, '#9aa1ab', 'center', '700');
   ui.btn('Speel samen', vx + 40, 284, cw - 80, 50, () => { mode = 'vriend'; toPick(0); });
   T(ctx, `Beste toernooiscore: ${best ? best.toLocaleString('nl-NL') : '–'}`, W / 2, 400, 16, '#c9ced6', 'center', '700');
-  T(ctx, 'Je kiest 1 powerup en kunt hem maar 1x gebruiken: zet hem in op het goede moment!', W / 2, 440, 14, '#9aa1ab', 'center', '600');
+  T(ctx, 'Je kiest 1 powerup. Na gebruik is hij na 5 beurten weer opgeladen: kies je moment!', W / 2, 440, 14, '#9aa1ab', 'center', '600');
   T(ctx, 'Elke beurt heb je 15 seconden. Wie het eerst 3 keer scoort, wint.', W / 2, 464, 14, '#9aa1ab', 'center', '600');
 }
 function toPick(p, keep = false) {
@@ -1242,7 +1245,7 @@ function drawPick() {
   T(ctx, who, W / 2, 62, 30, '#fff', 'center', '900');
   const sub = mode === 'bot' ? `Ronde ${round() + 1} van 8 · tegen ${ROUNDS[round()][0]}` : (pickFor ? 'Speler 1 kijkt even niet 😉' : 'Daarna kiest speler 2');
   T(ctx, sub, W / 2, 96, 15, '#c9ced6', 'center', '600');
-  T(ctx, 'Je kunt hem maar 1x gebruiken, dus kies slim', W / 2, 124, 14, '#ffd23f', 'center', '800');
+  T(ctx, 'Na gebruik is hij na 5 eigen beurten weer opgeladen', W / 2, 124, 14, '#ffd23f', 'center', '800');
   const cw = 260, ch = 128, gx = W / 2 - (cw * 3 + 32) / 2;
   PU_KEYS.forEach((k, j) => {
     const x = gx + (j % 3) * (cw + 16), y = 148 + Math.floor(j / 3) * (ch + 16), on = pickSel.includes(k), p = PU[k];
@@ -1378,7 +1381,7 @@ requestAnimationFrame(loop);
 // ---------- Admin-voordelen ----------
 ArcadeCore.cheat('⚽ Goal voor jou', () => { if (S && (state === 'play' || state === 'goal') ) { if (state === 'goal') return; scored(0); } });
 ArcadeCore.cheat('🏆 Wedstrijd meteen winnen', () => { if (S && (state === 'play' || state === 'goal' || state === 'pause')) { goals = [WIN_GOALS, Math.min(goals[1], WIN_GOALS - 1)]; finishMatch(0); } });
-ArcadeCore.cheat('♻️ Powerup opnieuw opladen', () => { used[0] = {}; say('♻️ Powerup weer beschikbaar'); });
+ArcadeCore.cheat('♻️ Powerup opnieuw opladen', () => { used[0] = {}; cd[0] = 0; say('♻️ Powerup weer beschikbaar'); });
 ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (mode === 'bot' && tour && tour.round < 7) { tour.round++; tour.g = [0, 0]; saveTour(); state = 'menu'; } });
 ArcadeCore.toggle('🧊 Bot slaat elke beurt over', () => cheatFreeze, (v) => { cheatFreeze = v; });
 
