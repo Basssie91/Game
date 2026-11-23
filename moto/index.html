@@ -587,7 +587,7 @@ import * as THREE from '../lib/three.module.js';
 // Wereld in pixels, y naar beneden. De baan is één lange lijn van punten;
 // je kunt alleen aan de 'bovenkant' rijden (links van de rijrichting), zo werken loopings.
 const MOTO = (() => {
-  const G = 1400;                        // zwaartekracht
+  const G = 1000;                        // zwaartekracht
   const WR = 17;                         // wielstraal
   const AX = 34, AY = 20;                // positie van de wielen t.o.v. het midden van de motor
   const HEAD = { x: -2, y: -50, r: 11 }; // helm van de rijder
@@ -687,7 +687,7 @@ const MOTO = (() => {
   ];
   // sterrentijden (3 sterren, 2 sterren), gemeten met een computer-coureur.
   // Voor 3 sterren moet je bij (bijna) elke grote sprong een salto maken.
-  const STARS = [[13, 15], [12, 15], [12.5, 16], [9, 13], [11.5, 15], [17.5, 21], [13, 17], [15.5, 19], [14, 17], [23, 27]];
+  const STARS = [[14.5, 17], [13.5, 16], [12.5, 16], [11, 14], [12.5, 16], [17.5, 21], [15.5, 19], [14, 19], [15, 19], [22.5, 29]];
   LEVELS.forEach((l, i) => { l.build = seq(l.parts); l.stars = STARS[i]; });
 
   function makeLevel(i) {
@@ -749,7 +749,6 @@ const MOTO = (() => {
     b.w *= 1 - (grounded ? 1.2 : 0.25) * dt;
     b.vy += G * dt;
     b.x += b.vx * dt; b.y += b.vy * dt; b.a += b.w * dt;
-    if (!grounded) b.flipAcc += b.w * dt;
 
     // welk stuk baan is het dichtst bij?
     let best = b.si, bd = Infinity;
@@ -796,14 +795,19 @@ const MOTO = (() => {
         }
       }
     }
+    // salto's tellen: pas als je echt (even stabiel) geland bent, niet bij een tikje tegen een rand
+    b.flipAcc += b.w * dt;
     if (b.gr[0] || b.gr[1]) {
-      // net geland: flips tellen
-      if (b.air > 0.25 && !b.dead) {
-        const flips = Math.floor((Math.abs(b.flipAcc) + 0.9) / (Math.PI * 2));
-        if (flips > 0) b.landFlips = (b.landFlips || 0) + flips;
+      b.gt = (b.gt || 0) + dt;
+      if (b.gt > 0.12) {
+        if (b.air > 0.35 && !b.dead) {
+          const flips = Math.floor((Math.abs(b.flipAcc) + 0.9) / (Math.PI * 2));
+          if (flips > 0) b.landFlips = (b.landFlips || 0) + flips;
+          b.justLanded = true;
+        }
+        b.air = 0; b.flipAcc = 0;
       }
-      b.air = 0; b.flipAcc = 0;
-    } else b.air += dt;
+    } else { b.gt = 0; b.air += dt; }
 
     // helm of romp tegen de grond = crash
     if (!b.dead && !opts.god) {
@@ -989,7 +993,6 @@ function update(dt) {
   if (started && !bike.dead && state === 'play') t += dt;
 
   const sub = MOTO.SUB, h = dt / sub;
-  const wasAir = bike.air > 0.25;
   for (let k = 0; k < sub; k++) MOTO.step(lv, bike, bike.dead ? { gas: false, brake: false, lean: 0 } : inp, h, CHEAT);
 
   // stof bij het rijden
@@ -1009,7 +1012,8 @@ function update(dt) {
     Arcade.beep(660, 0.08, 'square', 0.05); Arcade.beep(990, 0.12, 'square', 0.05, 0, 0.08);
   }
   // landing-stof
-  if (wasAir && (bike.gr[0] || bike.gr[1]) && !bike.dead) {
+  if (bike.justLanded && !bike.dead) {
+    bike.justLanded = false;
     const p = MOTO.world(bike, 0, MOTO.AY + MOTO.WR);
     for (let i = 0; i < 10; i++) parts.push({ x: p.x + (Math.random() - 0.5) * 70, y: p.y, vx: (Math.random() - 0.5) * 200, vy: -60 - Math.random() * 80, life: 0.6, max: 0.6, c: 'rgba(150,145,138,0.55)', s: 8 + Math.random() * 8, g: 60, dust: true });
     Arcade.noise(0.12, 0.05, 900, 200);
