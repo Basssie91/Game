@@ -594,7 +594,7 @@ const DR = 21, KR = 25, BR = 12, VMAX = 1150, PULL = 150, WIN_GOALS = 3, TURN_T 
 
 // ---------- Powerups ----------
 const PU = {
-  stone: { n: 'Stenen goal', i: '🧱', c: '#e0a050', d: ['Je doel is dicht', 'tot je volgende beurt'] },
+  stone: { n: 'Stenen goal', i: '🧱', c: '#e0a050', d: ['Ook in de beurt van de', 'tegenstander: doel dicht!'] },
   turbo: { n: 'Turboschot', i: '⚡', c: '#ffd23f', d: ['Je volgende schot', 'gaat 2x zo hard'] },
   freeze: { n: 'Bevriezen', i: '❄️', c: '#7cc4ff', d: ['Tegenstander slaat', '1 beurt over'] },
   magnet: { n: 'Magneet', i: '🧲', c: '#ff6b7a', d: ['De bal trekt naar', 'je geschoten schijf'] },
@@ -623,7 +623,7 @@ let S = null;       // physics-wereld
 let goals = [0, 0], turn = 0, turnT = TURN_T, picks = [[], []], used = [{}, {}], pickFor = 0, pickSel = [];
 let skip = [false, false], turbo = false, magnetNext = false, target = null, aim = null, moving = false, shooter = -1;
 let goalT = 0, goalBy = 0, overInfo = null, toast = '', toastT = 0, botT = 0, botPlan = null, shots = 0, clock = 0;
-let cheatFreeze = false, prevState = 'play', newRecord = false;
+let botGuardT = -1, cheatFreeze = false, prevState = 'play', newRecord = false;
 const names = () => mode === 'bot' ? ['Jij', ROUNDS[tour ? tour.round : 0][0]] : ['Speler 1', 'Speler 2'];
 const teamCol = (t) => t === 0 ? BLUE : mode === 'bot' ? (ROUNDS[tour ? tour.round : 0][1]) : RED;
 const isBot = (t) => mode === 'bot' && t === 1;
@@ -741,7 +741,7 @@ const whistle = () => { Arcade.beep(2200, 0.12, 'sine', 0.05); Arcade.beep(2300,
 // ---------- Wedstrijd ----------
 function say(t) { toast = t; toastT = 2.2; }
 function startMatch() {
-  S = newWorld(); used = [{}, {}]; skip = [false, false]; turbo = false; magnetNext = false; target = null; aim = null; moving = false; shots = 0;
+  S = newWorld(); used = [{}, {}]; skip = [false, false]; botPlan = null; botGuardT = -1; turbo = false; magnetNext = false; target = null; aim = null; moving = false; shots = 0;
   if (mode === 'bot') {
     goals = tour && tour.g ? tour.g.slice() : [0, 0];
     picks[1] = shuffle(PU_KEYS.slice()).slice(0, 1);
@@ -756,6 +756,7 @@ function beginTurn(t) {
   S.stone[t] = false;
   for (const o of S.d) if (o.team === t) { if (o.giant) { o.giant = false; o.r = o.num === 'K' ? KR : DR; o.m = o.num === 'K' ? 1.3 : 1; } o.pin = false; }
   if (isBot(t)) { botT = 0.9 + Math.random() * 0.5; botPlan = null; }
+  else if (mode === 'bot') botGuardT = 0.4 + Math.random() * 1.2;
 }
 function endTurn() {
   S.mag = -1; moving = false; shooter = -1;
@@ -772,7 +773,8 @@ function shoot(i, vx, vy) {
   Arcade.noise(0.08, 0.06, 2600, 500);
 }
 function usePower(t, k) {
-  if (used[t][k] || moving || state !== 'play' || turn !== t) return false;
+  if (used[t][k] || moving || state !== 'play') return false;
+  if (turn !== t && k !== 'stone') return false; // de stenen goal mag je ook in de beurt van de tegenstander zetten
   if (!picks[t].includes(k)) return false;
   used[t][k] = true;
   const col = PU[k].c;
@@ -976,7 +978,7 @@ c.addEventListener('pointerup', () => {
 });
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (state === 'play' || state === 'goal') { prevState = state; state = 'pause'; } else if (state === 'pause') state = prevState; }
-  if (state === 'play' && !isBot(turn) && /^1$/.test(e.key)) { const k = picks[turn][+e.key - 1]; if (k) usePower(turn, k); }
+  if (state === 'play' && /^1$/.test(e.key)) { const who = mode === 'bot' ? 0 : turn; const k = picks[who][0]; if (k && (k === 'stone' || !isBot(turn))) usePower(who, k); }
 });
 
 // ---------- Tekenen ----------
@@ -1139,18 +1141,18 @@ function drawHUD() {
     }
   }
   // powerups van de speler die nu aan de beurt is (of van speler 1 tegen de bot)
-  const pt = mode === 'bot' ? 0 : turn;
-  const mine = picks[pt] || [];
-  mine.forEach((k, j) => {
-    const x = W - 20 - 186, y = bar + 4, w = 180, h = 50, u = used[pt][k];
-    const can = !u && state === 'play' && turn === pt && !moving && !isBot(turn);
-    const active = (k === 'turbo' && turbo && turn === pt) || (k === 'magnet' && magnetNext && turn === pt) || target === k;
+  const slots = mode === 'bot' ? [0] : [turn, 1 - turn].filter((q, n) => n === 0 || (picks[q][0] === 'stone' && !used[q].stone));
+  slots.forEach((pt, j) => {
+    const k = (picks[pt] || [])[0]; if (!k) return;
+    const x = W - 20 - 186 - j * 196, y = bar + 4, w = 180, h = 50, u = used[pt][k];
+    const can = !u && state === 'play' && !moving && (k === 'stone' ? true : turn === pt && !isBot(turn));
+    const active = (k === 'turbo' && turbo && turn === pt) || (k === 'magnet' && magnetNext && turn === pt) || target === k || (k === 'stone' && S.stone[pt]);
     ctx.globalAlpha = u && !active ? 0.35 : 1;
     ctx.fillStyle = active ? 'rgba(255,210,63,0.18)' : 'rgba(18,20,26,0.92)'; RR(ctx, x, y, w, h, 12); ctx.fill();
     ctx.strokeStyle = active ? '#ffd23f' : can ? PU[k].c : 'rgba(255,255,255,0.12)'; ctx.lineWidth = active ? 2.5 : 1.5; ctx.stroke();
     T(ctx, PU[k].i, x + 24, y + 26, 22);
-    T(ctx, PU[k].n, x + 44, y + 19, 13, '#fff', 'left', '800');
-    T(ctx, active ? 'Actief!' : u ? 'Gebruikt' : Arcade.touch ? 'Tik om in te zetten' : 'Klik of toets 1', x + 44, y + 36, 11, active ? '#ffd23f' : '#9aa1ab', 'left', '700');
+    T(ctx, mode === 'vriend' && j ? `Speler ${pt + 1}: ${PU[k].n}` : PU[k].n, x + 44, y + 19, 13, '#fff', 'left', '800');
+    T(ctx, active ? 'Actief!' : u ? 'Gebruikt' : Arcade.touch ? 'Tik om in te zetten' : mode === 'vriend' && j ? 'Klik om in te zetten' : 'Klik of toets 1', x + 44, y + 36, 11, active ? '#ffd23f' : '#9aa1ab', 'left', '700');
     ctx.globalAlpha = 1;
     if (can) ui.btn('', x, y, w, h, () => usePower(pt, k), false, false); // klikgebied (onzichtbaar)
   });
@@ -1282,6 +1284,10 @@ function update(dt) {
       if (botPlan) { botPlan.t += dt; if (botPlan.t > 0.75) { const p = botPlan; botPlan = null; shoot(p.i, Math.cos(p.ang) * VMAX * p.p, Math.sin(p.ang) * VMAX * p.p); } }
     } else if (!document.hidden) {
       turnT -= dt;
+      if (botGuardT > 0 && (botGuardT -= dt) <= 0) {
+        botGuardT = -1;
+        if (picks[1][0] === 'stone' && !used[1].stone && !S.stone[1] && threat(S, 1) >= 360 && Math.random() < 0.35 + round() * 0.09) usePower(1, 'stone');
+      }
       if (turnT <= 0) { aim = null; target = null; say('⏱️ Te laat! Beurt voorbij'); Arcade.beep(200, 0.3, 'square', 0.04); endTurn(); }
     }
   } else if (state === 'goal') {
