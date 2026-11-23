@@ -597,7 +597,7 @@ const PU = {
   stone: { n: 'Stenen goal', i: '🧱', c: '#e0a050', d: ['Ook in de beurt van de', 'tegenstander: doel dicht!'] },
   turbo: { n: 'Turboschot', i: '⚡', c: '#ffd23f', d: ['Je volgende schot', 'gaat 2x zo hard'] },
   freeze: { n: 'Bevriezen', i: '❄️', c: '#7cc4ff', d: ['Tegenstander slaat', '1 beurt over'] },
-  magnet: { n: 'Magneet', i: '🧲', c: '#ff6b7a', d: ['Kies een eigen schijf:', 'de bal rolt naar hem toe'] },
+  move: { n: 'Verplaats bal', i: '🎯', c: '#ff8a5c', d: ['Leg de bal waar je wilt', 'op je eigen helft'] },
   giant: { n: 'Reuzeschijf', i: '🟢', c: '#7bd88f', d: ['Eén schijf 2x zo groot', 'tot je volgende beurt'] },
   ice: { n: 'IJsblok', i: '🧊', c: '#a8e6ff', d: ['Zet een eigen schijf', 'vast als een paal'] },
 };
@@ -781,9 +781,24 @@ function usePower(t, k) {
   if (k === 'stone') { S.stone[t] = true; fx.burst(t ? FX1 : FX0, MIDY, 20, ['#e0a050', '#8a5a2a'], 160); Arcade.noise(0.3, 0.12, 900, 120); }
   if (k === 'turbo') { turbo = true; Arcade.beep(300, 0.3, 'sawtooth', 0.05, 500); }
   if (k === 'freeze') { skip[1 - t] = true; Arcade.beep(1600, 0.4, 'sine', 0.05, -900); for (const o of S.d) if (o.team !== t) fx.burst(o.x, o.y, 6, ['#bfe6ff', '#ffffff'], 70, 0.5, 3, 0); }
-  if (k === 'giant' || k === 'ice' || k === 'magnet') { target = k; Arcade.beep(700, 0.12, 'triangle', 0.05); }
+  if (k === 'giant' || k === 'ice' || k === 'move') { target = k; Arcade.beep(700, 0.12, 'triangle', 0.05); }
   say(`${PU[k].i} ${names()[t]}: ${PU[k].n}!`);
   fx.flash(col, 0.12);
+  return true;
+}
+function freeSpot(x, y) {
+  if (y < FY0 + BR + 2 || y > FY1 - BR - 2) return false;
+  for (const o of S.d) if (Math.hypot(o.x - x, o.y - y) < o.r + BR + 4) return false;
+  return true;
+}
+function ownHalf(t, x) { return t ? x > MIDX + BR && x < FX1 - BR - 2 : x < MIDX - BR && x > FX0 + BR + 2; }
+function placeBall(q) {
+  if (!ownHalf(turn, q.x)) { say('🎯 Leg de bal op je eigen helft'); Arcade.beep(200, 0.15, 'square', 0.04); return false; }
+  if (!freeSpot(q.x, q.y)) { say('🎯 Daar staat al een schijf'); Arcade.beep(200, 0.15, 'square', 0.04); return false; }
+  fx.burst(S.b.x, S.b.y, 12, ['#ff8a5c', '#ffffff'], 120, 0.4, 3, 0);
+  S.b.x = q.x; S.b.y = q.y; S.b.vx = S.b.vy = 0;
+  fx.ring(q.x, q.y, '#ff8a5c', 40); Arcade.beep(880, 0.12, 'triangle', 0.05, 300);
+  target = null;
   return true;
 }
 function applyTarget(i) {
@@ -912,11 +927,18 @@ function botThink() {
   // verdedigende powerups
   if (has('ice') && Math.abs(S.b.x - ownX) < 330 && Math.random() < smart) { usePower(t, 'ice'); applyTarget(t * 5); }
   if (has('giant') && Math.abs(S.b.x - ownX) < 300 && Math.random() < smart) { usePower(t, 'giant'); applyTarget(t * 5); }
-  if (has('magnet') && Math.random() < smart + 0.15) {
-    const enemyX = t ? FX0 : FX1;
-    let bi = -1, bd = Math.abs(S.b.x - enemyX) - 120;
-    for (let i = t * 5 + 1; i < t * 5 + 5; i++) { const o = S.d[i]; if (o.pin) continue; const d = Math.abs(o.x - enemyX) + Math.abs(o.y - MIDY) * 0.5; if (d < bd && Math.hypot(o.x - S.b.x, o.y - S.b.y) > 140) { bd = d; bi = i; } }
-    if (bi >= 0) { usePower(t, 'magnet'); applyTarget(bi); return null; }
+  // verplaats de bal: alleen als de bal op zijn eigen helft ligt en hij er beter van wordt
+  if (has('move') && (t ? S.b.x > MIDX : S.b.x < MIDX) && Math.random() < smart + 0.2) {
+    const bestFrom = () => { let m = -1e9; for (const cd of candidates(t, 1)) m = Math.max(m, evalShot(cd, t)); return m; };
+    const now = bestFrom(), ox = S.b.x, oy = S.b.y;
+    let bx = ox, by = oy, bv = now + 150;
+    for (let k = 0; k < 10; k++) {
+      const x = t ? MIDX + 20 + Math.random() * 120 : MIDX - 20 - Math.random() * 120, y = FY0 + 60 + Math.random() * (FY1 - FY0 - 120);
+      if (!freeSpot(x, y)) continue;
+      S.b.x = x; S.b.y = y; const v = bestFrom(); if (v > bv) { bv = v; bx = x; by = y; }
+    }
+    S.b.x = ox; S.b.y = oy;
+    if (bx !== ox || by !== oy) { usePower(t, 'move'); placeBall({ x: bx, y: by }); }
   }
   let cands = candidates(t, 1);
   if (r < 3) cands = cands.filter(() => Math.random() < 0.45 + r * 0.15);
@@ -962,8 +984,9 @@ c.addEventListener('pointerdown', (e) => {
   const q = view.toGame(e); ptr = q;
   if (ui.hit(q)) return;
   if (!humanTurn()) return;
-  const i = discAt(q, turn);
-  if (i < 0) return;
+  const i = target === 'move' ? -1 : discAt(q, turn);
+  if (i < 0 && target !== 'move') return;
+  if (target === 'move') { placeBall(q); return; }
   if (target) { applyTarget(i); return; }
   if (S.d[i].pin) { say('🧊 Deze schijf staat vast'); return; }
   aim = { i, x: q.x, y: q.y };
@@ -1131,7 +1154,7 @@ function drawHUD() {
   // beurt
   const bar = H - 64;
   if (state === 'play') {
-    const who = pull ? '🧲 De bal komt eraan…' : isBot(turn) ? `${nm[turn]} denkt na…` : moving ? 'Rollen…' : target ? (target === 'giant' ? 'Klik op een schijf om hem groot te maken' : target === 'magnet' ? 'Klik op een schijf: de bal komt naar hem toe' : 'Klik op een schijf om hem vast te zetten') : mode === 'bot' ? 'Jouw beurt: trek een schijf naar achteren en laat los' : `${nm[turn]}: trek een schijf naar achteren en laat los`;
+    const who = pull ? '🧲 De bal komt eraan…' : isBot(turn) ? `${nm[turn]} denkt na…` : moving ? 'Rollen…' : target ? (target === 'giant' ? 'Klik op een schijf om hem groot te maken' : target === 'move' ? 'Klik op een vrije plek op je eigen helft' : 'Klik op een schijf om hem vast te zetten') : mode === 'bot' ? 'Jouw beurt: trek een schijf naar achteren en laat los' : `${nm[turn]}: trek een schijf naar achteren en laat los`;
     ctx.fillStyle = 'rgba(18,20,26,0.9)'; RR(ctx, 20, bar + 8, 430, 40, 12); ctx.fill();
     ctx.fillStyle = teamCol(turn); RR(ctx, 20, bar + 8, 6, 40, 3); ctx.fill();
     T(ctx, who, 38, bar + 29, 14, '#fff', 'left', '700');
@@ -1147,7 +1170,7 @@ function drawHUD() {
     const k = (picks[pt] || [])[0]; if (!k) return;
     const x = W - 20 - 186 - j * 196, y = bar + 4, w = 180, h = 50, u = used[pt][k];
     const can = !u && state === 'play' && !moving && (k === 'stone' ? true : turn === pt && !isBot(turn));
-    const active = (k === 'turbo' && turbo && turn === pt) || (k === 'magnet' && pull && turn === pt) || target === k || (k === 'stone' && S.stone[pt]);
+    const active = (k === 'turbo' && turbo && turn === pt) || (k === 'move' && target === 'move' && turn === pt) || target === k || (k === 'stone' && S.stone[pt]);
     ctx.globalAlpha = u && !active ? 0.35 : 1;
     ctx.fillStyle = active ? 'rgba(255,210,63,0.18)' : 'rgba(18,20,26,0.92)'; RR(ctx, x, y, w, h, 12); ctx.fill();
     ctx.strokeStyle = active ? '#ffd23f' : can ? PU[k].c : 'rgba(255,255,255,0.12)'; ctx.lineWidth = active ? 2.5 : 1.5; ctx.stroke();
@@ -1327,6 +1350,12 @@ function loop(now) {
     drawField();
     drawBall(S.b);
     S.d.forEach((o, i) => drawDisc(o, i));
+    if (target === 'move' && state === 'play' && !isBot(turn)) {
+      ctx.fillStyle = 'rgba(255,138,92,0.10)'; ctx.fillRect(turn ? MIDX : FX0, FY0, MIDX - FX0, FY1 - FY0);
+      const ok = ownHalf(turn, ptr.x) && freeSpot(ptr.x, ptr.y);
+      ctx.globalAlpha = 0.6; ctx.strokeStyle = ok ? '#ffffff' : '#e8282f'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.arc(ptr.x, ptr.y, BR, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
     drawAim(); drawBotAim();
     fx.draw(ctx);
     fx.end(ctx);
