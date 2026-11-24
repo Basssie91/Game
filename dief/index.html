@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta name="site-build" content="60caeaaf76">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Nachtdief · Game Arcade</title>
+  <meta name="description" content="Sluip door 12 gebouwen, ontwijk bewakers, camera's en lasers, kraak de kluis en ontsnap. Je tijd komt op de ranglijst!">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Crect%20x%3D%228%22%20y%3D%2210%22%20width%3D%2248%22%20height%3D%2244%22%20rx%3D%226%22%20fill%3D%22%231b1d24%22/%3E%3Cpath%20d%3D%22M8%2044h48v10H8z%22%20fill%3D%22%232b2f38%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2227%22%20r%3D%2211%22%20fill%3D%22%235b5f68%22/%3E%3Crect%20x%3D%2222%22%20y%3D%2223%22%20width%3D%2220%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22%2318191c%22/%3E%3Ccircle%20cx%3D%2227%22%20cy%3D%2226.5%22%20r%3D%222.6%22%20fill%3D%22%237dff9a%22/%3E%3Ccircle%20cx%3D%2237%22%20cy%3D%2226.5%22%20r%3D%222.6%22%20fill%3D%22%237dff9a%22/%3E%3Crect%20x%3D%2224%22%20y%3D%2231%22%20width%3D%2216%22%20height%3D%224%22%20rx%3D%222%22%20fill%3D%22%2326282d%22/%3E%3Cpath%20d%3D%22M14%2020l8%2026%22%20stroke%3D%22%23ffec9a%22%20stroke-width%3D%222%22%20opacity%3D%22.5%22/%3E%3C/svg%3E">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #fff; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+.terug, .geluid { position: fixed; top: 12px; z-index: 5; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); padding: 8px 12px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.terug { left: 12px; } .geluid { right: 12px; }
+.terug:hover, .geluid:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <a class="terug" href="../">← Games</a>
+  <canvas id="c"></canvas>
+  
+  <script>
+'use strict';
+// ================= Game Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
+const ArcadeCore = (() => {
+  const KEY = 'arcade_settings';
+  const DEF = { music: 0.5, sfx: 0.8, quality: 'normaal', muted: false };
+  let S = { ...DEF };
+  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* standaard */ }
+  const listeners = [];
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* */ }
+    listeners.forEach((f) => f(S));
+  };
+  const set = (k, v) => { S[k] = v; save(); };
+  const sfx = () => (S.muted ? 0 : S.sfx);
+  const musicVol = () => (S.muted ? 0 : S.music);
+  // Hoeveel pixels we tekenen: lager = soepeler op trage apparaten
+  const dprCap = () => ({ hoog: 2, normaal: 1.5, laag: 1 })[S.quality] || 1.5;
+
+  // ---------- Muziek: kleine sequencer met drums, bas, akkoorden en melodie ----------
+  const SCALE = [0, 2, 3, 5, 7, 8, 10]; // mineur
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // Elke game een eigen nummer
+  const SONGS = {
+    menu:     { bpm: 92,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x.....x.x.......', arp: true,  lead: 'triangle', seed: 3, density: 0.35, pad: 'triangle' },
+    race:     { bpm: 128, root: 52, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xo', bass: 'x.xox.xox.xox.xo', arp: true,  lead: 'sawtooth', seed: 11, density: 0.45, pad: 'sawtooth' },
+    meteoren: { bpm: 140, root: 50, prog: [[0, 3, 7], [1, 5, 8], [-2, 2, 5], [0, 3, 7]], kick: 'x..x..x.x..x..x.', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx', bass: 'xxoxxxoxxxoxxxox', arp: false, lead: 'square', seed: 21, density: 0.55, pad: 'sawtooth' },
+    runner:   { bpm: 124, root: 54, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..o...o...o...o.', bass: 'x.x.x.x.x.x.x.x.', arp: true,  lead: 'sawtooth', seed: 31, density: 0.4, pad: 'sawtooth' },
+    snake:    { bpm: 112, root: 60, prog: [[0, 3, 7], [5, 8, 12], [3, 7, 10], [-2, 2, 5]], kick: 'x.....x.x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...o...x...o...', arp: false, lead: 'square', seed: 41, density: 0.6, pad: null },
+    2048:     { bpm: 84,  root: 55, prog: [[0, 3, 7, 10], [-4, 0, 3, 7], [3, 7, 10, 14], [-2, 2, 5, 9]], kick: 'x.........x.....', snare: '....x.......x...', hat: '..x...x...x..xx.', bass: 'x.......x..x....', arp: false, lead: 'triangle', seed: 51, density: 0.25, pad: 'triangle' },
+    blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
+    overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
+    td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    mijnen:   { bpm: 80,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], kick: 'x.........x.....', snare: '................', hat: '........x.......', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 81, density: 0.25, pad: 'triangle' },
+    sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
+    memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
+    vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    dief:     { bpm: 84,  root: 38, prog: [[0, 3, 7], [0, 3, 8], [5, 8, 12], [3, 7, 10]], kick: 'x.......x..x....', snare: '........x.......', hat: '..x...x...x...x.', bass: 'x..x....x..x....', arp: false, lead: 'triangle', seed: 13, density: 0.12, pad: 'sine' },
+    pool:     { bpm: 92,  root: 43, prog: [[0, 4, 7, 10], [5, 9, 12, 15], [2, 5, 9, 12], [7, 11, 14, 17]], kick: 'x.......x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x..xx...x...', arp: false, lead: 'triangle', seed: 31, density: 0.18, pad: 'sine' },
+    voetbal:  { bpm: 128, root: 50, prog: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [5, 9, 12]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'square', seed: 77, density: 0.3, pad: 'sawtooth' },
+    escape:   { bpm: 84,  root: 45, prog: [[0, 3, 7], [-4, 0, 3], [-2, 1, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '........x.......', hat: '....x.......x...', bass: 'x.......x...x...', arp: true,  lead: 'triangle', seed: 171, density: 0.22, pad: 'triangle' },
+    moto:     { bpm: 132, root: 50, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.xox.xox.xox.xo', bass: 'x.x.xox.x.x.xox.', arp: true,  lead: 'sawtooth', seed: 151, density: 0.42, pad: 'sawtooth' },
+    tycoon:   { bpm: 96,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [-5, -1, 2]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'triangle', seed: 131, density: 0.32, pad: 'triangle' },
+    patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
+    stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
+  };
+  // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
+  function makeMelody(song) {
+    const R = rng(song.seed);
+    const motif = [];
+    for (let i = 0; i < 32; i++) {
+      if (R() > song.density || i % 2 === 1 && R() < 0.5) { motif.push(null); continue; }
+      const deg = Math.floor(R() * 7) + (R() < 0.3 ? 7 : 0);
+      const len = R() < 0.25 ? 3 : R() < 0.5 ? 2 : 1;
+      motif.push({ deg, len });
+    }
+    const mel = [];
+    for (let bar = 0; bar < 8; bar++) {
+      for (let i = 0; i < 16; i++) {
+        let m = motif[(bar % 2) * 16 + i];
+        if (m && bar >= 4 && bar % 2 === 1 && i > 8) m = { deg: m.deg + 2, len: m.len }; // kleine variatie
+        mel.push(m);
+      }
+    }
+    return mel;
+  }
+  for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
+
+  let ac = null, master = null, delayIn = null, reverbIn = null, duck = null, noise = null, timer = null;
+  let song = null, wanted = null, step = 0, nextT = 0;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Galm: zelf gemaakte impulsrespons (geen bestanden nodig)
+  function makeReverb(sec = 2.2) {
+    const len = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
+  function initAudio() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = musicVol() * 0.5;
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -16; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      const warm = ac.createBiquadFilter(); warm.type = 'highshelf'; warm.frequency.value = 6000; warm.gain.value = -4;
+      master.connect(warm); warm.connect(comp); comp.connect(ac.destination);
+      // 'duck' zakt even weg op elke kick (pompend effect zoals in echte dance-muziek)
+      duck = ac.createGain(); duck.connect(master);
+      // Echo voor melodie
+      delayIn = ac.createGain(); delayIn.gain.value = 0.2;
+      const d = ac.createDelay(); d.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.32;
+      const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2400;
+      delayIn.connect(d); d.connect(dlp); dlp.connect(fb); fb.connect(d); dlp.connect(duck);
+      reverbIn = ac.createGain(); reverbIn.gain.value = 0.28;
+      const rv = makeReverb(); reverbIn.connect(rv); rv.connect(duck);
+      noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    } catch (e) { ac = null; }
+  }
+  function env(g, t, a, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function out(node, pan = 0) {
+    if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; node.connect(p); return p; }
+    return node;
+  }
+  function kick(t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.002, 0.95, 0.28);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    noiseHit(t, 3000, 0.12, 0.012, 0, master);            // tikje voor de aanslag
+    duck.gain.cancelScheduledValues(t);
+    duck.gain.setValueAtTime(0.45, t); duck.gain.linearRampToValueAtTime(1, t + 0.22);
+  }
+  function noiseHit(t, hp, peak, dur, pan = 0, dest = null, type = 'highpass', q = 0.7) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise;
+    f.type = type; f.frequency.value = hp; f.Q.value = q;
+    env(g, t, 0.002, peak, dur);
+    s.connect(f); f.connect(g); out(g, pan).connect(dest || master);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
+    return g;
+  }
+  function snare(t) {
+    const g = noiseHit(t, 1800, 0.32, 0.18, 0, master, 'bandpass', 0.6);
+    g.connect(reverbIn);
+    const o = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    env(g2, t, 0.002, 0.22, 0.1); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.12);
+  }
+  // Toon met twee licht ontstemde oscillatoren en een filter dat 'opengaat'
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006, opt = {}) {
+    const f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.Q.value = opt.q || 0.8;
+    f.frequency.setValueAtTime(cutoff * (opt.sweep ? 0.25 : 1), t);
+    if (opt.sweep) f.frequency.exponentialRampToValueAtTime(cutoff, t + Math.min(dur, 0.08)), f.frequency.exponentialRampToValueAtTime(cutoff * 0.35, t + dur);
+    const n = opt.unison ? 2 : 1;
+    for (let k = 0; k < n; k++) {
+      const o = ac.createOscillator();
+      o.type = type; o.frequency.value = mtof(midi); o.detune.value = n > 1 ? (k ? 9 : -9) : 0;
+      if (opt.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = 7; l.connect(lg); lg.connect(o.detune); l.start(t + 0.12); l.stop(t + dur + 0.05); }
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    env(g, t, attack, vol / n, dur);
+    f.connect(g);
+    const dst = out(g, opt.pan || 0);
+    dst.connect(opt.dry ? master : duck);
+    if (echo) dst.connect(delayIn);
+    if (opt.verb) dst.connect(reverbIn);
+  }
+  function playStep(s, t) {
+    const sp = 60 / song.bpm / 4;
+    const i = s % 16, barN = Math.floor(s / 16), bar = barN % 4, chord = song.prog[bar];
+    const intro = barN < 2 && song.introDone !== true;
+    const fill = barN % 8 === 7 && i >= 12;                       // drumroffel aan het eind van elke 8 maten
+    if (!intro) {
+      if (song.kick[i] === 'x') kick(t);
+      if (song.snare[i] === 'x' || (fill && i % 2 === 0)) snare(t);
+      if (song.hat[i] === 'x') noiseHit(t, 8000, 0.06 + (i % 4 === 2 ? 0.03 : 0), 0.03, i % 2 ? 0.25 : -0.25);
+      if (song.hat[i] === 'o') noiseHit(t, 7000, 0.08, 0.16, 0.2);
+      if (barN % 8 === 0 && i === 0 && song.introDone) noiseHit(t, 5000, 0.12, 1.4, 0, reverbIn);  // bekken
+    }
+    const b = song.bass[i];
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.2, 900, false, 0.004, { sweep: true, unison: true, q: 4 });
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.045, intro ? 700 : 1500, false, 0.35, { unison: true, verb: true, pan: (n % 3 - 1) * 0.3 });
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length] + (barN % 2 && i >= 8 ? 12 : 0), sp * 0.7, 'square', 0.022, 2400, true, 0.003, { pan: ((i / 2) % 2 ? 0.35 : -0.35) });
+    const m = song.mel[s % song.mel.length];
+    if (m && !intro) {
+      const deg = m.deg;
+      const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.055, song.lead === 'sawtooth' ? 2600 : 3800, true, 0.008, { vib: m.len > 1, verb: true, unison: song.lead === 'sawtooth' });
+    }
+  }
+  function tick() {
+    if (!ac || !song) return;
+    const sp = 60 / song.bpm / 4;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
+    while (nextT < ac.currentTime + 0.15) {
+      playStep(step, nextT);
+      nextT += sp;
+      step++;
+      if (step >= 128) { step = 0; song.introDone = true; }
+    }
+  }
+  function startIfWanted() {
+    if (!wanted) return;
+    initAudio();
+    if (!ac) return;
+    if (song !== SONGS[wanted]) { song = SONGS[wanted]; step = 0; nextT = ac.currentTime + 0.1; }
+    if (!timer) timer = setInterval(tick, 25);
+  }
+  // Muziek mag pas starten na een klik of toetsaanslag (regel van browsers)
+  addEventListener('pointerdown', startIfWanted);
+  addEventListener('keydown', startIfWanted);
+  document.addEventListener('visibilitychange', () => {
+    if (!ac) return;
+    if (document.hidden) ac.suspend(); else ac.resume();
+  });
+  listeners.push(() => { if (master) master.gain.setTargetAtTime(musicVol() * 0.5, ac.currentTime, 0.1); });
+
+  const music = { play(name) { wanted = name; if (ac) startIfWanted(); }, status: () => ({ running: !!timer, song: wanted, step, audio: ac ? ac.state : 'geen' }) };
+
+  // ---------- Instellingenpaneel ----------
+  const CSS = `
+  .ac-gear { position: fixed; top: 12px; right: 12px; z-index: 50; width: 42px; height: 42px; border-radius: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ac-gear:hover { background: rgba(255,255,255,0.2); }
+  .ac-gear svg { width: 22px; height: 22px; transition: transform 0.4s ease; }
+  .ac-gear:hover svg { transform: rotate(60deg); }
+  .ac-ov { position: fixed; inset: 0; z-index: 60; background: rgba(5,6,9,0.6); display: none; align-items: center; justify-content: center; padding: 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; }
+  .ac-ov.open { display: flex; }
+  .ac-card { width: min(380px, 100%); background: #16181d; border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 20px 22px; color: #fff;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .ac-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .ac-head b { font-size: 20px; font-weight: 900; }
+  .ac-x { background: rgba(255,255,255,0.1); border: 0; color: #fff; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+  .ac-row { margin: 14px 0; }
+  .ac-lab { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #e6e9ee; }
+  .ac-lab span { color: #9aa1ab; font-family: ui-monospace, Consolas, monospace; }
+  .ac-card input[type=range] { width: 100%; accent-color: #e8282f; height: 22px; }
+  .ac-seg { display: flex; gap: 6px; background: #0e0f13; padding: 4px; border-radius: 12px; }
+  .ac-seg button { flex: 1; border: 0; background: transparent; color: #c9ced6; padding: 9px 0; border-radius: 9px; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .ac-seg button.on { background: #fff; color: #111214; }
+  .ac-hint { font-size: 12px; color: #7d848e; margin-top: 6px; }
+  .ac-check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #e6e9ee; cursor: pointer; }
+  .ac-check input { width: 18px; height: 18px; accent-color: #e8282f; }
+  .ac-danger { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; border: 1px solid rgba(232,40,47,0.6); background: rgba(232,40,47,0.12);
+    color: #ff6b72; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .ac-danger:hover { background: rgba(232,40,47,0.25); }`;
+  const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  let ov = null;
+  function buildPanel() {
+    const st = document.createElement('style');
+    st.textContent = CSS;
+    document.head.appendChild(st);
+    const gear = document.createElement('button');
+    gear.className = 'ac-gear';
+    gear.type = 'button';
+    gear.title = 'Instellingen';
+    gear.setAttribute('aria-label', 'Instellingen');
+    gear.innerHTML = GEAR;
+    document.body.appendChild(gear);
+    ov = document.createElement('div');
+    ov.className = 'ac-ov';
+    ov.innerHTML = `
+      <div class="ac-card" role="dialog" aria-label="Instellingen">
+        <div class="ac-head"><b>⚙ Instellingen</b><button class="ac-x" type="button" aria-label="Sluiten">✕</button></div>
+        <div class="ac-row"><div class="ac-lab">🎵 Muziek <span id="acMv"></span></div><input type="range" min="0" max="100" id="acM"></div>
+        <div class="ac-row"><div class="ac-lab">🔊 Geluidseffecten <span id="acSv"></span></div><input type="range" min="0" max="100" id="acS"></div>
+        <div class="ac-row"><label class="ac-check"><input type="checkbox" id="acMute"> Alles dempen (sneltoets M)</label></div>
+        <div class="ac-row"><div class="ac-lab">🖥 Beeldkwaliteit</div>
+          <div class="ac-seg"><button type="button" data-q="laag">Laag</button><button type="button" data-q="normaal">Normaal</button><button type="button" data-q="hoog">Hoog</button></div>
+          <div class="ac-hint">Laag = soepeler op oudere laptops en telefoons. Hoog = scherper beeld.</div></div>
+        <button class="ac-danger" type="button">🗑 Alle records wissen</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const $ = (id) => ov.querySelector('#' + id);
+    const refresh = () => {
+      $('acM').value = Math.round(S.music * 100); $('acMv').textContent = Math.round(S.music * 100) + '%';
+      $('acS').value = Math.round(S.sfx * 100); $('acSv').textContent = Math.round(S.sfx * 100) + '%';
+      $('acMute').checked = !!S.muted;
+      ov.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('on', b.dataset.q === S.quality));
+    };
+    refresh();
+    listeners.push(refresh);
+    $('acM').addEventListener('input', (e) => { set('music', e.target.value / 100); startIfWanted(); });
+    $('acS').addEventListener('input', (e) => set('sfx', e.target.value / 100));
+    $('acS').addEventListener('change', () => { if (window.Arcade) Arcade.beep(660, 0.08, 'triangle', 0.06); });
+    $('acMute').addEventListener('change', (e) => set('muted', e.target.checked));
+    ov.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => set('quality', b.dataset.q)));
+    ov.querySelector('.ac-danger').addEventListener('click', () => {
+      if (!confirm('Weet je zeker dat je ALLE records, medailles en spookauto\'s wilt wissen? Dit kan niet ongedaan worden.')) return;
+      const kill = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (/^arcade_(best_|2048_state)|^tt2_(bests|ghost)/.test(k)) kill.push(k);
+      }
+      kill.forEach((k) => localStorage.removeItem(k));
+      location.reload();
+    });
+    const close = () => ov.classList.remove('open');
+    ov.querySelector('.ac-x').addEventListener('click', close);
+    ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
+    // Toetsen in het paneel niet doorgeven aan de game
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); e.stopPropagation(); });
+    gear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ov.classList.add('open');
+      // Games pauzeren als het venster de focus verliest: dat doen we hier ook
+      window.dispatchEvent(new Event('blur'));
+      gear.blur();
+    });
+    gear.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM' && !(ov && ov.classList.contains('open'))) set('muted', !S.muted);
+  });
+  if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
+
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
+  return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
+    get settings() { return S; },
+    set, sfx, musicVol, dprCap, music,
+    onChange: (f) => listeners.push(f),
+    isOpen: () => !!(ov && ov.classList.contains('open')),
+  };
+})();
+
+
+// ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
+const Arcade = (() => {
+  const load = (k, d) => { try { const v = localStorage.getItem('arcade_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem('arcade_' + k, JSON.stringify(v)); } catch (e) { /* uit */ } };
+  let audio = null;
+
+  function initAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  addEventListener('pointerdown', initAudio);
+  addEventListener('keydown', initAudio);
+
+  let sfxBus = null, noiseBuf = null;
+  function bus() {
+    if (sfxBus || !audio) return sfxBus;
+    // zachte filter + compressor: effecten klinken voller en minder schel
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const comp = audio.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    lp.connect(comp); comp.connect(audio.destination);
+    sfxBus = lp;
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return sfxBus;
+  }
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    vol *= level * 1.25 * (type === 'square' || type === 'sawtooth' ? 0.8 : 1.1);
+    try {
+      const t = audio.currentTime + delay;
+      const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+      o.type = o2.type = type;
+      o.frequency.setValueAtTime(freq, t); o2.frequency.setValueAtTime(freq, t); o2.detune.value = 7;
+      if (slide) { o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); o2.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      const g2 = audio.createGain(); g2.gain.value = 0.5;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.connect(bus());
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Ruisgeluid: knal, plof, zoef, explosie
+  function noise(dur = 0.2, vol = 0.1, f0 = 3000, f1 = 300, type = 'lowpass', delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      bus();
+      const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+      s.buffer = noiseBuf; f.type = type;
+      f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      g.gain.setValueAtTime(vol * level * 1.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(sfxBus);
+      s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Effecten: deeltjes, schudden, zwevende tekst (zelfde stijl in elke game)
+  function makeFx() {
+    const parts = [], texts = [], rings = [];
+    let shakeT = 0, shakeA = 0, flashA = 0, flashC = '#fff';
+    return {
+      burst(x, y, n = 14, color = '#fff', speed = 180, life = 0.6, size = 3, grav = 200) {
+        const max = ArcadeCore.settings.quality === 'laag' ? 0.5 : 1;
+        for (let i = 0; i < n * max; i++) {
+          const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+          parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.6 + Math.random() * 0.4), max: life, color: Array.isArray(color) ? color[i % color.length] : color, size: size * (0.6 + Math.random() * 0.8), grav });
+        }
+        if (parts.length > 600) parts.splice(0, parts.length - 600);
+      },
+      ring(x, y, color = '#fff', r = 40, life = 0.4) { rings.push({ x, y, color, r, life, max: life }); },
+      text(x, y, t, color = '#fff', size = 18) { texts.push({ x, y, t, color, size, life: 0.9 }); },
+      shake(a = 6, t = 0.25) { shakeA = Math.max(shakeA, a); shakeT = Math.max(shakeT, t); },
+      flash(c = '#fff', a = 0.35) { flashC = c; flashA = Math.max(flashA, a); },
+      update(dt) {
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.grav * dt; p.vx *= 1 - dt * 1.5; p.x += p.vx * dt; p.y += p.vy * dt; }
+        for (let i = texts.length - 1; i >= 0; i--) { const q = texts[i]; q.life -= dt; q.y -= 40 * dt; if (q.life <= 0) texts.splice(i, 1); }
+        for (let i = rings.length - 1; i >= 0; i--) { const q = rings[i]; q.life -= dt; if (q.life <= 0) rings.splice(i, 1); }
+        shakeT = Math.max(0, shakeT - dt); if (!shakeT) shakeA = 0;
+        flashA = Math.max(0, flashA - dt * 2.5);
+      },
+      // roep aan vóór het tekenen van de wereld (ctx.save gebeurt hier)
+      begin(ctx) { ctx.save(); if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeA * 2, (Math.random() - 0.5) * shakeA * 2); },
+      end(ctx) { ctx.restore(); },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const q of rings) { const k = 1 - q.life / q.max; ctx.globalAlpha = 1 - k; ctx.strokeStyle = q.color; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.3 + k), 0, Math.PI * 2); ctx.stroke(); }
+        for (const q of texts) { ctx.globalAlpha = Math.min(1, q.life * 2); text(ctx, q.t, q.x, q.y, q.size, q.color, 'center', '900'); }
+        ctx.restore();
+      },
+      drawFlash(ctx, W, H) { if (flashA > 0) { ctx.save(); ctx.globalAlpha = flashA; ctx.fillStyle = flashC; ctx.fillRect(0, 0, W, H); ctx.restore(); } },
+      clear() { parts.length = 0; texts.length = 0; rings.length = 0; shakeT = 0; },
+      get count() { return parts.length; },
+    };
+  }
+
+  // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
+  function canvas(id, W, H) {
+    const c = document.getElementById(id);
+    const ctx = c.getContext('2d');
+    const view = { W, H, scale: 1 };
+    const fit = () => {
+      const s = Math.min(innerWidth / W, innerHeight / H);
+      const dpr = Math.min(ArcadeCore.dprCap(), devicePixelRatio || 1);
+      c.style.width = Math.floor(W * s) + 'px';
+      c.style.height = Math.floor(H * s) + 'px';
+      c.width = Math.floor(W * s * dpr);
+      c.height = Math.floor(H * s * dpr);
+      view.scale = s * dpr;
+      ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    };
+    fit();
+    addEventListener('resize', fit);
+    ArcadeCore.onChange(fit);
+    view.begin = () => ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    view.toGame = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    };
+    return { c, ctx, view };
+  }
+
+  // Vegen (swipe) op touchscreens: geeft 'links', 'rechts', 'op' of 'neer'
+  function onSwipe(el, fn, onTap) {
+    let sx = 0, sy = 0, st = 0, active = false;
+    el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; st = performance.now(); active = true; });
+    el.addEventListener('pointerup', (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (onTap) onTap(e); return; }
+      if (Math.abs(dx) > Math.abs(dy)) fn(dx > 0 ? 'rechts' : 'links');
+      else fn(dy > 0 ? 'neer' : 'op');
+    });
+  }
+
+  // Tekenhulpjes in dezelfde stijl
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function text(ctx, t, x, y, size, color = '#fff', align = 'center', weight = '700', mono = false) {
+    ctx.font = `${weight} ${size}px ${mono ? 'ui-monospace, Consolas, monospace' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, x, y);
+  }
+  // Knoppen op het canvas (zelfde stijl overal). btn() elke frame opnieuw tekenen; hit() bij klikken.
+  function ui(ctx) {
+    let list = [], hover = null;
+    return {
+      clear() { list = []; },
+      btn(label, x, y, w, h, fn, primary = false, active = false, size = 0) {
+        const on = hover && hover.x >= x && hover.x <= x + w && hover.y >= y && hover.y <= y + h;
+        const g = ctx.createLinearGradient(0, y, 0, y + h);
+        if (primary || active) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe2e6'); }
+        else { g.addColorStop(0, on ? '#30343c' : '#262930'); g.addColorStop(1, on ? '#24272d' : '#1b1d22'); }
+        ctx.fillStyle = g; rr(ctx, x, y, w, h, Math.min(10, h / 3)); ctx.fill();
+        ctx.strokeStyle = primary || active ? 'rgba(255,255,255,0.6)' : on ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, label, x + w / 2, y + h / 2 + 1, size || Math.min(16, h * 0.4), primary || active ? '#111214' : '#ffffff', 'center', '800');
+        list.push({ x, y, w, h, fn });
+      },
+      hit(q) { for (let i = list.length - 1; i >= 0; i--) { const b = list[i]; if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return true; } } return false; },
+      hover(q) { hover = q; },
+    };
+  }
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  // Standaard scherm voor start / pauze / game over
+  function overlay(ctx, W, H, title, lines = [], hint = '') {
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(10, 11, 14, 0.55)'); g.addColorStop(1, 'rgba(4, 5, 7, 0.85)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 40, 400), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const x = (W - pw) / 2, y = (H - ph) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    const cg = ctx.createLinearGradient(0, y, 0, y + ph);
+    cg.addColorStop(0, 'rgba(32, 35, 42, 0.97)'); cg.addColorStop(1, 'rgba(18, 20, 24, 0.97)');
+    ctx.fillStyle = cg;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.stroke();
+    ctx.fillStyle = '#e8282f';
+    rr(ctx, W / 2 - 24, y + 78, 48, 3, 1.5); ctx.fill();
+    text(ctx, title, W / 2, y + 48, 32, '#fff', 'center', '900');
+    lines.forEach((l, i) => {
+      const s = typeof l === 'string' ? { t: l } : l;
+      text(ctx, s.t, W / 2, y + 108 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+    });
+    if (hint) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 450)); text(ctx, hint, W / 2, y + ph - 30, 15, '#ffffff', 'center', '700'); ctx.globalAlpha = 1; }
+  }
+  // Achtergrond met diepte: zacht licht in het midden + vignet
+  function backdrop(ctx, W, H, top = '#15171c', bottom = '#0a0b0e') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.035)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+
+  return {
+    load, save, beep, noise, makeFx, backdrop, ui, fmtTime,
+    get muted() { return !ArcadeCore.sfx(); },
+    best: (game) => load('best_' + game, 0),
+    // Slaat een nieuwe topscore op; geeft true terug als het een record is
+    record: (game, score, lowerIsBetter = false) => {
+      const b = load('best_' + game, 0);
+      if (!b || (lowerIsBetter ? score < b : score > b)) { save('best_' + game, score); return true; }
+      return false;
+    },
+    canvas, onSwipe, rr, text, overlay,
+    touch: matchMedia('(hover: none) and (pointer: coarse)').matches,
+  };
+})();
+
+ArcadeCore.music.play('dief');
+
+const LEVELS = [
+{
+"name": "De juwelier",
+"theme": "jewel",
+"par": 40,
+"map": [
+"############################################",
+"#..........c...............................#",
+"#..........................................#",
+"#.........ss.............ss................#",
+"#P...$....ss......g......ss...$.......*..X.#",
+"############################################"
+],
+"tip": "Sta stil in de schaduw: dan zien bewakers en camera's je niet."
+},
+{
+"name": "Het kantoor",
+"theme": "office",
+"par": 75,
+"map": [
+"##############################################",
+"#.....................c......................#",
+"#............................................#",
+"#...........ss..............ss...............#",
+"#P....$.....ss..g...D....$..ss....p..........#",
+"########################################H#####",
+"#.........c.............................H....#",
+"#.......................................H....#",
+"#....ss.................................H....#",
+"#.*..ss.......$.......G.............F...H...X#",
+"##############################################"
+],
+"tip": "Deuren open je met E. De stoppenkast (F) maakt de verdieping even donker."
+},
+{
+"name": "De kunstgalerie",
+"theme": "gallery",
+"par": 60,
+"map": [
+"##################################################",
+"#.............|...............c....|.............#",
+"#.............|....................|.............#",
+"#.............|....ss..............|.............#",
+"#P..$...p..w..|....ss.g...p..$.w...|....*...$...X#",
+"##################################################"
+],
+"tip": "Met een schakelaar (w) gaan de lasers 10 seconden uit. Achter planten kun je je verstoppen."
+},
+{
+"name": "De bank",
+"theme": "bank",
+"par": 90,
+"map": [
+"##################################################",
+"#........................c.......................#",
+"#................................................#",
+"#................................ss..............#",
+"#P...$......g.......$.......F....ss.....r...$....#",
+"##############################################H###",
+"#...................c.........................H..#",
+"#.............................................H..#",
+"#.............................ss..............H..#",
+"#.X...K....R.....$.......G....ss......$.......H..#",
+"##################################################"
+],
+"tip": "Pak de rode sleutelkaart voor de rode deur. Kraak de kluis met E op het goede moment."
+},
+{
+"name": "Het museum",
+"theme": "museum",
+"par": 110,
+"map": [
+"########################################################",
+"#..........!....c................!......c..............#",
+"#..........!.....................!.....................#",
+"#.......ss.!................ss...!.............ss......#",
+"#P......ss.!...$......g.....ss...!..$.......G..ss......#",
+"#####################################################H##",
+"#........|....................c......................H.#",
+"#........|...........................................H.#",
+"#........|..........ss................ss.............H.#",
+"#X..*....|..w..$....ss...g.......p....ss.....$.......H.#",
+"########################################################"
+],
+"tip": "Rode knipperlasers gaan vanzelf aan en uit: wacht op het goede moment."
+},
+{
+"name": "Het casino",
+"theme": "casino",
+"par": 45,
+"map": [
+"########################################################",
+"#.............c...........c...........c................#",
+"#......................................................#",
+"#......................................................#",
+"#P..F.....$.........$.........$...g.....$.....D.ss.*..X#",
+"########################################################"
+],
+"tip": "Geen schaduw hier... zet met de stoppenkast zelf het licht uit en ren!"
+},
+{
+"name": "Het datacenter",
+"theme": "data",
+"par": 150,
+"map": [
+"##########################################################",
+"#...................c...|................................#",
+"#.......................|................................#",
+"#.........ss............|................................#",
+"#P....$...ss...g......w.|...b..$.........................#",
+"#################################H########################",
+"#..............c.................H.......................#",
+"#................................H.......................#",
+"#.......ss........ss.............H.............ss........#",
+"#.......ss..$.....ss.............H......B....G.ss.r....$.#",
+"#####H####################################################",
+"#....H..................................c.........!......#",
+"#....H............................................!......#",
+"#....H.........................ss.................!......#",
+"#....H......$.......R.......g..ss..K.........$....!.....X#",
+"##########################################################"
+],
+"tip": "Blauwe kaart, rode kaart, en dan de kluis onderin."
+},
+{
+"name": "De villa",
+"theme": "villa",
+"par": 140,
+"map": [
+"####################################################",
+"#.........c........................................#",
+"#..................................................#",
+"#...................ss.............................#",
+"#....$..............ss...$....p....G..............P#",
+"###H################################################",
+"#..H....................................c..........#",
+"#..H...............................................#",
+"#..H..........................ss...................#",
+"#..H...........g......D..F....ss...$........$......#",
+"################################################H###",
+"#...............................................H..#",
+"#...............................................H..#",
+"#..............ss...............................H..#",
+"#.....$...K....ss...p....G..........F...$.......H.X#",
+"####################################################"
+],
+"tip": "Drie verdiepingen, drie bewakers. Neem de tijd."
+},
+{
+"name": "Het penthouse",
+"theme": "pent",
+"par": 120,
+"map": [
+"############################################################",
+"#.......c...........c...........c...........c..............#",
+"#..........................................................#",
+"#............ss..........ss...........ss..........ss.......#",
+"#P...$.......ss...$......ss...g.......ss...$......ss..$....#",
+"#########################################################H##",
+"#.............................|.........!.........!......H.#",
+"#.............................|.........!.........!......H.#",
+"#.........ss............ss....|.........!.........!......H.#",
+"#..*..$...ss........G...ss....|..w......!...$.....!.....XH.#",
+"############################################################"
+],
+"tip": "Vier camera's op een rij. Spring van schaduw naar schaduw."
+},
+{
+"name": "De diamantkluis",
+"theme": "vault",
+"par": 200,
+"map": [
+"############################################################",
+"#.............................c............................#",
+"#..........................................................#",
+"#...............ss........................ss...............#",
+"#P...$....F.....ss....g.............b.....ss....$......X...#",
+"#########################################################H##",
+"#...................c...................|................H.#",
+"#.......................................|................H.#",
+"#...........ss.....................ss...|................H.#",
+"#...r...$...ss....B.......G........ss...|....w......$....H.#",
+"###H########################################################",
+"#..H........................c.!.............c..............#",
+"#..H..........................!............................#",
+"#..H................ss........!.....ss.....................#",
+"#..H......$....R....ss....g...!.....ss....G.......K....$...#",
+"############################################################"
+],
+"tip": "Helemaal naar beneden en weer terug naar boven."
+},
+{
+"name": "Het hoofdbureau",
+"theme": "hq",
+"par": 210,
+"map": [
+"################################################################",
+"#...........c.......................c...............c..........#",
+"#..............................................................#",
+"#.......ss....................ss..............ss...............#",
+"#P......ss....g.....D....$....ss......G.......ss..F....$....p..#",
+"#############################################################H##",
+"#...................c................|.......................H.#",
+"#....................................|.......................H.#",
+"#.............ss.....................|..ss...................H.#",
+"#.....b.......ss......g.....$.....w..|..ss......G.......$....H.#",
+"##H#############################################################",
+"#.H...............!...........c....!............c..............#",
+"#.H...............!................!...........................#",
+"#.H...............!...ss...........!....ss.....................#",
+"#.H.....$.....B...!...ss....G......!....ss...F....K.....*....X.#",
+"################################################################"
+],
+"tip": "Twee keer buit: de kluis én de diamant."
+},
+{
+"name": "De grote kraak",
+"theme": "final",
+"par": 300,
+"map": [
+"########################################################################",
+"#.........c...............c.|.............c...!...........c............#",
+"#...........................|.................!........................#",
+"#.....ss..........ss........|.....ss..........!...ss............ss.....#",
+"#P....ss....g.....ss...w....|.$...ss....G.....!...ss...r........ss.$...#",
+"#####################################################################H##",
+"#...............c...................c...........!.......c............H.#",
+"#...............................................!....................H.#",
+"#.......ss..............ss..................ss..!...........ss.......H.#",
+"#..b....ss....g.....R...ss....F.....G.......ss..!...$.......ss..g....H.#",
+"##H#####################################################################",
+"#.H.................c.....!.............c.........|.........c..........#",
+"#.H.......................!.......................|....................#",
+"#.H.........ss............!...ss................ss|...........ss.......#",
+"#.H....$....ss..B.....K...!...ss....g.......w...ss|...G.......ss..*...X#",
+"########################################################################"
+],
+"tip": "Alles wat je geleerd hebt. Succes, meesterdief."
+}
+];
+
+// ================= NACHTDIEF =================
+// 2D-sluipspel: pak de buit en ontsnap ongezien. Schaduw + stilstaan = onzichtbaar.
+const W = 960, H = 600, TS = 32;
+const { c, ctx, view } = Arcade.canvas('c', W, H);
+const GAME = 'dief';
+const fx = Arcade.makeFx();
+const ui = Arcade.ui(ctx);
+const T = Arcade.text, RR = Arcade.rr;
+
+const THEMES = {
+  jewel:   { wall: '#2b2440', wall2: '#322a4c', solid: '#17141f', floor: '#4a3b2a', lamp: '#ffd98a' },
+  office:  { wall: '#283342', wall2: '#2e3a4b', solid: '#151a22', floor: '#3a4250', lamp: '#e8f1ff' },
+  gallery: { wall: '#3a3330', wall2: '#423a36', solid: '#1b1715', floor: '#5a4632', lamp: '#ffe3b0' },
+  bank:    { wall: '#2a3a34', wall2: '#30443c', solid: '#141c19', floor: '#3e4a44', lamp: '#fff2cc' },
+  museum:  { wall: '#3b3228', wall2: '#443a2e', solid: '#1a1612', floor: '#5c4a36', lamp: '#ffd98a' },
+  casino:  { wall: '#3a1f2a', wall2: '#45242f', solid: '#1a0e13', floor: '#4a1e28', lamp: '#ffcf6b' },
+  data:    { wall: '#1d2a33', wall2: '#22323d', solid: '#0e151a', floor: '#2a3640', lamp: '#bff3ff' },
+  villa:   { wall: '#33302a', wall2: '#3b372f', solid: '#181612', floor: '#5a4a38', lamp: '#ffe0a8' },
+  pent:    { wall: '#262a36', wall2: '#2c3140', solid: '#12141a', floor: '#3a3e4a', lamp: '#f3f6ff' },
+  vault:   { wall: '#2c2c30', wall2: '#333338', solid: '#141416', floor: '#3c3c42', lamp: '#fff4d6' },
+  hq:      { wall: '#24303a', wall2: '#2a3743', solid: '#10161b', floor: '#34404a', lamp: '#e6f4ff' },
+  final:   { wall: '#2e2438', wall2: '#362a42', solid: '#140f19', floor: '#3e3048', lamp: '#ffd98a' },
+};
+
+// ---------- opslag ----------
+let bests = Arcade.load('dief_bests', {});   // { level: beste tijd }
+let starsS = Arcade.load('dief_stars', {});  // { level: sterren }
+let unlockAll = !!Arcade.load('dief_unlockall', false);
+const doneCount = () => Object.keys(bests).length;
+const unlocked = (i) => unlockAll || i === 0 || bests[i - 1] != null;
+function saveProgress() { Arcade.save('dief_bests', bests); Arcade.save('dief_stars', starsS); Arcade.record(GAME, doneCount()); }
+
+// ---------- status ----------
+let state = 'menu'; // menu | play | crack | win | fail | pause
+let li = 0, lv = null, M = null, MW = 0, MH = 0, floorRow = [];
+let P = null, guards = [], cams = [], lasers = [], open = {}, got = {}, cards = {}, cash = 0, cashTotal = 0, loot = 0, lootTotal = 0;
+let darks = [], fuseCd = {}, laserOff = 0, t = 0, clock = 0, camX = 0, camY = 0, crack = null, failWhy = '', winInfo = null, tipT = 0, exitMsgT = 0;
+let cheatInvis = false, cheatLaser = false, prevState = 'play';
+const keys = {};
+
+const tileAt = (tx, ty) => (ty >= 0 && ty < MH && tx >= 0 && tx < MW ? M[ty][tx] : '#');
+const key = (tx, ty) => tx + ',' + ty;
+function solidT(tx, ty) {
+  const ch = tileAt(tx, ty);
+  if (ch === '#' || ch === 'o') return true;
+  if ((ch === 'D' || ch === 'R' || ch === 'B') && !open[key(tx, ty)]) return true;
+  return false;
+}
+const solidP = (x, y) => solidT(Math.floor(x / TS), Math.floor(y / TS));
+const ladderP = (x, y) => tileAt(Math.floor(x / TS), Math.floor(y / TS)) === 'H';
+function darkT(tx, ty) { const k = key(tx, ty); return darks.some((d) => d.t > 0 && d.set.has(k)); }
+const darkP = (x, y) => darkT(Math.floor(x / TS), Math.floor(y / TS));
+
+// ---------- level laden ----------
+function load(i) {
+  li = i; lv = LEVELS[i];
+  M = lv.map.map((r) => r.split('')); MH = M.length; MW = M[0].length;
+  floorRow = M.map((r) => r.filter((ch) => ch === '#').length > MW * 0.5);
+  guards = []; cams = []; lasers = []; open = {}; got = {}; cards = {}; cash = 0; cashTotal = 0; loot = 0; lootTotal = 0;
+  darks = []; fuseCd = {}; laserOff = 0; t = 0; crack = null; tipT = 6; exitMsgT = 0;
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+    const ch = M[y][x];
+    if (ch === 'P') { P = { x: x * TS + TS / 2, y: (y + 1) * TS, vx: 0, vy: 0, dir: 1, ground: true, climb: false, anim: 0, hidden: false, seenK: 0 }; M[y][x] = '.'; }
+    if (ch === 'g' || ch === 'G') { guards.push({ x: x * TS + TS / 2, y: (y + 1) * TS, dir: ch === 'g' ? 1 : -1, pause: 0.6, sus: 0, look: 0, anim: Math.random() * 6, q: 0 }); M[y][x] = '.'; }
+    if (ch === 'c') { cams.push({ x: x * TS + TS / 2, y: y * TS + 4, ph: Math.random() * 6, sp: 0.8 + Math.random() * 0.3, sus: 0, tx: x, ty: y }); M[y][x] = '.'; }
+    if (ch === '|' || ch === '!') lasers.push({ tx: x, ty: y, pulse: ch === '!' });
+    if (ch === '$') cashTotal++;
+    if (ch === '*' || ch === 'K') lootTotal++;
+  }
+  // wie in de schaduw/achter een plant staat kan er nog steeds op liggen; spelersstart = gewoon
+  camX = Math.max(0, Math.min(MW * TS - W, P.x - W / 2)); camY = mapOffY();
+  state = 'play';
+  ArcadeCore.music.play('dief');
+}
+const mapOffY = () => Math.min(0, -(H - 70 - MH * TS) / 2 - 10);
+
+// verdieping-gebied voor de stoppenkast (wordt donker)
+function region(tx, ty) {
+  const set = new Set(), st = [[tx, ty]];
+  while (st.length && set.size < 900) {
+    const [x, y] = st.pop(); const k = key(x, y);
+    if (set.has(k) || x < 0 || y < 0 || x >= MW || y >= MH) continue;
+    if (floorRow[y] || solidT(x, y)) continue;
+    set.add(k);
+    st.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+  }
+  return set;
+}
+
+// ---------- zicht ----------
+function los(x0, y0, x1, y1) {
+  const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d / 8);
+  for (let i = 1; i < n; i++) { const k = i / n; if (solidP(x0 + (x1 - x0) * k, y0 + (y1 - y0) * k)) return false; }
+  return true;
+}
+function rayLen(x0, y0, a, R) {
+  const dx = Math.cos(a), dy = Math.sin(a);
+  for (let d = 8; d < R; d += 8) if (solidP(x0 + dx * d, y0 + dy * d)) return d;
+  return R;
+}
+function hiddenSpot() {
+  const tx = Math.floor(P.x / TS), ty = Math.floor((P.y - 20) / TS), ch = tileAt(tx, ty);
+  return ch === 's' || ch === 'p' || darkT(tx, ty);
+}
+const still = () => Math.abs(P.vx) < 10 && Math.abs(P.vy) < 10;
+// kan bron (ex, ey) met kegel (a, half, R) de speler zien?
+function sees(ex, ey, a, half, R) {
+  if (cheatInvis) return 0;
+  const pts = [[P.x, P.y - 32], [P.x, P.y - 12]];
+  for (const [px, py] of pts) {
+    const dx = px - ex, dy = py - ey, d = Math.hypot(dx, dy);
+    if (d > R) continue;
+    let da = Math.atan2(dy, dx) - a; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+    if (Math.abs(da) > half) continue;
+    if (!los(ex, ey, px, py)) continue;
+    if (P.hidden) continue;
+    if (hiddenSpot() && d > 70) continue; // bewegen in de schaduw: alleen van heel dichtbij
+    return 1 - d / R;
+  }
+  return 0;
+}
+
+// ---------- geluid ----------
+const sfx = {
+  step: () => Arcade.noise(0.03, 0.012, 900, 300),
+  coin: () => { Arcade.beep(1320, 0.06, 'square', 0.04); Arcade.beep(1760, 0.1, 'square', 0.04, 0, 0.06); },
+  gem: () => { [880, 1175, 1568, 2093].forEach((f, i) => Arcade.beep(f, 0.12, 'triangle', 0.05, 0, i * 0.07)); },
+  door: () => Arcade.noise(0.18, 0.05, 600, 120),
+  click: () => Arcade.beep(1600, 0.03, 'square', 0.04),
+  alarm: () => { for (let i = 0; i < 6; i++) Arcade.beep(i % 2 ? 660 : 880, 0.14, 'square', 0.05, 0, i * 0.15); },
+  power: () => { Arcade.beep(220, 0.4, 'sawtooth', 0.04, -150); Arcade.noise(0.2, 0.05, 300, 80); },
+  card: () => { Arcade.beep(990, 0.08, 'triangle', 0.05); Arcade.beep(1480, 0.12, 'triangle', 0.05, 0, 0.08); },
+};
+
+// ---------- invoer ----------
+const K = (...ks) => ks.some((k) => keys[k]);
+const left = () => K('ArrowLeft', 'a', 'A') || touch.left;
+const right = () => K('ArrowRight', 'd', 'D') || touch.right;
+const up = () => K('ArrowUp', 'w', 'W') || touch.up;
+const down = () => K('ArrowDown', 's', 'S') || touch.down;
+const sneak = () => K('Shift') || touch.sneak;
+let jumpQ = false, actQ = false;
+addEventListener('keydown', (e) => {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+  if (keys[e.key]) return;
+  keys[e.key] = true;
+  if (state === 'crack' && (e.key === 'e' || e.key === 'E' || e.key === ' ' || e.key === 'Enter')) return crackPress();
+  if (state === 'crack' && e.key === 'Escape') { state = 'play'; crack = null; return; }
+  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') jumpQ = true;
+  if (e.key === 'e' || e.key === 'E' || e.key === 'Enter') actQ = true;
+  if (e.key === 'Escape') { if (state === 'play') { prevState = 'play'; state = 'pause'; } else if (state === 'pause') state = prevState; }
+  if ((e.key === 'r' || e.key === 'R') && (state === 'play' || state === 'fail' || state === 'pause')) load(li);
+  if (e.key === 'Enter' && state === 'win') next();
+});
+addEventListener('keyup', (e) => { keys[e.key] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+// aanraakknoppen
+const touch = { left: false, right: false, up: false, down: false, sneak: false };
+const TB = () => [
+  { id: 'left', x: 16, y: H - 96, w: 80, h: 80, l: '◀' }, { id: 'right', x: 104, y: H - 96, w: 80, h: 80, l: '▶' },
+  { id: 'up', x: 196, y: H - 140, w: 60, h: 60, l: '▲' }, { id: 'down', x: 196, y: H - 74, w: 60, h: 60, l: '▼' },
+  { id: 'sneak', x: W - 284, y: H - 86, w: 80, h: 70, l: touch.sneak ? 'Sluip ✓' : 'Sluip' }, { id: 'act', x: W - 194, y: H - 86, w: 80, h: 70, l: 'E' },
+  { id: 'jump', x: W - 104, y: H - 96, w: 88, h: 80, l: 'Spring' },
+];
+const ptrs = new Map();
+function tbAt(q) { return TB().find((b) => q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h); }
+function refreshTouch() { touch.left = touch.right = touch.up = touch.down = false; for (const id of ptrs.values()) if (id && id in touch && id !== 'sneak') touch[id] = true; }
+c.addEventListener('pointerdown', (e) => {
+  const q = view.toGame(e);
+  if (ui.hit(q)) return;
+  if (state === 'crack') return crackPress();
+  if (!Arcade.touch || state !== 'play') return;
+  const b = tbAt(q); if (!b) return;
+  c.setPointerCapture && c.setPointerCapture(e.pointerId);
+  if (b.id === 'jump') { jumpQ = true; ptrs.set(e.pointerId, 'jump'); }
+  else if (b.id === 'act') { actQ = true; ptrs.set(e.pointerId, 'act'); }
+  else if (b.id === 'sneak') { touch.sneak = !touch.sneak; ptrs.set(e.pointerId, null); }
+  else ptrs.set(e.pointerId, b.id);
+  refreshTouch();
+});
+c.addEventListener('pointermove', (e) => {
+  const q = view.toGame(e); ui.hover(q);
+  if (!ptrs.has(e.pointerId)) return;
+  const id = ptrs.get(e.pointerId);
+  if (id && ['left', 'right', 'up', 'down'].includes(id)) { const b = tbAt(q); ptrs.set(e.pointerId, b && ['left', 'right', 'up', 'down'].includes(b.id) ? b.id : null); refreshTouch(); }
+});
+const endPtr = (e) => { ptrs.delete(e.pointerId); refreshTouch(); };
+c.addEventListener('pointerup', endPtr); c.addEventListener('pointercancel', endPtr);
+
+// ---------- speler ----------
+const PW = 9; // halve breedte
+function collideX() {
+  for (const yy of [P.y - 38, P.y - 20, P.y - 2]) {
+    if (P.vx > 0 && solidP(P.x + PW, yy)) { P.x = Math.floor((P.x + PW) / TS) * TS - PW - 0.01; P.vx = 0; }
+    if (P.vx < 0 && solidP(P.x - PW, yy)) { P.x = Math.floor((P.x - PW) / TS + 1) * TS + PW + 0.01; P.vx = 0; }
+  }
+}
+function platformBelow(x, y) {
+  const tx = Math.floor(x / TS), ty = Math.floor(y / TS), ch = tileAt(tx, ty);
+  return ch === '-' || (ch === 'H' && tileAt(tx, ty - 1) !== 'H');
+}
+function updatePlayer(dt) {
+  const sp = sneak() ? 85 : 175;
+  const want = (right() ? 1 : 0) - (left() ? 1 : 0);
+  if (P.climb) {
+    P.vx = 0;
+    const lt = Math.floor(P.x / TS); P.x += (lt * TS + TS / 2 - P.x) * Math.min(1, dt * 12);
+    P.vy = ((down() ? 1 : 0) - (up() ? 1 : 0)) * 125;
+    P.y += P.vy * dt;
+    const onL = ladderP(P.x, P.y - 4) || ladderP(P.x, P.y + 2);
+    if (P.vy < 0 && !ladderP(P.x, P.y - 2) && ladderP(P.x, P.y + 4)) { P.y = Math.floor((P.y + 4) / TS) * TS; P.climb = false; P.ground = true; P.vy = 0; }
+    else if (P.vy > 0 && solidP(P.x, P.y)) { P.y = Math.floor(P.y / TS) * TS; P.climb = false; P.ground = true; P.vy = 0; }
+    else if (!onL) P.climb = false;
+    if (want && jumpQ) { P.climb = false; P.vy = -260; P.vx = want * sp; }
+    if (Math.abs(P.vy) > 1) P.anim += dt * 8;
+    jumpQ = false;
+    return;
+  }
+  P.vx += (want * sp - P.vx) * Math.min(1, dt * (P.ground ? 14 : 5));
+  if (want) P.dir = want;
+  // ladder pakken
+  if ((up() && (ladderP(P.x, P.y - 10) || ladderP(P.x, P.y - 30))) || (down() && P.ground && ladderP(P.x, P.y + 4))) {
+    if (up() && ladderP(P.x, P.y - 10) || down()) { P.climb = true; P.vx = 0; P.vy = 0; jumpQ = false; return; }
+  }
+  if (jumpQ && P.ground && !up()) { P.vy = -455; P.ground = false; Arcade.beep(320, 0.06, 'triangle', 0.02, 120); }
+  else if (jumpQ && P.ground && up() && !ladderP(P.x, P.y - 10)) { P.vy = -455; P.ground = false; }
+  jumpQ = false;
+  P.vy = Math.min(900, P.vy + 1500 * dt);
+  P.x += P.vx * dt; collideX();
+  const oy = P.y; P.y += P.vy * dt; P.ground = false;
+  if (P.vy >= 0) {
+    for (const xx of [P.x - PW + 1, P.x + PW - 1]) {
+      if (solidP(xx, P.y) || (!down() && platformBelow(xx, P.y) && Math.floor(oy / TS) < Math.floor(P.y / TS) + 1 && oy <= Math.floor(P.y / TS) * TS + 1)) {
+        P.y = Math.floor(P.y / TS) * TS; P.vy = 0; P.ground = true; break;
+      }
+    }
+  } else {
+    for (const xx of [P.x - PW + 1, P.x + PW - 1]) if (solidP(xx, P.y - 40)) { P.y = Math.floor((P.y - 40) / TS + 1) * TS + 40; P.vy = 0; }
+  }
+  if (P.ground && Math.abs(P.vx) > 20) { P.anim += dt * Math.abs(P.vx) / 18; if (!sneak() && Math.floor(P.anim) % 4 === 0 && Math.random() < 0.15) sfx.step(); }
+  P.x = Math.max(PW, Math.min(MW * TS - PW, P.x));
+}
+
+// ---------- interactie ----------
+function interact() {
+  const tx = Math.floor(P.x / TS), ty = Math.floor((P.y - 16) / TS);
+  // deuren naast je
+  for (const dx of [P.dir, -P.dir, 0]) {
+    const x = tx + dx, ch = tileAt(x, ty);
+    if ((ch === 'D' || ch === 'R' || ch === 'B') && !open[key(x, ty)]) {
+      if (ch === 'R' && !cards.r) { say('🔴 Je hebt de rode sleutelkaart nodig'); return; }
+      if (ch === 'B' && !cards.b) { say('🔵 Je hebt de blauwe sleutelkaart nodig'); return; }
+      open[key(x, ty)] = true; sfx.door(); fx.burst(x * TS + TS / 2, ty * TS + TS / 2, 8, '#c9a46b', 60, 0.4, 3, 0); return;
+    }
+  }
+  for (const dx of [0, P.dir, -P.dir]) {
+    const x = tx + dx, ch = tileAt(x, ty);
+    if (ch === 'w') { laserOff = 10; sfx.click(); say('⚡ Lasers 10 seconden uit!'); return; }
+    if (ch === 'F') {
+      const k = key(x, ty);
+      if ((fuseCd[k] || 0) > 0) { say(`De stoppenkast moet nog ${Math.ceil(fuseCd[k])} s afkoelen`); return; }
+      darks.push({ set: region(x, ty), t: 14 }); fuseCd[k] = 24; sfx.power(); say('🌑 Licht uit! 14 seconden donker'); return;
+    }
+    if (ch === 'K' && !got[key(x, ty)]) { startCrack(x, ty); return; }
+    if (ch === 'X') { tryExit(); return; }
+  }
+}
+function tryExit() {
+  if (loot < lootTotal) { if (exitMsgT <= 0) { say(`Eerst de buit pakken! (${loot}/${lootTotal})`); exitMsgT = 2; } return; }
+  win();
+}
+function pickups() {
+  const tx = Math.floor(P.x / TS);
+  for (const ty of [Math.floor((P.y - 8) / TS), Math.floor((P.y - 30) / TS)]) {
+    const ch = tileAt(tx, ty), k = key(tx, ty);
+    if (got[k]) continue;
+    if (ch === '$') { got[k] = 1; cash++; sfx.coin(); fx.text(tx * TS + 16, ty * TS, '+€100', '#7bd88f', 14); }
+    if (ch === '*') { got[k] = 1; loot++; sfx.gem(); fx.burst(tx * TS + 16, ty * TS + 16, 24, ['#bff3ff', '#ffffff', '#7cc4ff'], 160); say('💎 Buit binnen! Nu naar de uitgang'); }
+    if (ch === 'r' || ch === 'b') { got[k] = 1; cards[ch] = true; sfx.card(); say(ch === 'r' ? '🔴 Rode sleutelkaart!' : '🔵 Blauwe sleutelkaart!'); }
+    if (ch === 'X' && loot >= lootTotal && lootTotal) win();
+  }
+}
+
+// ---------- kluis kraken ----------
+function startCrack(x, y) { crack = { x, y, i: 0, a: 0, sp: 2.6, z: Math.random() * 6.28, zw: 0.62, shake: 0 }; state = 'crack'; sfx.click(); }
+function crackPress() {
+  if (!crack) return;
+  let d = ((crack.a - crack.z) % 6.2832 + 6.2832) % 6.2832; if (d > Math.PI) d -= 6.2832;
+  if (Math.abs(d) < crack.zw / 2) {
+    crack.i++; Arcade.beep(900 + crack.i * 200, 0.08, 'square', 0.05);
+    if (crack.i >= 3) {
+      got[key(crack.x, crack.y)] = 1; loot++; sfx.gem(); fx.burst(crack.x * TS + 16, crack.y * TS + 16, 30, ['#ffd23f', '#ffffff', '#bff3ff'], 180);
+      say('🔓 Kluis open! Buit binnen'); crack = null; state = 'play'; return;
+    }
+    crack.sp *= -1.25; crack.z = Math.random() * 6.28; crack.zw *= 0.82;
+  } else { crack.shake = 0.3; Arcade.beep(160, 0.15, 'square', 0.05); crack.z = Math.random() * 6.28; }
+}
+
+// ---------- bewakers en camera's ----------
+function updateGuards(dt) {
+  for (const g of guards) {
+    g.anim += dt * 6;
+    const gtx = Math.floor(g.x / TS), gty = Math.floor((g.y - 8) / TS);
+    const dark = darkT(gtx, gty);
+    // horen: rennen vlak achter de bewaker
+    const dx = P.x - g.x, dy = P.y - g.y;
+    if (!cheatInvis && !sneak() && P.ground && Math.abs(P.vx) > 120 && Math.abs(dx) < 110 && Math.abs(dy) < 40 && Math.sign(dx) === -g.dir && g.look <= 0) { g.dir *= -1; g.look = 1.3; g.q = 1.5; g.pause = 1.2; }
+    if (g.pause > 0) g.pause -= dt;
+    else {
+      const nx = g.x + g.dir * 55 * dt;
+      const ax = Math.floor((nx + g.dir * 12) / TS);
+      const blocked = solidT(ax, gty) || !(solidT(ax, gty + 1) || tileAt(ax, gty + 1) === 'H' || tileAt(ax, gty + 1) === '-');
+      if (blocked) { g.pause = 0.9; g.dir *= -1; } else g.x = nx;
+    }
+    if (g.look > 0) g.look -= dt; if (g.q > 0) g.q -= dt;
+    // aanraken
+    if (!cheatInvis && Math.abs(dx) < 18 && Math.abs(dy) < 30 && !P.hidden) return caught('Een bewaker liep tegen je aan!');
+    const R = dark ? 120 : 230, ex = g.x + g.dir * 6, ey = g.y - 33;
+    g.R = R; g.ex = ex; g.ey = ey;
+    const s = sees(ex, ey, g.dir > 0 ? 0.08 : Math.PI - 0.08, 0.4, R);
+    if (s > 0) { g.sus += dt * (2.4 + 3.5 * s); g.q = 0.5; } else g.sus = Math.max(0, g.sus - dt * 0.7);
+    if (g.sus >= 1) return caught('Een bewaker heeft je gezien!');
+  }
+  for (const cm of cams) {
+    cm.a = Math.PI / 2 + Math.sin(t * cm.sp + cm.ph) * 0.9;
+    cm.off = darkT(cm.tx, cm.ty);
+    const s = cm.off ? 0 : sees(cm.x, cm.y + 6, cm.a, 0.21, 300);
+    if (s > 0) cm.sus += dt * (2 + 3 * s); else cm.sus = Math.max(0, cm.sus - dt * 0.7);
+    if (cm.sus >= 1) return caught('Een camera heeft je gefilmd!');
+  }
+}
+function laserOn(L) {
+  if (laserOff > 0 || cheatLaser) return false;
+  if (L.pulse) return ((t + L.tx * 0.37) % 3.2) < 1.8;
+  return true;
+}
+function checkLasers() {
+  if (cheatInvis) return;
+  for (const L of lasers) {
+    if (!laserOn(L)) continue;
+    const lx = L.tx * TS + TS / 2;
+    if (Math.abs(P.x - lx) < PW + 2 && P.y > L.ty * TS + 2 && P.y - 40 < (L.ty + 1) * TS) return caught('Je raakte een laser!');
+  }
+}
+function caught(why) {
+  if (state !== 'play' && state !== 'crack') return;
+  state = 'fail'; failWhy = why; crack = null; sfx.alarm(); fx.shake(8, 0.4); fx.flash('#ff2a2a', 0.35);
+}
+function win() {
+  if (state !== 'play') return;
+  const time = Math.round(t * 100) / 100;
+  let st = 1; if (time <= lv.par) st++; if (cash >= cashTotal) st++;
+  const prev = bests[li], rec = prev == null || time < prev;
+  if (rec) bests[li] = time;
+  starsS[li] = Math.max(starsS[li] || 0, st);
+  saveProgress();
+  winInfo = { time, st, rec, prev };
+  state = 'win';
+  [523, 659, 784, 1047].forEach((f, i) => Arcade.beep(f, 0.16, 'square', 0.05, 0, i * 0.11));
+}
+function next() { if (li + 1 < LEVELS.length) load(li + 1); else state = 'menu'; }
+function say(s) { toast = s; toastT = 2.6; }
+let toast = '', toastT = 0;
+
+// ---------- tekenen ----------
+const th = () => THEMES[lv.theme] || THEMES.jewel;
+function drawWorld() {
+  const tc = th();
+  const x0 = Math.max(0, Math.floor(camX / TS)), x1 = Math.min(MW - 1, Math.ceil((camX + W) / TS));
+  ctx.fillStyle = '#07080b'; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate(-Math.round(camX), -Math.round(camY));
+  // achtergrond (behang met strepen) per tegel
+  for (let y = 0; y < MH; y++) for (let x = x0; x <= x1; x++) {
+    const ch = M[y][x], px = x * TS, py = y * TS;
+    if (ch === '#' || ch === 'o') continue;
+    ctx.fillStyle = (x % 4 < 2) ? tc.wall : tc.wall2; ctx.fillRect(px, py, TS, TS);
+    // lambrisering onderin elke verdieping
+    if (floorRow[y + 1]) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(px, py + TS - 12, TS, 12); ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(px, py + TS - 13, TS, 1); }
+  }
+  // lampen aan het plafond (puur sfeer)
+  for (let y = 1; y < MH; y++) for (let x = x0; x <= x1; x++) {
+    if (!floorRow[y - 1] || M[y][x] === '#' || x % 7 !== 3) continue;
+    if (M[y][x] === 's' || (y + 3 < MH && M[y + 3][x] === 's') || darkT(x, y)) continue;
+    const px = x * TS + 16, py = y * TS;
+    const g = ctx.createRadialGradient(px, py + 8, 2, px, py + 40, 120); g.addColorStop(0, hexA(tc.lamp, 0.22)); g.addColorStop(1, hexA(tc.lamp, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(px - 8, py + 6); ctx.lineTo(px + 8, py + 6); ctx.lineTo(px + 70, py + TS * 4); ctx.lineTo(px - 70, py + TS * 4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.fillRect(px - 1, py, 2, 4); ctx.fillStyle = tc.lamp; ctx.beginPath(); ctx.arc(px, py + 7, 5, Math.PI, 0); ctx.fill();
+  }
+  // tegels
+  for (let y = 0; y < MH; y++) for (let x = x0; x <= x1; x++) {
+    const ch = M[y][x], px = x * TS, py = y * TS;
+    if (ch === '#') {
+      ctx.fillStyle = tc.solid; ctx.fillRect(px, py, TS, TS);
+      if (y > 0 && M[y - 1][x] !== '#') { ctx.fillStyle = tc.floor; ctx.fillRect(px, py, TS, 7); ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(px, py, TS, 1); }
+      ctx.fillStyle = 'rgba(255,255,255,0.025)'; if ((x + y) % 2) ctx.fillRect(px, py + 7, TS, 1);
+    } else if (ch === 'H') drawLadder(px, py);
+    else if (ch === '-') { ctx.fillStyle = tc.floor; ctx.fillRect(px, py, TS, 6); }
+    else if (ch === 'D' || ch === 'R' || ch === 'B') drawDoor(px, py, ch, !!open[key(x, y)]);
+    else if (ch === 'p') drawPlant(px, py);
+    else if (ch === 'w') drawSwitch(px, py);
+    else if (ch === 'F') drawFuse(px, py, fuseCd[key(x, y)] || 0);
+    else if (ch === 'K') drawSafe(px, py, !!got[key(x, y)]);
+    else if (ch === 'X') drawExit(px, py);
+    if (!got[key(x, y)]) {
+      if (ch === '$') drawCash(px, py);
+      else if (ch === '*') drawGem(px, py);
+      else if (ch === 'r' || ch === 'b') drawCard(px, py, ch);
+    }
+  }
+  // schaduwen
+  for (let y = 0; y < MH; y++) for (let x = x0; x <= x1; x++) {
+    const ch = M[y][x];
+    if (ch === 's') { const px = x * TS, py = y * TS; ctx.fillStyle = 'rgba(2,3,6,0.72)'; ctx.fillRect(px, py, TS, TS); }
+  }
+  // verduisterde verdiepingen (stoppenkast)
+  for (const d of darks) if (d.t > 0) {
+    const a = Math.min(1, d.t * 2) * 0.68;
+    ctx.fillStyle = `rgba(2,3,10,${a})`;
+    for (const k of d.set) { const [x, y] = k.split(',').map(Number); if (x >= x0 && x <= x1) ctx.fillRect(x * TS, y * TS, TS, TS); }
+  }
+  // lasers
+  for (const L of lasers) {
+    if (L.tx < x0 - 1 || L.tx > x1 + 1) continue;
+    const lx = L.tx * TS + TS / 2, py = L.ty * TS, on = laserOn(L);
+    if (floorRow[L.ty - 1] || L.ty === 0 || M[L.ty - 1][L.tx] === '#') { ctx.fillStyle = '#2a2a2e'; ctx.fillRect(lx - 6, py, 12, 5); }
+    if (on) { ctx.fillStyle = 'rgba(255,40,60,0.18)'; ctx.fillRect(lx - 5, py, 10, TS); ctx.fillStyle = '#ff2a44'; ctx.fillRect(lx - 1.5, py, 3, TS); ctx.fillStyle = '#ffd0d6'; ctx.fillRect(lx - 0.5, py, 1, TS); }
+    else { ctx.fillStyle = 'rgba(255,60,80,0.12)'; ctx.fillRect(lx - 0.5, py, 1, TS); }
+  }
+  // kegels
+  for (const cm of cams) drawCone(cm.x, cm.y + 6, cm.a, 0.21, 300, cm.sus, cm.off, true);
+  for (const g of guards) drawCone(g.ex, g.ey, g.dir > 0 ? 0.08 : Math.PI - 0.08, 0.4, g.R || 230, g.sus, false, false);
+  for (const cm of cams) drawCam(cm);
+  for (const g of guards) drawGuard(g);
+  drawThief();
+  fx.draw(ctx);
+  ctx.restore();
+}
+function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+function drawCone(x, y, a, half, R, sus, off, cam) {
+  if (off) return;
+  const n = 16, col = sus > 0.05 ? `rgba(255,${Math.round(200 - sus * 170)},${Math.round(60 - sus * 40)},${0.16 + sus * 0.2})` : (cam ? 'rgba(200,230,255,0.13)' : 'rgba(255,236,160,0.15)');
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, y);
+  for (let i = 0; i <= n; i++) { const aa = a - half + (2 * half * i) / n, d = rayLen(x, y, aa, R); ctx.lineTo(x + Math.cos(aa) * d, y + Math.sin(aa) * d); }
+  ctx.closePath(); ctx.fill();
+}
+function drawLadder(px, py) {
+  ctx.fillStyle = '#7a5a3a'; ctx.fillRect(px + 7, py, 3, TS); ctx.fillRect(px + 22, py, 3, TS);
+  ctx.fillStyle = '#9c7650'; for (let k = 4; k < TS; k += 9) ctx.fillRect(px + 7, py + k, 18, 3);
+}
+function drawDoor(px, py, ch, isOpen) {
+  const col = ch === 'R' ? '#c0392b' : ch === 'B' ? '#2f6fd0' : '#6b4a2e';
+  ctx.fillStyle = '#1c1611'; ctx.fillRect(px + 4, py - TS * 0, 24, TS);
+  if (isOpen) { ctx.fillStyle = col; ctx.globalAlpha = 0.5; ctx.fillRect(px + 4, py, 5, TS); ctx.globalAlpha = 1; return; }
+  ctx.fillStyle = col; ctx.fillRect(px + 6, py, 20, TS);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(px + 9, py + 4, 14, 10); ctx.fillRect(px + 9, py + 18, 14, 10);
+  ctx.fillStyle = '#e6c96b'; ctx.beginPath(); ctx.arc(px + 22, py + 17, 2, 0, 7); ctx.fill();
+  if (ch !== 'D') { ctx.fillStyle = '#111'; ctx.fillRect(px + 10, py + 13, 12, 7); ctx.fillStyle = col; ctx.fillRect(px + 12, py + 15, 8, 3); }
+}
+function drawPlant(px, py) {
+  ctx.fillStyle = '#5a3b26'; ctx.fillRect(px + 9, py + 20, 14, 12);
+  ctx.fillStyle = '#2f6b3a';
+  for (let k = 0; k < 7; k++) { const a = -Math.PI / 2 + (k - 3) * 0.42; ctx.beginPath(); ctx.ellipse(px + 16 + Math.cos(a) * 9, py + 16 + Math.sin(a) * 12, 5, 11, a + Math.PI / 2, 0, 7); ctx.fill(); }
+  ctx.fillStyle = '#3f8a4a'; ctx.beginPath(); ctx.ellipse(px + 16, py + 10, 7, 12, 0, 0, 7); ctx.fill();
+}
+function drawSwitch(px, py) {
+  ctx.fillStyle = '#2b2b30'; RR(ctx, px + 8, py + 4, 16, 22, 3); ctx.fill();
+  const on = laserOff > 0; ctx.fillStyle = on ? '#7bd88f' : '#ff3b4f'; ctx.fillRect(px + 14, on ? py + 7 : py + 15, 4, 8);
+  ctx.fillStyle = '#ffd23f'; ctx.fillRect(px + 8, py + 27, 16, 2);
+}
+function drawFuse(px, py, cd) {
+  ctx.fillStyle = '#4a4f58'; RR(ctx, px + 5, py + 2, 22, 26, 3); ctx.fill();
+  ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(px + 17, py + 6); ctx.lineTo(px + 11, py + 16); ctx.lineTo(px + 16, py + 16); ctx.lineTo(px + 14, py + 24); ctx.lineTo(px + 21, py + 13); ctx.lineTo(px + 16, py + 13); ctx.closePath(); ctx.fill();
+  if (cd > 0) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(px + 5, py + 2, 22, 26 * (cd / 24)); }
+}
+function drawSafe(px, py, opened) {
+  ctx.fillStyle = '#3c4048'; RR(ctx, px + 1, py + 2, 30, 30, 4); ctx.fill();
+  ctx.strokeStyle = '#23262c'; ctx.lineWidth = 2; ctx.strokeRect(px + 4, py + 5, 24, 24);
+  if (opened) { ctx.fillStyle = '#111'; ctx.fillRect(px + 5, py + 6, 22, 22); return; }
+  ctx.fillStyle = '#c9ced6'; ctx.beginPath(); ctx.arc(px + 16, py + 17, 6, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#3c4048'; ctx.beginPath(); ctx.moveTo(px + 16, py + 17); ctx.lineTo(px + 16 + Math.cos(clock * 2) * 5, py + 17 + Math.sin(clock * 2) * 5); ctx.stroke();
+  ctx.fillStyle = '#ffd23f'; ctx.globalAlpha = 0.5 + 0.5 * Math.sin(clock * 4); ctx.fillRect(px + 13, py - 6, 6, 3); ctx.globalAlpha = 1;
+}
+function drawExit(px, py) {
+  ctx.fillStyle = '#123a22'; ctx.fillRect(px + 3, py - TS + 4, 26, TS * 2 - 4);
+  ctx.fillStyle = loot >= lootTotal ? '#3ddc84' : '#2a6a45'; ctx.fillRect(px + 6, py - TS + 7, 20, TS * 2 - 10);
+  ctx.fillStyle = '#0b1f14'; T(ctx, 'EXIT', px + 16, py - TS + 15, 8, '#eafff2', 'center', '900');
+  ctx.fillStyle = '#eafff2'; ctx.beginPath(); ctx.moveTo(px + 10, py + 6); ctx.lineTo(px + 22, py + 12); ctx.lineTo(px + 10, py + 18); ctx.closePath(); ctx.fill();
+}
+function drawCash(px, py) {
+  const b = Math.sin(clock * 3 + px) * 2;
+  ctx.fillStyle = '#2f7d46'; RR(ctx, px + 7, py + 14 + b, 18, 11, 2); ctx.fill();
+  ctx.fillStyle = '#7bd88f'; ctx.fillRect(px + 9, py + 16 + b, 14, 7); ctx.fillStyle = '#2f7d46'; ctx.beginPath(); ctx.arc(px + 16, py + 19.5 + b, 2.5, 0, 7); ctx.fill();
+}
+function drawGem(px, py) {
+  const b = Math.sin(clock * 2.5) * 3, cx = px + 16, cy = py + 14 + b;
+  const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, 28); g.addColorStop(0, 'rgba(190,240,255,0.5)'); g.addColorStop(1, 'rgba(190,240,255,0)'); ctx.fillStyle = g; ctx.fillRect(cx - 28, cy - 28, 56, 56);
+  ctx.fillStyle = '#bff3ff'; ctx.beginPath(); ctx.moveTo(cx - 10, cy - 3); ctx.lineTo(cx - 5, cy - 9); ctx.lineTo(cx + 5, cy - 9); ctx.lineTo(cx + 10, cy - 3); ctx.lineTo(cx, cy + 10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#7cc4ff'; ctx.beginPath(); ctx.moveTo(cx - 10, cy - 3); ctx.lineTo(cx + 10, cy - 3); ctx.lineTo(cx, cy + 10); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.6 + 0.4 * Math.sin(clock * 6); ctx.fillRect(cx - 4, cy - 7, 3, 3); ctx.globalAlpha = 1;
+}
+function drawCard(px, py, ch) {
+  const b = Math.sin(clock * 3) * 2;
+  ctx.fillStyle = ch === 'r' ? '#e0393e' : '#2f7fe0'; RR(ctx, px + 6, py + 12 + b, 20, 13, 2); ctx.fill();
+  ctx.fillStyle = '#ffe9a8'; ctx.fillRect(px + 9, py + 15 + b, 6, 5); ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(px + 17, py + 16 + b, 7, 1.5); ctx.fillRect(px + 17, py + 19 + b, 5, 1.5);
+}
+function drawCam(cm) {
+  ctx.save(); ctx.translate(cm.x, cm.y);
+  ctx.fillStyle = '#2a2d33'; ctx.fillRect(-3, -4, 6, 6);
+  ctx.rotate(cm.a);
+  ctx.fillStyle = cm.off ? '#3a3d44' : '#d9dde3'; RR(ctx, -4, -6, 18, 12, 3); ctx.fill();
+  ctx.fillStyle = '#111'; ctx.fillRect(12, -4, 4, 8);
+  ctx.restore();
+  if (!cm.off) { ctx.fillStyle = cm.sus > 0.05 || Math.sin(clock * 5) > 0 ? '#ff2a44' : '#5a1018'; ctx.beginPath(); ctx.arc(cm.x - 5, cm.y + 2, 1.8, 0, 7); ctx.fill(); }
+}
+function drawGuard(g) {
+  const x = g.x, y = g.y, d = g.dir, walk = g.pause > 0 ? 0 : Math.sin(g.anim) * 5;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(x, y - 1, 12, 3, 0, 0, 7); ctx.fill();
+  // benen
+  ctx.fillStyle = '#1b2433'; ctx.fillRect(x - 6 + walk * 0.4, y - 16, 5, 16); ctx.fillRect(x + 1 - walk * 0.4, y - 16, 5, 16);
+  ctx.fillStyle = '#0c0c0e'; ctx.fillRect(x - 7 + walk * 0.4, y - 3, 7, 3); ctx.fillRect(x + 1 - walk * 0.4, y - 3, 7, 3);
+  // lijf
+  ctx.fillStyle = '#2a3a55'; RR(ctx, x - 8, y - 34, 16, 20, 4); ctx.fill();
+  ctx.fillStyle = '#e8c547'; ctx.fillRect(x - 2 + d * 3, y - 30, 4, 4);
+  ctx.fillStyle = '#16202e'; ctx.fillRect(x - 8, y - 17, 16, 3);
+  // arm met zaklamp
+  ctx.fillStyle = '#2a3a55'; ctx.fillRect(x + d * 4 - 2, y - 30, 4, 12); ctx.fillStyle = '#333'; ctx.fillRect(x + d * 6 - (d < 0 ? 6 : 0), y - 20, 6, 3);
+  // hoofd + pet
+  ctx.fillStyle = '#e0b090'; ctx.beginPath(); ctx.arc(x, y - 40, 6.5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#1b2433'; ctx.fillRect(x - 7, y - 48, 14, 5); ctx.fillRect(x + (d > 0 ? 3 : -10), y - 44, 7, 2);
+  ctx.fillStyle = '#111'; ctx.fillRect(x + d * 3 - 1, y - 41, 2, 2);
+  ctx.restore();
+  if (g.sus > 0.05 || g.q > 0) {
+    const s = g.sus > 0.5 ? '!' : '?';
+    ctx.fillStyle = g.sus > 0.5 ? '#ff3b4f' : '#ffd23f'; ctx.beginPath(); ctx.arc(x, y - 62, 9, 0, 7); ctx.fill();
+    T(ctx, s, x, y - 61, 13, '#111', 'center', '900');
+    if (g.sus > 0.05) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x - 12, y - 52, 24, 3); ctx.fillStyle = '#ff3b4f'; ctx.fillRect(x - 12, y - 52, 24 * Math.min(1, g.sus), 3); }
+  }
+}
+// eigen hoofdpersoon: dief in grijze hoodie met nachtkijker en rugzak
+function drawThief() {
+  const x = P.x, y = P.y, d = P.dir, hid = P.hidden;
+  const walk = P.ground && Math.abs(P.vx) > 20 ? Math.sin(P.anim) * 6 : 0, crouch = sneak() && P.ground ? 4 : 0;
+  ctx.save();
+  if (hid) ctx.globalAlpha = 0.42;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(x, y - 1, 11, 3, 0, 0, 7); ctx.fill();
+  if (P.climb) {
+    const k = Math.sin(P.anim) * 4;
+    ctx.fillStyle = '#26282d'; ctx.fillRect(x - 7, y - 16 + k, 5, 15); ctx.fillRect(x + 2, y - 16 - k, 5, 15);
+    ctx.fillStyle = '#5b5f68'; RR(ctx, x - 9, y - 36, 18, 22, 6); ctx.fill();
+    ctx.fillStyle = '#3a2e22'; RR(ctx, x - 8, y - 34, 16, 14, 4); ctx.fill(); // rugzak (van achter)
+    ctx.fillStyle = '#5b5f68'; ctx.beginPath(); ctx.arc(x, y - 42, 8, 0, 7); ctx.fill();
+    ctx.fillStyle = '#5b5f68'; ctx.fillRect(x - 12, y - 40 - k, 4, 10); ctx.fillRect(x + 8, y - 40 + k, 4, 10);
+    ctx.restore(); drawStealthMark(); return;
+  }
+  // benen
+  ctx.fillStyle = '#26282d';
+  ctx.fillRect(x - 6 + walk * 0.5, y - 16 + crouch / 2, 5, 16 - crouch / 2); ctx.fillRect(x + 1 - walk * 0.5, y - 16 + crouch / 2, 5, 16 - crouch / 2);
+  ctx.fillStyle = '#0d0d0f'; ctx.fillRect(x - 7 + walk * 0.5 + (d > 0 ? 1 : -1), y - 3, 7, 3); ctx.fillRect(x + 1 - walk * 0.5 + (d > 0 ? 1 : -1), y - 3, 7, 3);
+  // rugzak
+  ctx.fillStyle = '#3a2e22'; RR(ctx, x - d * 9 - 6, y - 35 + crouch, 12, 17, 4); ctx.fill();
+  ctx.fillStyle = '#4a3b2c'; ctx.fillRect(x - d * 9 - 5, y - 28 + crouch, 10, 3);
+  // lijf (hoodie)
+  ctx.fillStyle = '#5b5f68'; RR(ctx, x - 8, y - 35 + crouch, 16, 21, 5); ctx.fill();
+  ctx.fillStyle = '#4b4f57'; ctx.fillRect(x - 6, y - 21 + crouch, 12, 4);
+  // arm
+  ctx.fillStyle = '#5b5f68'; ctx.save(); ctx.translate(x + d * 3, y - 31 + crouch); ctx.rotate(walk * 0.05 * d); ctx.fillRect(-2, 0, 5, 13); ctx.fillStyle = '#1c1c1f'; ctx.fillRect(-2, 12, 5, 4); ctx.restore();
+  // hoofd in capuchon
+  const hy = y - 43 + crouch;
+  ctx.fillStyle = '#5b5f68'; ctx.beginPath(); ctx.arc(x, hy, 9, 0, 7); ctx.fill();
+  ctx.fillStyle = '#d6a888'; ctx.beginPath(); ctx.arc(x + d * 3, hy + 1, 5.5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#26282d'; ctx.fillRect(x + d * 3 - 6, hy + 3, 12, 4); // sjaal over de mond
+  // nachtkijkerbril met groene lenzen
+  ctx.fillStyle = '#18191c'; ctx.fillRect(x + d * 2 - 6, hy - 4, 12, 5);
+  ctx.fillStyle = '#7dff9a'; ctx.beginPath(); ctx.arc(x + d * 5, hy - 1.5, 2.4, 0, 7); ctx.fill();
+  ctx.globalAlpha = hid ? 0.3 : 0.5; ctx.fillStyle = '#c9ffd5'; ctx.fillRect(x + d * 5 - 0.5, hy - 3, 1.5, 1.5);
+  ctx.restore();
+  drawStealthMark();
+}
+function drawStealthMark() {
+  if (!P.hidden) return;
+  const x = P.x, y = P.y - 60;
+  ctx.save(); ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = '#cfd5dd'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(x, y, 8, 4.5, 0, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 9, y + 6); ctx.lineTo(x + 9, y - 6); ctx.stroke();
+  ctx.restore();
+}
+
+// ---------- HUD ----------
+const fmt = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return `${m}:${r < 10 ? '0' : ''}${r.toFixed(2)}`; };
+function chip(x, y, w, txt, col) { ctx.fillStyle = 'rgba(10,10,12,0.82)'; RR(ctx, x, y, w, 34, 10); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1; ctx.stroke(); T(ctx, txt, x + w / 2, y + 18, 14, col || '#fff', 'center', '800'); }
+function drawHUD() {
+  chip(16, 14, 230, `${li + 1}. ${lv.name}`);
+  chip(W / 2 - 70, 14, 140, fmt(t), t > lv.par ? '#ffb347' : '#fff');
+  T(ctx, `★ onder ${fmt(lv.par)}`, W / 2, 60, 11, '#8c8c8c', 'center', '700');
+  chip(W - 360, 14, 100, `💰 ${cash}/${cashTotal}`);
+  chip(W - 252, 14, 100, `💎 ${loot}/${lootTotal}`, loot >= lootTotal ? '#7bd88f' : '#fff');
+  const cw = 70; chip(W - 144, 14, cw, (cards.r ? '🔴' : '·') + ' ' + (cards.b ? '🔵' : '·'));
+  ui.btn('II', W - 66, 14, 40, 34, () => { if (state === 'play') { prevState = 'play'; state = 'pause'; } }, false, false, 14);
+  // zichtbaar of verborgen
+  const hid = P.hidden || cheatInvis;
+  ctx.fillStyle = hid ? 'rgba(20,24,30,0.9)' : 'rgba(10,10,12,0.82)'; RR(ctx, 16, 56, 150, 30, 9); ctx.fill();
+  ctx.strokeStyle = hid ? '#7cc4ff' : 'rgba(255,255,255,0.12)'; ctx.stroke();
+  T(ctx, hid ? '🌑 Verborgen' : hiddenSpot() ? '🌗 Sta stil = verborgen' : '👁 Zichtbaar', 91, 72, 12, hid ? '#bfe3ff' : '#cfd5dd', 'center', '800');
+  let yy = 94;
+  if (laserOff > 0) { chip(16, yy, 150, `⚡ Lasers uit: ${Math.ceil(laserOff)} s`, '#7bd88f'); yy += 40; }
+  const dk = darks.filter((d) => d.t > 0).reduce((m, d) => Math.max(m, d.t), 0);
+  if (dk > 0) chip(16, yy, 150, `🌑 Donker: ${Math.ceil(dk)} s`, '#bfe3ff');
+  if (tipT > 0 && lv.tip) {
+    ctx.globalAlpha = Math.min(1, tipT); ctx.font = '700 14px system-ui'; const tw = Math.min(W - 60, ctx.measureText(lv.tip).width + 36);
+    ctx.fillStyle = 'rgba(10,10,12,0.9)'; RR(ctx, W / 2 - tw / 2, 78, tw, 32, 10); ctx.fill(); T(ctx, '💡 ' + lv.tip, W / 2, 95, 13, '#fff', 'center', '700'); ctx.globalAlpha = 1;
+  }
+  if (toastT > 0) {
+    ctx.globalAlpha = Math.min(1, toastT * 2); ctx.font = '800 15px system-ui'; const tw = ctx.measureText(toast).width + 40;
+    ctx.fillStyle = 'rgba(10,10,12,0.92)'; RR(ctx, W / 2 - tw / 2, H - (Arcade.touch ? 160 : 70), tw, 36, 11); ctx.fill();
+    T(ctx, toast, W / 2, H - (Arcade.touch ? 142 : 52), 15, '#fff', 'center', '800'); ctx.globalAlpha = 1;
+  }
+  // wat kun je hier doen?
+  const hint = nearHint();
+  if (hint && state === 'play') {
+    const sx = P.x - camX, sy = P.y - camY - 78;
+    ctx.font = '800 12px system-ui'; const tw = ctx.measureText(hint).width + 18;
+    ctx.fillStyle = '#fff'; RR(ctx, sx - tw / 2, sy - 11, tw, 22, 7); ctx.fill(); T(ctx, hint, sx, sy, 12, '#111', 'center', '800');
+  }
+  if (Arcade.touch && state === 'play') for (const b of TB()) {
+    const on = (b.id in touch && touch[b.id]);
+    ctx.fillStyle = on ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)'; RR(ctx, b.x, b.y, b.w, b.h, 16); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.stroke();
+    T(ctx, b.l, b.x + b.w / 2, b.y + b.h / 2 + 1, b.l.length > 2 ? 14 : 24, '#fff', 'center', '900');
+  }
+}
+function nearHint() {
+  const tx = Math.floor(P.x / TS), ty = Math.floor((P.y - 16) / TS), E = Arcade.touch ? 'E' : 'E';
+  for (const dx of [0, P.dir, -P.dir]) {
+    const ch = tileAt(tx + dx, ty), k = key(tx + dx, ty);
+    if ((ch === 'D' || ch === 'R' || ch === 'B') && !open[k]) return `${E}: deur openen`;
+    if (ch === 'w') return `${E}: lasers uit`;
+    if (ch === 'F') return (fuseCd[k] || 0) > 0 ? `Stoppenkast: ${Math.ceil(fuseCd[k])} s` : `${E}: licht uit`;
+    if (ch === 'K' && !got[k]) return `${E}: kluis kraken`;
+    if (ch === 'X') return loot >= lootTotal ? `${E}: ontsnappen!` : `Eerst de buit (${loot}/${lootTotal})`;
+  }
+  if (ladderP(P.x, P.y - 10) && !P.climb) return '▲ klimmen';
+  if (P.ground && ladderP(P.x, P.y + 4) && !P.climb) return '▼ naar beneden';
+  return '';
+}
+function drawCrack() {
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
+  const cx = W / 2 + (crack.shake > 0 ? Math.sin(clock * 80) * 6 : 0), cy = H / 2 - 10, R = 110;
+  ctx.fillStyle = '#1a1b1f'; RR(ctx, cx - 190, cy - 170, 380, 340, 22); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.stroke();
+  T(ctx, 'Kluis kraken', cx, cy - 140, 22, '#fff', 'center', '900');
+  T(ctx, `Druk op E / spatie / tik als de wijzer in het groen staat (${crack.i}/3)`, cx, cy + 148, 12, '#bdbdbd', 'center', '700');
+  ctx.fillStyle = '#2c2f36'; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#3ddc84'; ctx.lineWidth = 16; ctx.beginPath(); ctx.arc(cx, cy, R - 14, crack.z - crack.zw / 2, crack.z + crack.zw / 2); ctx.stroke();
+  ctx.strokeStyle = '#575c66'; ctx.lineWidth = 2;
+  for (let k = 0; k < 40; k++) { const a = k / 40 * 6.283; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * (R - 4), cy + Math.sin(a) * (R - 4)); ctx.lineTo(cx + Math.cos(a) * (R - (k % 5 ? 10 : 18)), cy + Math.sin(a) * (R - (k % 5 ? 10 : 18))); ctx.stroke(); }
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(crack.a) * (R - 8), cy + Math.sin(crack.a) * (R - 8)); ctx.stroke(); ctx.lineCap = 'butt';
+  ctx.fillStyle = '#c9ced6'; ctx.beginPath(); ctx.arc(cx, cy, 14, 0, 7); ctx.fill();
+  for (let k = 0; k < 3; k++) { ctx.fillStyle = k < crack.i ? '#3ddc84' : '#3a3d44'; ctx.beginPath(); ctx.arc(cx - 24 + k * 24, cy + 128, 7, 0, 7); ctx.fill(); }
+  ui.btn('Stoppen', cx + 100, cy - 160, 80, 30, () => { state = 'play'; crack = null; }, false, false, 12);
+}
+
+// onzichtbare klikvlakken (ui.btn tekent anders een knop over de kaart heen)
+const _btn = ui.btn;
+ui.btn = function (label, x, y, w, h, fn, ...rest) {
+  if (label === '') { ctx.save(); ctx.globalAlpha = 0; _btn.call(this, label, x, y, w, h, fn, ...rest); ctx.restore(); return; }
+  return _btn.call(this, label, x, y, w, h, fn, ...rest);
+};
+// ---------- menu ----------
+function drawMenu() {
+  ctx.fillStyle = '#0a0a0b'; ctx.fillRect(0, 0, W, H);
+  // achtergrond: nachtelijke skyline
+  ctx.fillStyle = '#111318'; for (let i = 0; i < 16; i++) { const bw = 70, bh = 120 + ((i * 53) % 170); ctx.fillRect(i * 62 - 10, H - bh, bw, bh); }
+  ctx.fillStyle = 'rgba(255,217,138,0.5)'; for (let i = 0; i < 70; i++) { const x = (i * 97) % W, y = H - 40 - ((i * 37) % 220); if (((i * 7) % 5) < 2) ctx.fillRect(x, y, 5, 7); }
+  ctx.fillStyle = 'rgba(10,10,11,0.75)'; ctx.fillRect(0, 0, W, H);
+  T(ctx, 'NACHTDIEF', W / 2, 62, 50, '#fff', 'center', '900');
+  T(ctx, 'Sluip, kraak en ontsnap. Schaduw + stilstaan = onzichtbaar.', W / 2, 100, 15, '#bdbdbd', 'center', '600');
+  const cw = 200, ch = 112, gap = 14, gx = W / 2 - (cw * 4 + gap * 3) / 2;
+  LEVELS.forEach((L, i) => {
+    const x = gx + (i % 4) * (cw + gap), y = 130 + Math.floor(i / 4) * (ch + gap), un = unlocked(i), st = starsS[i] || 0;
+    ctx.fillStyle = un ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)'; RR(ctx, x, y, cw, ch, 14); ctx.fill();
+    ctx.strokeStyle = un ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1; ctx.stroke();
+    T(ctx, String(i + 1).padStart(2, '0'), x + 16, y + 22, 12, '#8c8c8c', 'left', '800');
+    T(ctx, un ? L.name : '🔒 Op slot', x + 16, y + 48, 17, un ? '#fff' : '#6f6f6f', 'left', '900');
+    if (un) {
+      T(ctx, '★'.repeat(st) + '☆'.repeat(3 - st), x + 16, y + 76, 16, st ? '#ffd23f' : '#555', 'left', '700');
+      T(ctx, bests[i] != null ? 'Beste: ' + fmt(bests[i]) : 'Nog niet gehaald', x + 16, y + 98, 12, '#9a9a9a', 'left', '700');
+      ui.btn('', x, y, cw, ch, () => load(i));
+    }
+  });
+  T(ctx, `Pijltjes/WASD lopen · Spatie springen · ▲▼ klimmen · Shift sluipen (stil) · E actie · R opnieuw`, W / 2, H - 28, 13, '#8c8c8c', 'center', '700');
+  T(ctx, `★ uitgespeeld · ★ onder de tijd · ★ al het geld`, W / 2, H - 50, 12, '#6f6f6f', 'center', '700');
+}
+function drawEnd() {
+  if (state === 'win') {
+    const w = winInfo, lines = [`Tijd: ${fmt(w.time)}${w.rec && w.prev != null ? '  (nieuw record!)' : ''}`, `Geld: ${cash}/${cashTotal}`, { t: '★'.repeat(w.st) + '☆'.repeat(3 - w.st), color: '#ffd23f' }];
+    Arcade.overlay(ctx, W, H, '💎 Ontsnapt!', lines, '');
+    const by = H / 2 + 95;
+    ui.btn('Menu', W / 2 - 290, by, 180, 50, () => { state = 'menu'; });
+    ui.btn('Opnieuw', W / 2 - 90, by, 180, 50, () => load(li));
+    if (li + 1 < LEVELS.length) ui.btn('Volgende →', W / 2 + 110, by, 180, 50, next, true);
+  } else if (state === 'fail') {
+    Arcade.overlay(ctx, W, H, '🚨 Betrapt!', [failWhy, 'Probeer het nog een keer (R)'], '');
+    const by = H / 2 + 80;
+    ui.btn('Menu', W / 2 - 200, by, 180, 50, () => { state = 'menu'; });
+    ui.btn('Opnieuw', W / 2 + 20, by, 180, 50, () => load(li), true);
+  } else if (state === 'pause') {
+    Arcade.overlay(ctx, W, H, 'Pauze', ['Esc = verder'], '');
+    const by = H / 2 + 60;
+    ui.btn('Menu', W / 2 - 290, by, 180, 50, () => { state = 'menu'; });
+    ui.btn('Opnieuw', W / 2 - 90, by, 180, 50, () => load(li));
+    ui.btn('Verder', W / 2 + 110, by, 180, 50, () => { state = prevState; }, true);
+  }
+}
+
+// ---------- lus ----------
+let last = performance.now();
+function update(dt) {
+  clock += dt; toastT -= dt; fx.update(dt);
+  if (state === 'crack') {
+    crack.a += crack.sp * dt; if (crack.shake > 0) crack.shake -= dt;
+    t += dt; laserOff = Math.max(0, laserOff - dt);
+    P.vx = 0; P.hidden = hiddenSpot();
+    for (const d of darks) d.t -= dt; for (const k in fuseCd) fuseCd[k] -= dt;
+    updateGuards(dt);
+    return;
+  }
+  if (state !== 'play') return;
+  t += dt; tipT -= dt; exitMsgT -= dt;
+  laserOff = Math.max(0, laserOff - dt);
+  for (const d of darks) d.t -= dt; for (const k in fuseCd) fuseCd[k] -= dt;
+  updatePlayer(dt);
+  P.hidden = hiddenSpot() && still();
+  if (actQ) { actQ = false; interact(); }
+  pickups();
+  if (state !== 'play') return;
+  updateGuards(dt);
+  checkLasers();
+  // camera
+  const tx = Math.max(0, Math.min(MW * TS - W, P.x - W / 2 + P.dir * 60));
+  camX += (tx - camX) * Math.min(1, dt * 4);
+  const ty = MH * TS + 80 <= H ? mapOffY() : Math.max(-60, Math.min(MH * TS - H + 70, P.y - H / 2 - 10));
+  camY += (ty - camY) * Math.min(1, dt * 4);
+}
+function loop(now) {
+  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+  if (!document.hidden) update(dt);
+  view.begin(); ui.clear();
+  if (state === 'menu') drawMenu();
+  else {
+    fx.begin(ctx); drawWorld(); fx.end(ctx);
+    drawHUD();
+    if (state === 'crack') drawCrack();
+    fx.drawFlash(ctx, W, H);
+    drawEnd();
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+ArcadeCore.music.play('dief');
+
+// ---------- admin-voordelen ----------
+ArcadeCore.cheat('💎 Level meteen uitspelen', () => { if (lv && (state === 'play' || state === 'crack' || state === 'pause')) { state = 'play'; loot = lootTotal; cash = cashTotal; win(); } });
+ArcadeCore.cheat('🔓 Alle levels vrijspelen', () => { unlockAll = true; Arcade.save('dief_unlockall', true); });
+ArcadeCore.cheat('🗝️ Beide sleutelkaarten', () => { cards.r = cards.b = true; say('🔴🔵 Sleutelkaarten!'); });
+ArcadeCore.toggle('👻 Onzichtbaar', () => cheatInvis, (v) => { cheatInvis = v; });
+ArcadeCore.toggle('⚡ Lasers altijd uit', () => cheatLaser, (v) => { cheatLaser = v; });
+ArcadeCore.cheat('⏱️ Tijd op 0', () => { t = 0; });
+
+window.__dief = { get P() { return P; }, get state() { return state; }, load, get guards() { return guards; }, get cams() { return cams; }, interact, keys, win, get t() { return t; }, get loot() { return loot; }, LEVELS, setState: (s) => { state = s; }, crackPress, get crack() { return crack; } };
+
+  </script>
+  <script type="module" src="../auth.js?v=60caeaaf76"></script>
+</body>
+</html>
