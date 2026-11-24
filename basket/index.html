@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta name="site-build" content="06a09ff4cf">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Basket Koning · Game Arcade</title>
+  <meta name="description" content="Basketbal: tijdrace met trekken en loslaten, of 1 tegen 1 met dunks en blocks tegen de bot of een vriend.">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Crect%20x%3D%2240%22%20y%3D%2210%22%20width%3D%2216%22%20height%3D%2230%22%20rx%3D%222%22%20fill%3D%22%23f2f2f2%22/%3E%3Crect%20x%3D%2244%22%20y%3D%2220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22none%22%20stroke%3D%22%23e8282f%22%20stroke-width%3D%221.5%22/%3E%3Cellipse%20cx%3D%2234%22%20cy%3D%2230%22%20rx%3D%2210%22%20ry%3D%223%22%20fill%3D%22none%22%20stroke%3D%22%23ff6a1a%22%20stroke-width%3D%222.5%22/%3E%3Cpath%20d%3D%22M25%2031l3%209h12l3-9%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.7%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2246%22%20r%3D%229%22%20fill%3D%22%23e8732a%22%20stroke%3D%22%233a1a08%22%20stroke-width%3D%221.2%22/%3E%3Cpath%20d%3D%22M9%2046h18M18%2037v18%22%20stroke%3D%22%233a1a08%22%20stroke-width%3D%221.2%22/%3E%3C/svg%3E">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #fff; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+.terug, .geluid { position: fixed; top: 12px; z-index: 5; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); padding: 8px 12px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.terug { left: 12px; } .geluid { right: 12px; }
+.terug:hover, .geluid:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <a class="terug" href="../">← Games</a>
+  <canvas id="c"></canvas>
+  
+  <script>
+'use strict';
+// ================= Game Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
+const ArcadeCore = (() => {
+  const KEY = 'arcade_settings';
+  const DEF = { music: 0.5, sfx: 0.8, quality: 'normaal', muted: false };
+  let S = { ...DEF };
+  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* standaard */ }
+  const listeners = [];
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* */ }
+    listeners.forEach((f) => f(S));
+  };
+  const set = (k, v) => { S[k] = v; save(); };
+  const sfx = () => (S.muted ? 0 : S.sfx);
+  const musicVol = () => (S.muted ? 0 : S.music);
+  // Hoeveel pixels we tekenen: lager = soepeler op trage apparaten
+  const dprCap = () => ({ hoog: 2, normaal: 1.5, laag: 1 })[S.quality] || 1.5;
+
+  // ---------- Muziek: kleine sequencer met drums, bas, akkoorden en melodie ----------
+  const SCALE = [0, 2, 3, 5, 7, 8, 10]; // mineur
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // Elke game een eigen nummer
+  const SONGS = {
+    menu:     { bpm: 92,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x.....x.x.......', arp: true,  lead: 'triangle', seed: 3, density: 0.35, pad: 'triangle' },
+    race:     { bpm: 128, root: 52, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xo', bass: 'x.xox.xox.xox.xo', arp: true,  lead: 'sawtooth', seed: 11, density: 0.45, pad: 'sawtooth' },
+    meteoren: { bpm: 140, root: 50, prog: [[0, 3, 7], [1, 5, 8], [-2, 2, 5], [0, 3, 7]], kick: 'x..x..x.x..x..x.', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx', bass: 'xxoxxxoxxxoxxxox', arp: false, lead: 'square', seed: 21, density: 0.55, pad: 'sawtooth' },
+    runner:   { bpm: 124, root: 54, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..o...o...o...o.', bass: 'x.x.x.x.x.x.x.x.', arp: true,  lead: 'sawtooth', seed: 31, density: 0.4, pad: 'sawtooth' },
+    snake:    { bpm: 112, root: 60, prog: [[0, 3, 7], [5, 8, 12], [3, 7, 10], [-2, 2, 5]], kick: 'x.....x.x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...o...x...o...', arp: false, lead: 'square', seed: 41, density: 0.6, pad: null },
+    2048:     { bpm: 84,  root: 55, prog: [[0, 3, 7, 10], [-4, 0, 3, 7], [3, 7, 10, 14], [-2, 2, 5, 9]], kick: 'x.........x.....', snare: '....x.......x...', hat: '..x...x...x..xx.', bass: 'x.......x..x....', arp: false, lead: 'triangle', seed: 51, density: 0.25, pad: 'triangle' },
+    blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
+    overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
+    td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    mijnen:   { bpm: 80,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], kick: 'x.........x.....', snare: '................', hat: '........x.......', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 81, density: 0.25, pad: 'triangle' },
+    sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
+    memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
+    vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    basket:   { bpm: 96,  root: 40, prog: [[0, 3, 7, 10], [5, 8, 12, 15], [3, 7, 10, 14], [7, 10, 14, 17]], kick: 'x..x..x.x..x....', snare: '....x.......x...', hat: 'x.xxx.x.x.xxx.x.', bass: 'x..x..x.x..x..x.', arp: false, lead: 'square', seed: 91, density: 0.22, pad: 'sawtooth' },
+    penalty:  { bpm: 126, root: 45, prog: [[0, 4, 7], [7, 11, 14], [9, 12, 16], [5, 9, 12]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.x...x.x.x...x.', arp: true, lead: 'square', seed: 55, density: 0.28, pad: 'sawtooth' },
+    dief:     { bpm: 84,  root: 38, prog: [[0, 3, 7], [0, 3, 8], [5, 8, 12], [3, 7, 10]], kick: 'x.......x..x....', snare: '........x.......', hat: '..x...x...x...x.', bass: 'x..x....x..x....', arp: false, lead: 'triangle', seed: 13, density: 0.12, pad: 'sine' },
+    pool:     { bpm: 92,  root: 43, prog: [[0, 4, 7, 10], [5, 9, 12, 15], [2, 5, 9, 12], [7, 11, 14, 17]], kick: 'x.......x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x..xx...x...', arp: false, lead: 'triangle', seed: 31, density: 0.18, pad: 'sine' },
+    voetbal:  { bpm: 128, root: 50, prog: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [5, 9, 12]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'square', seed: 77, density: 0.3, pad: 'sawtooth' },
+    escape:   { bpm: 84,  root: 45, prog: [[0, 3, 7], [-4, 0, 3], [-2, 1, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '........x.......', hat: '....x.......x...', bass: 'x.......x...x...', arp: true,  lead: 'triangle', seed: 171, density: 0.22, pad: 'triangle' },
+    moto:     { bpm: 132, root: 50, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.xox.xox.xox.xo', bass: 'x.x.xox.x.x.xox.', arp: true,  lead: 'sawtooth', seed: 151, density: 0.42, pad: 'sawtooth' },
+    tycoon:   { bpm: 96,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [-5, -1, 2]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'triangle', seed: 131, density: 0.32, pad: 'triangle' },
+    patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
+    stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
+  };
+  // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
+  function makeMelody(song) {
+    const R = rng(song.seed);
+    const motif = [];
+    for (let i = 0; i < 32; i++) {
+      if (R() > song.density || i % 2 === 1 && R() < 0.5) { motif.push(null); continue; }
+      const deg = Math.floor(R() * 7) + (R() < 0.3 ? 7 : 0);
+      const len = R() < 0.25 ? 3 : R() < 0.5 ? 2 : 1;
+      motif.push({ deg, len });
+    }
+    const mel = [];
+    for (let bar = 0; bar < 8; bar++) {
+      for (let i = 0; i < 16; i++) {
+        let m = motif[(bar % 2) * 16 + i];
+        if (m && bar >= 4 && bar % 2 === 1 && i > 8) m = { deg: m.deg + 2, len: m.len }; // kleine variatie
+        mel.push(m);
+      }
+    }
+    return mel;
+  }
+  for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
+
+  let ac = null, master = null, delayIn = null, reverbIn = null, duck = null, noise = null, timer = null;
+  let song = null, wanted = null, step = 0, nextT = 0;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Galm: zelf gemaakte impulsrespons (geen bestanden nodig)
+  function makeReverb(sec = 2.2) {
+    const len = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
+  function initAudio() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = musicVol() * 0.5;
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -16; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      const warm = ac.createBiquadFilter(); warm.type = 'highshelf'; warm.frequency.value = 6000; warm.gain.value = -4;
+      master.connect(warm); warm.connect(comp); comp.connect(ac.destination);
+      // 'duck' zakt even weg op elke kick (pompend effect zoals in echte dance-muziek)
+      duck = ac.createGain(); duck.connect(master);
+      // Echo voor melodie
+      delayIn = ac.createGain(); delayIn.gain.value = 0.2;
+      const d = ac.createDelay(); d.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.32;
+      const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2400;
+      delayIn.connect(d); d.connect(dlp); dlp.connect(fb); fb.connect(d); dlp.connect(duck);
+      reverbIn = ac.createGain(); reverbIn.gain.value = 0.28;
+      const rv = makeReverb(); reverbIn.connect(rv); rv.connect(duck);
+      noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    } catch (e) { ac = null; }
+  }
+  function env(g, t, a, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function out(node, pan = 0) {
+    if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; node.connect(p); return p; }
+    return node;
+  }
+  function kick(t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.002, 0.95, 0.28);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    noiseHit(t, 3000, 0.12, 0.012, 0, master);            // tikje voor de aanslag
+    duck.gain.cancelScheduledValues(t);
+    duck.gain.setValueAtTime(0.45, t); duck.gain.linearRampToValueAtTime(1, t + 0.22);
+  }
+  function noiseHit(t, hp, peak, dur, pan = 0, dest = null, type = 'highpass', q = 0.7) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise;
+    f.type = type; f.frequency.value = hp; f.Q.value = q;
+    env(g, t, 0.002, peak, dur);
+    s.connect(f); f.connect(g); out(g, pan).connect(dest || master);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
+    return g;
+  }
+  function snare(t) {
+    const g = noiseHit(t, 1800, 0.32, 0.18, 0, master, 'bandpass', 0.6);
+    g.connect(reverbIn);
+    const o = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    env(g2, t, 0.002, 0.22, 0.1); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.12);
+  }
+  // Toon met twee licht ontstemde oscillatoren en een filter dat 'opengaat'
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006, opt = {}) {
+    const f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.Q.value = opt.q || 0.8;
+    f.frequency.setValueAtTime(cutoff * (opt.sweep ? 0.25 : 1), t);
+    if (opt.sweep) f.frequency.exponentialRampToValueAtTime(cutoff, t + Math.min(dur, 0.08)), f.frequency.exponentialRampToValueAtTime(cutoff * 0.35, t + dur);
+    const n = opt.unison ? 2 : 1;
+    for (let k = 0; k < n; k++) {
+      const o = ac.createOscillator();
+      o.type = type; o.frequency.value = mtof(midi); o.detune.value = n > 1 ? (k ? 9 : -9) : 0;
+      if (opt.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = 7; l.connect(lg); lg.connect(o.detune); l.start(t + 0.12); l.stop(t + dur + 0.05); }
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    env(g, t, attack, vol / n, dur);
+    f.connect(g);
+    const dst = out(g, opt.pan || 0);
+    dst.connect(opt.dry ? master : duck);
+    if (echo) dst.connect(delayIn);
+    if (opt.verb) dst.connect(reverbIn);
+  }
+  function playStep(s, t) {
+    const sp = 60 / song.bpm / 4;
+    const i = s % 16, barN = Math.floor(s / 16), bar = barN % 4, chord = song.prog[bar];
+    const intro = barN < 2 && song.introDone !== true;
+    const fill = barN % 8 === 7 && i >= 12;                       // drumroffel aan het eind van elke 8 maten
+    if (!intro) {
+      if (song.kick[i] === 'x') kick(t);
+      if (song.snare[i] === 'x' || (fill && i % 2 === 0)) snare(t);
+      if (song.hat[i] === 'x') noiseHit(t, 8000, 0.06 + (i % 4 === 2 ? 0.03 : 0), 0.03, i % 2 ? 0.25 : -0.25);
+      if (song.hat[i] === 'o') noiseHit(t, 7000, 0.08, 0.16, 0.2);
+      if (barN % 8 === 0 && i === 0 && song.introDone) noiseHit(t, 5000, 0.12, 1.4, 0, reverbIn);  // bekken
+    }
+    const b = song.bass[i];
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.2, 900, false, 0.004, { sweep: true, unison: true, q: 4 });
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.045, intro ? 700 : 1500, false, 0.35, { unison: true, verb: true, pan: (n % 3 - 1) * 0.3 });
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length] + (barN % 2 && i >= 8 ? 12 : 0), sp * 0.7, 'square', 0.022, 2400, true, 0.003, { pan: ((i / 2) % 2 ? 0.35 : -0.35) });
+    const m = song.mel[s % song.mel.length];
+    if (m && !intro) {
+      const deg = m.deg;
+      const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.055, song.lead === 'sawtooth' ? 2600 : 3800, true, 0.008, { vib: m.len > 1, verb: true, unison: song.lead === 'sawtooth' });
+    }
+  }
+  function tick() {
+    if (!ac || !song) return;
+    const sp = 60 / song.bpm / 4;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
+    while (nextT < ac.currentTime + 0.15) {
+      playStep(step, nextT);
+      nextT += sp;
+      step++;
+      if (step >= 128) { step = 0; song.introDone = true; }
+    }
+  }
+  function startIfWanted() {
+    if (!wanted) return;
+    initAudio();
+    if (!ac) return;
+    if (song !== SONGS[wanted]) { song = SONGS[wanted]; step = 0; nextT = ac.currentTime + 0.1; }
+    if (!timer) timer = setInterval(tick, 25);
+  }
+  // Muziek mag pas starten na een klik of toetsaanslag (regel van browsers)
+  addEventListener('pointerdown', startIfWanted);
+  addEventListener('keydown', startIfWanted);
+  document.addEventListener('visibilitychange', () => {
+    if (!ac) return;
+    if (document.hidden) ac.suspend(); else ac.resume();
+  });
+  listeners.push(() => { if (master) master.gain.setTargetAtTime(musicVol() * 0.5, ac.currentTime, 0.1); });
+
+  const music = { play(name) { wanted = name; if (ac) startIfWanted(); }, status: () => ({ running: !!timer, song: wanted, step, audio: ac ? ac.state : 'geen' }) };
+
+  // ---------- Instellingenpaneel ----------
+  const CSS = `
+  .ac-gear { position: fixed; top: 12px; right: 12px; z-index: 50; width: 42px; height: 42px; border-radius: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ac-gear:hover { background: rgba(255,255,255,0.2); }
+  .ac-gear svg { width: 22px; height: 22px; transition: transform 0.4s ease; }
+  .ac-gear:hover svg { transform: rotate(60deg); }
+  .ac-ov { position: fixed; inset: 0; z-index: 60; background: rgba(5,6,9,0.6); display: none; align-items: center; justify-content: center; padding: 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; }
+  .ac-ov.open { display: flex; }
+  .ac-card { width: min(380px, 100%); background: #16181d; border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 20px 22px; color: #fff;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .ac-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .ac-head b { font-size: 20px; font-weight: 900; }
+  .ac-x { background: rgba(255,255,255,0.1); border: 0; color: #fff; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+  .ac-row { margin: 14px 0; }
+  .ac-lab { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #e6e9ee; }
+  .ac-lab span { color: #9aa1ab; font-family: ui-monospace, Consolas, monospace; }
+  .ac-card input[type=range] { width: 100%; accent-color: #e8282f; height: 22px; }
+  .ac-seg { display: flex; gap: 6px; background: #0e0f13; padding: 4px; border-radius: 12px; }
+  .ac-seg button { flex: 1; border: 0; background: transparent; color: #c9ced6; padding: 9px 0; border-radius: 9px; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .ac-seg button.on { background: #fff; color: #111214; }
+  .ac-hint { font-size: 12px; color: #7d848e; margin-top: 6px; }
+  .ac-check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #e6e9ee; cursor: pointer; }
+  .ac-check input { width: 18px; height: 18px; accent-color: #e8282f; }
+  .ac-danger { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; border: 1px solid rgba(232,40,47,0.6); background: rgba(232,40,47,0.12);
+    color: #ff6b72; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .ac-danger:hover { background: rgba(232,40,47,0.25); }`;
+  const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  let ov = null;
+  function buildPanel() {
+    const st = document.createElement('style');
+    st.textContent = CSS;
+    document.head.appendChild(st);
+    const gear = document.createElement('button');
+    gear.className = 'ac-gear';
+    gear.type = 'button';
+    gear.title = 'Instellingen';
+    gear.setAttribute('aria-label', 'Instellingen');
+    gear.innerHTML = GEAR;
+    document.body.appendChild(gear);
+    ov = document.createElement('div');
+    ov.className = 'ac-ov';
+    ov.innerHTML = `
+      <div class="ac-card" role="dialog" aria-label="Instellingen">
+        <div class="ac-head"><b>⚙ Instellingen</b><button class="ac-x" type="button" aria-label="Sluiten">✕</button></div>
+        <div class="ac-row"><div class="ac-lab">🎵 Muziek <span id="acMv"></span></div><input type="range" min="0" max="100" id="acM"></div>
+        <div class="ac-row"><div class="ac-lab">🔊 Geluidseffecten <span id="acSv"></span></div><input type="range" min="0" max="100" id="acS"></div>
+        <div class="ac-row"><label class="ac-check"><input type="checkbox" id="acMute"> Alles dempen (sneltoets M)</label></div>
+        <div class="ac-row"><div class="ac-lab">🖥 Beeldkwaliteit</div>
+          <div class="ac-seg"><button type="button" data-q="laag">Laag</button><button type="button" data-q="normaal">Normaal</button><button type="button" data-q="hoog">Hoog</button></div>
+          <div class="ac-hint">Laag = soepeler op oudere laptops en telefoons. Hoog = scherper beeld.</div></div>
+        <button class="ac-danger" type="button">🗑 Alle records wissen</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const $ = (id) => ov.querySelector('#' + id);
+    const refresh = () => {
+      $('acM').value = Math.round(S.music * 100); $('acMv').textContent = Math.round(S.music * 100) + '%';
+      $('acS').value = Math.round(S.sfx * 100); $('acSv').textContent = Math.round(S.sfx * 100) + '%';
+      $('acMute').checked = !!S.muted;
+      ov.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('on', b.dataset.q === S.quality));
+    };
+    refresh();
+    listeners.push(refresh);
+    $('acM').addEventListener('input', (e) => { set('music', e.target.value / 100); startIfWanted(); });
+    $('acS').addEventListener('input', (e) => set('sfx', e.target.value / 100));
+    $('acS').addEventListener('change', () => { if (window.Arcade) Arcade.beep(660, 0.08, 'triangle', 0.06); });
+    $('acMute').addEventListener('change', (e) => set('muted', e.target.checked));
+    ov.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => set('quality', b.dataset.q)));
+    ov.querySelector('.ac-danger').addEventListener('click', () => {
+      if (!confirm('Weet je zeker dat je ALLE records, medailles en spookauto\'s wilt wissen? Dit kan niet ongedaan worden.')) return;
+      const kill = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (/^arcade_(best_|2048_state)|^tt2_(bests|ghost)/.test(k)) kill.push(k);
+      }
+      kill.forEach((k) => localStorage.removeItem(k));
+      location.reload();
+    });
+    const close = () => ov.classList.remove('open');
+    ov.querySelector('.ac-x').addEventListener('click', close);
+    ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
+    // Toetsen in het paneel niet doorgeven aan de game
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); e.stopPropagation(); });
+    gear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ov.classList.add('open');
+      // Games pauzeren als het venster de focus verliest: dat doen we hier ook
+      window.dispatchEvent(new Event('blur'));
+      gear.blur();
+    });
+    gear.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM' && !(ov && ov.classList.contains('open'))) set('muted', !S.muted);
+  });
+  if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
+
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
+  return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
+    get settings() { return S; },
+    set, sfx, musicVol, dprCap, music,
+    onChange: (f) => listeners.push(f),
+    isOpen: () => !!(ov && ov.classList.contains('open')),
+  };
+})();
+
+
+// ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
+const Arcade = (() => {
+  const load = (k, d) => { try { const v = localStorage.getItem('arcade_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem('arcade_' + k, JSON.stringify(v)); } catch (e) { /* uit */ } };
+  let audio = null;
+
+  function initAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  addEventListener('pointerdown', initAudio);
+  addEventListener('keydown', initAudio);
+
+  let sfxBus = null, noiseBuf = null;
+  function bus() {
+    if (sfxBus || !audio) return sfxBus;
+    // zachte filter + compressor: effecten klinken voller en minder schel
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const comp = audio.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    lp.connect(comp); comp.connect(audio.destination);
+    sfxBus = lp;
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return sfxBus;
+  }
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    vol *= level * 1.25 * (type === 'square' || type === 'sawtooth' ? 0.8 : 1.1);
+    try {
+      const t = audio.currentTime + delay;
+      const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+      o.type = o2.type = type;
+      o.frequency.setValueAtTime(freq, t); o2.frequency.setValueAtTime(freq, t); o2.detune.value = 7;
+      if (slide) { o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); o2.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      const g2 = audio.createGain(); g2.gain.value = 0.5;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.connect(bus());
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Ruisgeluid: knal, plof, zoef, explosie
+  function noise(dur = 0.2, vol = 0.1, f0 = 3000, f1 = 300, type = 'lowpass', delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      bus();
+      const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+      s.buffer = noiseBuf; f.type = type;
+      f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      g.gain.setValueAtTime(vol * level * 1.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(sfxBus);
+      s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Effecten: deeltjes, schudden, zwevende tekst (zelfde stijl in elke game)
+  function makeFx() {
+    const parts = [], texts = [], rings = [];
+    let shakeT = 0, shakeA = 0, flashA = 0, flashC = '#fff';
+    return {
+      burst(x, y, n = 14, color = '#fff', speed = 180, life = 0.6, size = 3, grav = 200) {
+        const max = ArcadeCore.settings.quality === 'laag' ? 0.5 : 1;
+        for (let i = 0; i < n * max; i++) {
+          const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+          parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.6 + Math.random() * 0.4), max: life, color: Array.isArray(color) ? color[i % color.length] : color, size: size * (0.6 + Math.random() * 0.8), grav });
+        }
+        if (parts.length > 600) parts.splice(0, parts.length - 600);
+      },
+      ring(x, y, color = '#fff', r = 40, life = 0.4) { rings.push({ x, y, color, r, life, max: life }); },
+      text(x, y, t, color = '#fff', size = 18) { texts.push({ x, y, t, color, size, life: 0.9 }); },
+      shake(a = 6, t = 0.25) { shakeA = Math.max(shakeA, a); shakeT = Math.max(shakeT, t); },
+      flash(c = '#fff', a = 0.35) { flashC = c; flashA = Math.max(flashA, a); },
+      update(dt) {
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.grav * dt; p.vx *= 1 - dt * 1.5; p.x += p.vx * dt; p.y += p.vy * dt; }
+        for (let i = texts.length - 1; i >= 0; i--) { const q = texts[i]; q.life -= dt; q.y -= 40 * dt; if (q.life <= 0) texts.splice(i, 1); }
+        for (let i = rings.length - 1; i >= 0; i--) { const q = rings[i]; q.life -= dt; if (q.life <= 0) rings.splice(i, 1); }
+        shakeT = Math.max(0, shakeT - dt); if (!shakeT) shakeA = 0;
+        flashA = Math.max(0, flashA - dt * 2.5);
+      },
+      // roep aan vóór het tekenen van de wereld (ctx.save gebeurt hier)
+      begin(ctx) { ctx.save(); if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeA * 2, (Math.random() - 0.5) * shakeA * 2); },
+      end(ctx) { ctx.restore(); },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const q of rings) { const k = 1 - q.life / q.max; ctx.globalAlpha = 1 - k; ctx.strokeStyle = q.color; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.3 + k), 0, Math.PI * 2); ctx.stroke(); }
+        for (const q of texts) { ctx.globalAlpha = Math.min(1, q.life * 2); text(ctx, q.t, q.x, q.y, q.size, q.color, 'center', '900'); }
+        ctx.restore();
+      },
+      drawFlash(ctx, W, H) { if (flashA > 0) { ctx.save(); ctx.globalAlpha = flashA; ctx.fillStyle = flashC; ctx.fillRect(0, 0, W, H); ctx.restore(); } },
+      clear() { parts.length = 0; texts.length = 0; rings.length = 0; shakeT = 0; },
+      get count() { return parts.length; },
+    };
+  }
+
+  // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
+  function canvas(id, W, H) {
+    const c = document.getElementById(id);
+    const ctx = c.getContext('2d');
+    const view = { W, H, scale: 1 };
+    const fit = () => {
+      const s = Math.min(innerWidth / W, innerHeight / H);
+      const dpr = Math.min(ArcadeCore.dprCap(), devicePixelRatio || 1);
+      c.style.width = Math.floor(W * s) + 'px';
+      c.style.height = Math.floor(H * s) + 'px';
+      c.width = Math.floor(W * s * dpr);
+      c.height = Math.floor(H * s * dpr);
+      view.scale = s * dpr;
+      ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    };
+    fit();
+    addEventListener('resize', fit);
+    ArcadeCore.onChange(fit);
+    view.begin = () => ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    view.toGame = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    };
+    return { c, ctx, view };
+  }
+
+  // Vegen (swipe) op touchscreens: geeft 'links', 'rechts', 'op' of 'neer'
+  function onSwipe(el, fn, onTap) {
+    let sx = 0, sy = 0, st = 0, active = false;
+    el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; st = performance.now(); active = true; });
+    el.addEventListener('pointerup', (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (onTap) onTap(e); return; }
+      if (Math.abs(dx) > Math.abs(dy)) fn(dx > 0 ? 'rechts' : 'links');
+      else fn(dy > 0 ? 'neer' : 'op');
+    });
+  }
+
+  // Tekenhulpjes in dezelfde stijl
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function text(ctx, t, x, y, size, color = '#fff', align = 'center', weight = '700', mono = false) {
+    ctx.font = `${weight} ${size}px ${mono ? 'ui-monospace, Consolas, monospace' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, x, y);
+  }
+  // Knoppen op het canvas (zelfde stijl overal). btn() elke frame opnieuw tekenen; hit() bij klikken.
+  function ui(ctx) {
+    let list = [], hover = null;
+    return {
+      clear() { list = []; },
+      btn(label, x, y, w, h, fn, primary = false, active = false, size = 0) {
+        const on = hover && hover.x >= x && hover.x <= x + w && hover.y >= y && hover.y <= y + h;
+        const g = ctx.createLinearGradient(0, y, 0, y + h);
+        if (primary || active) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe2e6'); }
+        else { g.addColorStop(0, on ? '#30343c' : '#262930'); g.addColorStop(1, on ? '#24272d' : '#1b1d22'); }
+        ctx.fillStyle = g; rr(ctx, x, y, w, h, Math.min(10, h / 3)); ctx.fill();
+        ctx.strokeStyle = primary || active ? 'rgba(255,255,255,0.6)' : on ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, label, x + w / 2, y + h / 2 + 1, size || Math.min(16, h * 0.4), primary || active ? '#111214' : '#ffffff', 'center', '800');
+        list.push({ x, y, w, h, fn });
+      },
+      hit(q) { for (let i = list.length - 1; i >= 0; i--) { const b = list[i]; if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return true; } } return false; },
+      hover(q) { hover = q; },
+    };
+  }
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  // Standaard scherm voor start / pauze / game over
+  function overlay(ctx, W, H, title, lines = [], hint = '') {
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(10, 11, 14, 0.55)'); g.addColorStop(1, 'rgba(4, 5, 7, 0.85)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 40, 400), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const x = (W - pw) / 2, y = (H - ph) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    const cg = ctx.createLinearGradient(0, y, 0, y + ph);
+    cg.addColorStop(0, 'rgba(32, 35, 42, 0.97)'); cg.addColorStop(1, 'rgba(18, 20, 24, 0.97)');
+    ctx.fillStyle = cg;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.stroke();
+    ctx.fillStyle = '#e8282f';
+    rr(ctx, W / 2 - 24, y + 78, 48, 3, 1.5); ctx.fill();
+    text(ctx, title, W / 2, y + 48, 32, '#fff', 'center', '900');
+    lines.forEach((l, i) => {
+      const s = typeof l === 'string' ? { t: l } : l;
+      text(ctx, s.t, W / 2, y + 108 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+    });
+    if (hint) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 450)); text(ctx, hint, W / 2, y + ph - 30, 15, '#ffffff', 'center', '700'); ctx.globalAlpha = 1; }
+  }
+  // Achtergrond met diepte: zacht licht in het midden + vignet
+  function backdrop(ctx, W, H, top = '#15171c', bottom = '#0a0b0e') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.035)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+
+  return {
+    load, save, beep, noise, makeFx, backdrop, ui, fmtTime,
+    get muted() { return !ArcadeCore.sfx(); },
+    best: (game) => load('best_' + game, 0),
+    // Slaat een nieuwe topscore op; geeft true terug als het een record is
+    record: (game, score, lowerIsBetter = false) => {
+      const b = load('best_' + game, 0);
+      if (!b || (lowerIsBetter ? score < b : score > b)) { save('best_' + game, score); return true; }
+      return false;
+    },
+    canvas, onSwipe, rr, text, overlay,
+    touch: matchMedia('(hover: none) and (pointer: coarse)').matches,
+  };
+})();
+
+ArcadeCore.music.play('basket');
+
+// ================= BASKET KONING =================
+// Tijdrace: trek de bal naar achteren en laat los. 1 tegen 1: lopen, springen, schieten (vasthouden), dunken.
+const W = 960, H = 600;
+const { c, ctx, view } = Arcade.canvas('c', W, H);
+const GAME = 'basket';
+const fx = Arcade.makeFx();
+const ui = Arcade.ui(ctx);
+const T = Arcade.text, RR = Arcade.rr;
+
+const FLOOR = 520, GRAV = 1500, BR = 12;
+// ringen: links (aanvallen door speler 2) en rechts (aanvallen door speler 1)
+const HOOPS = [{ x: 118, y: 258, rw: 30, bx: 74, dir: 1 }, { x: 842, y: 258, rw: 30, bx: 886, dir: -1 }];
+const THREE_D = 300;
+const OPPS = [['Gym Gerrit', '#e8a33c', 0.1], ['Sneaker Sam', '#3fbf9f', 0.2], ['Hoepel Henk', '#9b6bd6', 0.32], ['Dunk Daan', '#e05a9a', 0.44],
+  ['Swish Sara', '#ffd23f', 0.56], ['Blok Bram', '#5a6070', 0.68], ['Air Ayla', '#2fd0ff', 0.8], ['De Koning', '#e8282f', 0.92]];
+
+// ---------- opslag ----------
+let best = Arcade.best(GAME);
+let tour = Arcade.load('basket_tour', null);
+let tourBest = Arcade.load('basket_tourbest', 0);
+
+// ---------- status ----------
+let state = 'menu', mode = 'race'; // race | tour | vriend
+let ball = null, P = [], score = [0, 0], timeLeft = 0, clock = 0, toast = '', toastT = 0, overInfo = null, prevState = 'play';
+let racePts = 0, streak = 0, fire = false, drag = null, spotK = 0, raceShots = 0, raceHits = 0;
+let netSway = [0, 0], pause = 0, toWin = 11, sudden = false;
+let cheatAim = false, cheatBot = false;
+const keys = {};
+const say = (s, col) => { toast = s; toastT = 1.6; toastCol = col || '#fff'; };
+let toastCol = '#fff';
+const round = () => (tour ? tour.round : 0);
+const names = () => (mode === 'vriend' ? ['Speler 1', 'Speler 2'] : mode === 'tour' ? ['Jij', OPPS[round()][0]] : ['Jij', '']);
+
+// ---------- geluid ----------
+const sfx = {
+  bounce: (v) => Arcade.beep(150 + Math.random() * 30, 0.06, 'sine', Math.min(0.08, v / 9000)),
+  rim: () => { Arcade.beep(520, 0.12, 'triangle', 0.05); Arcade.beep(780, 0.08, 'square', 0.02); },
+  board: () => Arcade.noise(0.08, 0.06, 900, 300),
+  swish: () => { Arcade.noise(0.25, 0.06, 5000, 2000); Arcade.beep(880, 0.1, 'triangle', 0.04, 0, 0.05); Arcade.beep(1320, 0.14, 'triangle', 0.04, 0, 0.13); },
+  score: () => { Arcade.noise(0.8, 0.07, 1400, 600, 'bandpass'); Arcade.beep(660, 0.1, 'square', 0.035); Arcade.beep(990, 0.14, 'square', 0.035, 0, 0.1); },
+  dunk: () => { Arcade.noise(0.2, 0.12, 300, 80); Arcade.beep(90, 0.3, 'sawtooth', 0.06, -40); Arcade.noise(1.2, 0.08, 1500, 600, 'bandpass'); },
+  buzzer: () => Arcade.beep(180, 0.8, 'sawtooth', 0.06),
+  block: () => { Arcade.noise(0.1, 0.1, 600, 200); Arcade.beep(240, 0.1, 'square', 0.05); },
+  steal: () => Arcade.beep(1200, 0.08, 'square', 0.04, 400),
+};
+
+// ---------- spelers ----------
+function makePlayer(i, x, col, bot, skill) {
+  return { i, x, y: FLOOR, vx: 0, vy: 0, face: i === 0 ? 1 : -1, ground: true, col, bot, skill: skill || 0, charge: -1, dunk: null, stealCd: 0, anim: 0, shootPose: 0, think: 0, plan: null, react: 0, jumpCd: 0 };
+}
+const target = (p) => HOOPS[p.i === 0 ? 1 : 0]; // ring waar deze speler op scoort
+const ownHoop = (p) => HOOPS[p.i === 0 ? 0 : 1];
+
+// ---------- bal ----------
+function newBall(x, y) { return { x, y, vx: 0, vy: 0, held: null, rot: 0, shotBy: -1, from: 0, touched: false, rimT: 0, scoredT: 0, last: null, dunk: false, freeT: 0, pts: 2 }; }
+function handPos(p) {
+  if (p.dunk) return { x: p.x + p.face * 10, y: p.y - 88 };
+  if (p.charge >= 0 || p.shootPose > 0) return { x: p.x + p.face * 6, y: p.y - 84 };
+  // dribbelen
+  const d = Math.abs(Math.sin(p.anim * 1.4));
+  return { x: p.x + p.face * 18, y: p.ground ? FLOOR - BR - d * 34 : p.y - 50 };
+}
+function rimPts(h) { return [[h.x - h.rw, h.y], [h.x + h.rw, h.y]]; }
+function ballPhysics(dt) {
+  if (ball.held) return;
+  for (let k = 0; k < 3; k++) ballStep(dt / 3);
+}
+function ballStep(dt) {
+  const b = ball;
+  if (b.held) return;
+  b.freeT += dt;
+  const px = b.x, py = b.y;
+  // exacte valbeweging (geen afrondingsfout bij lage fps)
+  b.x += b.vx * dt; b.y += b.vy * dt + 0.5 * GRAV * dt * dt; b.vy += GRAV * dt; b.rot += b.vx * dt / BR;
+  // vloer
+  if (b.y > FLOOR - BR) { b.y = FLOOR - BR; if (b.vy > 80) sfx.bounce(b.vy * 8); b.vy = -b.vy * 0.62; b.vx *= 0.86; if (Math.abs(b.vy) < 60) b.vy = 0; }
+  // zijkanten / plafond
+  if (b.x < 20) { b.x = 20; b.vx = Math.abs(b.vx) * 0.6; } if (b.x > W - 20) { b.x = W - 20; b.vx = -Math.abs(b.vx) * 0.6; }
+  for (const h of HOOPS) {
+    // bord
+    const bx = h.bx, top = h.y - 112, bot = h.y + 22;
+    if (b.y > top && b.y < bot && Math.abs(b.x - bx) < BR + 4) { b.x = bx + (b.x < bx ? -1 : 1) * (BR + 4); b.vx = -b.vx * 0.55; b.touched = true; sfx.board(); }
+    // ring (twee randpunten)
+    for (const [rx, ry] of rimPts(h)) {
+      const dx = b.x - rx, dy = b.y - ry, d = Math.hypot(dx, dy), m = BR + 3;
+      if (d < m && d > 0.01) {
+        const nx = dx / d, ny = dy / d; b.x = rx + nx * m; b.y = ry + ny * m;
+        const vn = b.vx * nx + b.vy * ny;
+        if (vn < 0) { b.vx -= 1.55 * vn * nx; b.vy -= 1.55 * vn * ny; b.vx *= 0.9; b.vy *= 0.9; if (b.rimT <= 0) sfx.rim(); b.rimT = 0.08; b.touched = true; }
+      }
+    }
+    // erdoor? (van boven naar beneden tussen de randen)
+    if (py < h.y && b.y >= h.y && b.vy > 0 && Math.abs(b.x - h.x) < h.rw - 4 && b.scoredT <= 0) {
+      b.scoredT = 0.6; scored(h);
+    }
+  }
+  if (b.rimT > 0) b.rimT -= dt; if (b.scoredT > 0) b.scoredT -= dt;
+}
+function scored(h) {
+  const hi = HOOPS.indexOf(h), by = hi === 1 ? 0 : 1; // wie scoort er
+  netSway[hi] = 1;
+  const swish = !ball.touched;
+  let pts = ball.dunk ? 2 : ball.pts;
+  if (mode === 'race') {
+    let add = pts + (swish ? 1 : 0); raceHits++; streak++;
+    if (streak >= 3) fire = true;
+    if (fire) add *= 2;
+    racePts += add;
+    say(`${swish ? 'SWISH! ' : ''}+${add}${fire ? ' 🔥' : ''}`, swish ? '#7bd88f' : '#fff');
+    fx.burst(h.x, h.y + 20, 30, fire ? ['#ff6a1a', '#ffd23f', '#fff'] : ['#ffffff', '#ffd23f'], 200);
+    swish ? sfx.swish() : sfx.score();
+    pause = 0.7;
+    return;
+  }
+  if (ball.shotBy !== by && ball.shotBy >= 0) by === by; // bal kan in eigen ring belanden: punt voor de ring-eigenaar-tegenstander
+  score[by] += pts;
+  say(`${names()[by]}: ${ball.dunk ? 'DUNK!' : swish ? 'SWISH!' : pts === 3 ? 'DRIEPUNTER!' : 'Raak!'} +${pts}`, by === 0 ? '#8fc6ff' : '#ff9a9a');
+  ball.dunk ? sfx.dunk() : swish ? sfx.swish() : sfx.score();
+  fx.burst(h.x, h.y + 20, 34, [P[by].col, '#ffffff', '#ffd23f'], 220);
+  if (ball.dunk) fx.shake(8, 0.3);
+  pause = 1.2;
+  afterScore = by;
+}
+let afterScore = -1;
+
+// ---------- schieten ----------
+// snelheid om vanaf (x, y) de ring te raken met een boog
+function aimVel(x, y, h) {
+  // kies een top ruim boven de ring, zodat de bal er van bovenaf in valt
+  const dx = h.x - x, adx = Math.abs(dx), dy = y - (h.y - 6); // dy: hoogte van de ring boven het loslaatpunt
+  const top = Math.max(dy, 0) + Math.max(95, adx * 0.32);
+  const vy0 = Math.sqrt(2 * GRAV * top), tUp = vy0 / GRAV, tDown = Math.sqrt(2 * (top - dy) / GRAV);
+  return { vx: Math.sign(dx || 1) * adx / (tUp + tDown), vy: -vy0 };
+}
+function zoneW(p) {
+  const h = target(p), d = Math.abs(h.x - p.x);
+  let w = 0.16 - d / 3400;
+  const o = P[1 - p.i];
+  if (o && Math.abs(o.x - p.x) < 70) w *= o.ground ? 0.7 : 0.45; // verdediger in je gezicht
+  if (cheatAim && p.i === 0) w = 0.3;
+  return Math.max(0.035, w);
+}
+function release(p) {
+  if (p.charge < 0 || ball.held !== p) return;
+  const pw = p.charge; p.charge = -1; p.shootPose = 0.35;
+  const h = target(p), hp = handPos(p);
+  const v = aimVel(hp.x, hp.y, h, 54);
+  const err = pw - 0.5, zw = zoneW(p);
+  const k = Math.abs(err) < zw / 2 ? 1 + (Math.random() - 0.5) * 0.01 : 1 + err * 0.42;
+  ball.held = null; ball.x = hp.x; ball.y = hp.y; ball.vx = v.vx * k; ball.vy = v.vy * k;
+  ball.shotBy = p.i; ball.touched = false; ball.dunk = false; ball.freeT = 0;
+  ball.pts = Math.abs(h.x - p.x) > THREE_D ? 3 : 2;
+  Arcade.beep(420, 0.05, 'triangle', 0.03);
+  if (Math.abs(err) < zw / 2) fx.text(p.x, p.y - 120, 'Perfect!', '#7bd88f', 14);
+}
+function startDunk(p) {
+  if (ball.held !== p || p.dunk) return;
+  const h = target(p), d = Math.abs(h.x - p.x);
+  if (d > 170) { if (p.i === 0 || mode === 'vriend') say('Te ver voor een dunk!'); return; }
+  p.charge = -1;
+  p.dunk = { t: 0, sx: p.x, sy: p.y, tx: h.x - h.dir * 6 + (p.i === 0 ? -8 : 8), blocked: false };
+  p.face = Math.sign(h.x - p.x) || p.face; p.ground = false;
+  Arcade.beep(300, 0.2, 'triangle', 0.04, 300);
+}
+function tryAction(p) { // schietknop zonder bal = afpakken
+  if (ball.held === p) return;
+  const o = ball.held;
+  if (!o || o === p || p.stealCd > 0) return;
+  p.stealCd = 0.7;
+  if (Math.abs(o.x - p.x) < 58 && Math.abs(o.y - p.y) < 40) {
+    const chance = o.charge >= 0 ? 0.55 : 0.3;
+    if (Math.random() < chance) { ball.held = p; o.charge = -1; sfx.steal(); say(`${names()[p.i]}: GESTOLEN!`, '#ffd23f'); }
+    else Arcade.beep(200, 0.05, 'square', 0.03);
+  }
+}
+function jump(p) { if (p.ground && !p.dunk) { p.vy = -640; p.ground = false; } }
+
+// ---------- besturing ----------
+const KEYS = [
+  { l: ['KeyA'], r: ['KeyD'], j: ['KeyW'], s: ['KeyS'], d: ['ShiftLeft'] },
+  { l: ['ArrowLeft'], r: ['ArrowRight'], j: ['ArrowUp'], s: ['ArrowDown'], d: ['ShiftRight'] },
+];
+const touch = { l: false, r: false, j: false, s: false, d: false };
+function ctrl(i) {
+  let set = [KEYS[i]];
+  if (mode === 'tour' && i === 0) set = [KEYS[0], KEYS[1]];
+  const on = (k) => set.some((s) => s[k].some((code) => keys[code]));
+  if (i === 0 && mode !== 'vriend') return { l: on('l') || touch.l, r: on('r') || touch.r, j: on('j') || touch.j, s: on('s') || touch.s, d: on('d') || touch.d || (mode === 'tour' && keys.ShiftRight) };
+  return { l: on('l'), r: on('r'), j: on('j'), s: on('s'), d: on('d') };
+}
+const prevC = [{}, {}];
+addEventListener('keydown', (e) => {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+  keys[e.code] = true;
+  if (e.key === 'Escape') { if (state === 'play') { prevState = 'play'; state = 'pause'; } else if (state === 'pause') state = prevState; }
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+// tijdrace: trekken en loslaten
+c.addEventListener('pointerdown', (e) => {
+  const q = view.toGame(e);
+  if (ui.hit(q)) return;
+  if (state !== 'play') return;
+  if (mode === 'race') { if (ball.held && pause <= 0) { drag = { x0: q.x, y0: q.y, x: q.x, y: q.y }; c.setPointerCapture && c.setPointerCapture(e.pointerId); } return; }
+  if (Arcade.touch) touchBtn(q, e.pointerId, true);
+});
+c.addEventListener('pointermove', (e) => {
+  const q = view.toGame(e); ui.hover(q);
+  if (drag) { drag.x = q.x; drag.y = q.y; }
+  if (Arcade.touch && mode !== 'race' && tptr.has(e.pointerId)) touchBtn(q, e.pointerId, true);
+});
+c.addEventListener('pointerup', (e) => {
+  if (drag && mode === 'race') { raceShoot(); drag = null; }
+  if (tptr.has(e.pointerId)) { tptr.delete(e.pointerId); refreshTouch(); }
+});
+const TBTN = () => [
+  { k: 'l', x: 16, y: H - 96, w: 80, h: 80, t: '◀' }, { k: 'r', x: 104, y: H - 96, w: 80, h: 80, t: '▶' },
+  { k: 'j', x: W - 300, y: H - 96, w: 84, h: 80, t: 'Spring' }, { k: 'd', x: W - 204, y: H - 96, w: 84, h: 80, t: 'Dunk' }, { k: 's', x: W - 108, y: H - 96, w: 92, h: 80, t: 'Schiet' },
+];
+const tptr = new Map();
+function touchBtn(q, id, down) { const b = TBTN().find((b) => q.x > b.x && q.x < b.x + b.w && q.y > b.y && q.y < b.y + b.h); tptr.set(id, b ? b.k : null); refreshTouch(); }
+function refreshTouch() { for (const k in touch) touch[k] = false; for (const k of tptr.values()) if (k) touch[k] = true; }
+
+// ---------- tijdrace ----------
+const RACE_SPOTS = [[640, 0], [560, 0], [470, 0], [700, 0], [520, 0], [400, 0], [600, 0], [360, 0]];
+function raceSpot() {
+  const x = 330 + Math.random() * 400;
+  P[0].x = x; P[0].y = FLOOR; P[0].vx = 0; P[0].face = 1;
+  ball = newBall(x + 18, FLOOR - 40); ball.held = P[0];
+}
+function raceShoot() {
+  const dx = drag.x0 - drag.x, dy = drag.y0 - drag.y, len = Math.hypot(dx, dy);
+  if (len < 14) return;
+  const p = Math.min(1, len / 220), sc = 1250 * p;
+  const hp = handPos(P[0]);
+  ball.held = null; ball.x = hp.x; ball.y = hp.y; ball.vx = dx / len * sc; ball.vy = dy / len * sc;
+  ball.shotBy = 0; ball.touched = false; ball.freeT = 0; ball.dunk = false;
+  ball.pts = Math.abs(HOOPS[1].x - P[0].x) > THREE_D ? 3 : 2;
+  P[0].shootPose = 0.35; raceShots++;
+  Arcade.beep(420, 0.05, 'triangle', 0.03);
+}
+function raceUpdate(dt) {
+  timeLeft -= dt;
+  if (timeLeft <= 0) { timeLeft = 0; return endRace(); }
+  if (pause > 0) { pause -= dt; ballPhysics(dt); if (pause <= 0) raceSpot(); return; }
+  if (!ball.held) {
+    ballPhysics(dt);
+    // gemist? (bal ligt stil of is ver weg)
+    if ((ball.freeT > 2.6) || (ball.freeT > 0.6 && ball.y >= FLOOR - BR - 1 && Math.abs(ball.vy) < 1)) {
+      if (ball.scoredT <= 0) { streak = 0; if (fire) say('Vuur gedoofd...', '#ff9a9a'); fire = false; }
+      raceSpot();
+    }
+  }
+}
+function endRace() {
+  state = 'over';
+  const rec = Arcade.record(GAME, racePts); best = Arcade.best(GAME);
+  overInfo = { title: 'Tijd!', lines: [`${racePts} punten`, `${raceHits} van ${raceShots} raak`, rec ? { t: '🏆 Nieuw record!', color: '#ffd23f' } : `Record: ${best}`], race: true };
+  sfx.buzzer();
+}
+
+// ---------- 1 tegen 1 ----------
+function startMatch(m) {
+  mode = m; state = 'play'; score = [0, 0]; sudden = false; afterScore = -1; pause = 0.8;
+  if (m === 'race') {
+    P = [makePlayer(0, 500, '#2f7fe0', false)];
+    racePts = 0; streak = 0; fire = false; raceShots = 0; raceHits = 0; timeLeft = 60; raceSpot(); return;
+  }
+  if (m === 'tour') { if (!tour) { tour = { round: 0 }; Arcade.save('basket_tour', tour); } toWin = 7; }
+  else toWin = 11;
+  const o = OPPS[round()];
+  P = [makePlayer(0, 380, '#2f7fe0', false), makePlayer(1, 580, m === 'vriend' ? '#e8282f' : o[1], m === 'tour', m === 'tour' ? o[2] : 0)];
+  timeLeft = 120;
+  checkBall(Math.random() < 0.5 ? 0 : 1);
+}
+function checkBall(who) {
+  // wie de bal krijgt begint op eigen helft, de ander verdedigt
+  const p = P[who], o = P[1 - who];
+  p.x = who === 0 ? 300 : 660; o.x = who === 0 ? 560 : 400; p.y = o.y = FLOOR; p.vx = o.vx = 0; p.vy = o.vy = 0; p.dunk = o.dunk = null; p.charge = o.charge = -1;
+  p.face = who === 0 ? 1 : -1; o.face = -p.face;
+  ball = newBall(p.x, FLOOR - 40); ball.held = p;
+}
+function playerUpdate(p, dt, cmd) {
+  p.anim += dt * 6;
+  if (p.stealCd > 0) p.stealCd -= dt; if (p.shootPose > 0) p.shootPose -= dt;
+  if (p.dunk) {
+    const d = p.dunk; d.t += dt / 0.62;
+    const k = Math.min(1, d.t), h = target(p);
+    p.x = d.sx + (d.tx - d.sx) * k; p.y = d.sy - Math.sin(k * Math.PI * 0.62) * 230;
+    // blok van de verdediger
+    const o = P[1 - p.i];
+    if (!d.blocked && k > 0.5 && o && !o.ground && Math.abs(o.x - p.x) < 46 && o.y < FLOOR - 60 && Math.random() < 0.5) {
+      d.blocked = true; p.dunk = null; ball.held = null; ball.x = p.x; ball.y = p.y - 90; ball.vx = -p.face * 380; ball.vy = -260; ball.shotBy = -1; sfx.block(); say(`${names()[o.i]}: BLOCK!`, '#ffd23f'); fx.shake(4, 0.2); return;
+    }
+    if (k >= 1) {
+      // slam!
+      ball.held = null; ball.dunk = true; ball.touched = true; ball.x = h.x; ball.y = h.y - 4; ball.vx = 0; ball.vy = 200; ball.shotBy = p.i; ball.pts = 2;
+      p.dunk = null; p.vy = 0; p.hang = 0.35;
+    }
+    return;
+  }
+  if (p.hang > 0) { p.hang -= dt; p.vy = 0; p.vx = 0; return; }
+  const sp = p.charge >= 0 ? 90 : ball.held === p ? 230 : 270;
+  const want = (cmd.r ? 1 : 0) - (cmd.l ? 1 : 0);
+  p.vx += (want * sp - p.vx) * Math.min(1, dt * 12);
+  if (want) p.face = want;
+  if (ball.held === p && p.charge < 0) p.face = Math.sign(target(p).x - p.x) || p.face;
+  if (ball.held !== p && ball.held) p.face = Math.sign(ball.held.x - p.x) || p.face;
+  const pc = prevC[p.i];
+  if (cmd.j && !pc.j) jump(p);
+  if (cmd.d && !pc.d) startDunk(p);
+  if (cmd.s && !pc.s) { if (ball.held === p) p.charge = 0; else tryAction(p); }
+  if (cmd.s && p.charge >= 0) p.charge = Math.min(1, p.charge + dt * 1.05);
+  if (!cmd.s && pc.s && p.charge >= 0) release(p);
+  if (p.charge >= 1) release(p);
+  prevC[p.i] = { ...cmd };
+  p.vy += GRAV * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+  if (p.y >= FLOOR) { p.y = FLOOR; p.vy = 0; p.ground = true; } else p.ground = false;
+  p.x = Math.max(36, Math.min(W - 36, p.x));
+  // bal oppakken / blokken
+  if (!ball.held) {
+    const hx = p.x, hy = p.y - 60;
+    if (Math.hypot(ball.x - hx, ball.y - hy) < 46 && ball.shotBy !== p.i && ball.freeT < 0.6 && ball.vy < 0 && !p.ground) {
+      ball.vx = -ball.vx * 0.4 + p.face * 120; ball.vy = -ball.vy * 0.3 - 200; ball.shotBy = -1; sfx.block(); say(`${names()[p.i]}: BLOCK!`, '#ffd23f'); fx.burst(ball.x, ball.y, 10, '#ffd23f', 100);
+    } else if (Math.hypot(ball.x - p.x, ball.y - (p.y - 40)) < 40 && (ball.freeT > 0.35 || ball.shotBy !== p.i) && ball.scoredT <= 0) {
+      ball.held = p; ball.shotBy = -1;
+    }
+  }
+}
+// ---------- bot ----------
+function botCmd(p, dt) {
+  const o = P[1 - p.i], s = cheatBot ? 0 : p.skill, cmd = { l: false, r: false, j: false, s: false, d: false };
+  const go = (x) => { if (x < p.x - 8) cmd.l = true; else if (x > p.x + 8) cmd.r = true; };
+  const h = target(p), mine = ownHoop(p);
+  p.react -= dt;
+  if (ball.held === p) {
+    if (!p.plan) p.plan = { spot: h.x - h.dir * (60 + Math.random() * (180 + s * 200)), wait: 0.3 + Math.random() * 0.6, tgt: 0.5 + (Math.random() - 0.5) * (0.24 - s * 0.2) };
+    const dist = Math.abs(h.x - p.x);
+    if (p.charge >= 0) { cmd.s = p.charge < p.plan.tgt; return cmd; }
+    if (dist < 150 && Math.random() < 0.02 + s * 0.04) { cmd.d = true; return cmd; }
+    go(p.plan.spot);
+    if (Math.abs(p.x - p.plan.spot) < 20) {
+      p.plan.wait -= dt;
+      const crowded = Math.abs(o.x - p.x) < 60;
+      if (p.plan.wait <= 0 && (!crowded || Math.random() < 0.01)) { cmd.s = true; if (Math.random() < 0.3 + s * 0.4) cmd.j = true; }
+      else if (crowded && Math.random() < 0.02) p.plan.spot = h.x - h.dir * (60 + Math.random() * 300);
+    }
+  } else {
+    p.plan = null;
+    if (ball.held === o) {
+      // verdedigen: tussen aanvaller en eigen ring
+      go(o.x + mine.dir * (40 + (1 - s) * 30) * -1 * -1 + (mine.x > o.x ? 50 : -50));
+      if (o.charge >= 0 || o.dunk) { if (p.react <= 0) { p.react = 0.5 - s * 0.35; if (Math.random() < 0.35 + s * 0.5 && Math.abs(o.x - p.x) < 90) cmd.j = true; } }
+      if (Math.abs(o.x - p.x) < 55 && Math.random() < dt * (0.4 + s * 1.6)) cmd.s = true;
+    } else {
+      go(ball.x);
+      if (ball.y < p.y - 120 && Math.abs(ball.x - p.x) < 50 && Math.random() < 0.05) cmd.j = true;
+    }
+  }
+  return cmd;
+}
+function matchUpdate(dt) {
+  if (pause > 0) {
+    pause -= dt; ballPhysics(dt);
+    if (pause <= 0 && afterScore >= 0) { const who = 1 - afterScore; afterScore = -1; if (checkWin()) return; checkBall(who); }
+    return;
+  }
+  timeLeft -= dt;
+  if (timeLeft <= 0 && !sudden) { timeLeft = 0; if (score[0] !== score[1]) return finishMatch(score[0] > score[1] ? 0 : 1); sudden = true; say('Gelijk! Wie het eerst scoort wint', '#ffd23f'); }
+  for (const p of P) playerUpdate(p, dt, p.bot ? botCmd(p, dt) : ctrl(p.i));
+  if (ball.held) { const hp = handPos(ball.held); ball.x = hp.x; ball.y = hp.y; ball.vx = ball.vy = 0; ball.rot += ball.held.vx * dt / BR; ball.freeT = 0; }
+  else ballPhysics(dt);
+}
+function checkWin() {
+  if (score[0] >= toWin || score[1] >= toWin) { finishMatch(score[0] > score[1] ? 0 : 1); return true; }
+  if (sudden && score[0] !== score[1]) { finishMatch(score[0] > score[1] ? 0 : 1); return true; }
+  return false;
+}
+function finishMatch(w) {
+  state = 'over'; sfx.buzzer();
+  const sc = `${score[0]} - ${score[1]}`;
+  if (mode === 'vriend') { overInfo = { title: `${names()[w]} wint!`, lines: [sc], vriend: true }; return; }
+  if (w === 0) {
+    tour.round++;
+    if (tour.round > tourBest) { tourBest = tour.round; Arcade.save('basket_tourbest', tourBest); }
+    if (tour.round >= OPPS.length) { overInfo = { title: '👑 Basket Koning!', lines: [sc, 'Je hebt alle 8 rondes gewonnen'], done: true }; tour = null; Arcade.save('basket_tour', null); }
+    else { Arcade.save('basket_tour', tour); overInfo = { title: 'Gewonnen!', lines: [sc + ' tegen ' + OPPS[tour.round - 1][0], 'Volgende: ' + OPPS[tour.round][0]], next: true }; }
+  } else {
+    overInfo = { title: 'Verloren', lines: [sc + ' tegen ' + OPPS[round()][0], `${round()} van 8 rondes gewonnen`], done: true };
+    tour = null; Arcade.save('basket_tour', null);
+  }
+}
+
+// ---------- tekenen ----------
+function drawArena() {
+  const g = ctx.createLinearGradient(0, 0, 0, FLOOR); g.addColorStop(0, '#07080c'); g.addColorStop(1, '#1a1d26'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, FLOOR);
+  // publiek
+  for (let row = 0; row < 6; row++) {
+    const y = 70 + row * 26;
+    ctx.fillStyle = row % 2 ? '#141720' : '#181b25'; ctx.fillRect(0, y, W, 26);
+    for (let k = 0; k < 64; k++) {
+      const x = k * 15 + (row % 2) * 7, col = ['#e8e8e8', '#e8a33c', '#2f7fe0', '#e8282f', '#7bd88f', '#c9a0ff', '#ffd23f'][(k * 3 + row) % 7];
+      const jump = toastT > 0.8 && state === 'play' ? Math.max(0, Math.sin(clock * 12 + k)) * 3 : 0;
+      ctx.fillStyle = col; ctx.globalAlpha = 0.45; ctx.beginPath(); ctx.arc(x + 6, y + 9 - jump, 4, 0, 7); ctx.fill(); ctx.fillRect(x + 2, y + 13 - jump, 8, 10); ctx.globalAlpha = 1;
+    }
+  }
+  // lampen
+  for (let i = 0; i < 5; i++) {
+    const lx = 110 + i * 185;
+    const lg = ctx.createRadialGradient(lx, 20, 2, lx, 20, 260); lg.addColorStop(0, 'rgba(255,245,220,0.25)'); lg.addColorStop(1, 'rgba(255,245,220,0)'); ctx.fillStyle = lg; ctx.fillRect(lx - 260, 0, 520, 300);
+    ctx.fillStyle = '#fffbe6'; ctx.fillRect(lx - 18, 16, 36, 6);
+  }
+  // lichtkrant
+  ctx.fillStyle = '#0c0e14'; ctx.fillRect(0, 232, W, 26);
+  const off = (clock * 50) % 300;
+  for (let i = -1; i < 5; i++) { const x = i * 300 - off; T(ctx, ['BASKET KONING', 'GAME ARCADE', 'SCOOR DIE DRIE'][(i + 9) % 3], x + 150, 246, 13, i % 2 ? '#ffb36b' : '#8fd0ff', 'center', '900'); }
+  // houten vloer
+  const fl = ctx.createLinearGradient(0, FLOOR, 0, H); fl.addColorStop(0, '#c98a4b'); fl.addColorStop(1, '#a8703a'); ctx.fillStyle = fl; ctx.fillRect(0, FLOOR, W, H - FLOOR);
+  ctx.fillStyle = 'rgba(0,0,0,0.12)'; for (let y = FLOOR + 14; y < H; y += 14) ctx.fillRect(0, y, W, 1);
+  for (let x = 0; x < W; x += 60) { ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fillRect(x + ((x / 60) % 2) * 30, FLOOR, 1, H - FLOOR); }
+  // vakken onder de ringen en lijnen
+  ctx.fillStyle = 'rgba(200,40,50,0.35)'; ctx.fillRect(40, FLOOR, 150, H - FLOOR); ctx.fillRect(W - 190, FLOOR, 150, H - FLOOR);
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, FLOOR); ctx.lineTo(W, FLOOR); ctx.stroke();
+  for (const h of HOOPS) { const x3 = h.x + h.dir * THREE_D; ctx.beginPath(); ctx.moveTo(x3, FLOOR); ctx.lineTo(x3 - h.dir * 20, H); ctx.stroke(); }
+  if (mode !== 'race') { ctx.beginPath(); ctx.moveTo(W / 2, FLOOR); ctx.lineTo(W / 2, H); ctx.stroke(); ctx.beginPath(); ctx.ellipse(W / 2, FLOOR + 40, 70, 22, 0, 0, 7); ctx.stroke(); }
+  // weerspiegeling van het licht op de vloer
+  const rg = ctx.createLinearGradient(0, FLOOR, 0, FLOOR + 40); rg.addColorStop(0, 'rgba(255,255,255,0.12)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = rg; ctx.fillRect(0, FLOOR, W, 40);
+}
+function drawHoop(h, hi, front) {
+  const d = h.dir;
+  if (!front) {
+    // paal en bord
+    ctx.fillStyle = '#2a2f3a'; ctx.fillRect(h.bx + d * -0 - (d > 0 ? 40 : -32), h.y - 20, 8, FLOOR - h.y + 20);
+    ctx.fillStyle = '#3a3f4b'; ctx.fillRect(Math.min(h.bx, h.bx - d * 40), h.y - 30, 40, 6);
+    ctx.fillStyle = 'rgba(240,245,255,0.92)'; ctx.fillRect(h.bx - 4, h.y - 112, 8, 134);
+    ctx.fillStyle = '#e8282f'; ctx.fillRect(h.bx - 4, h.y - 48, 8, 3); ctx.fillRect(h.bx - 4, h.y - 10, 8, 3);
+    // achterkant van de ring
+    ctx.strokeStyle = '#c4501a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(h.x, h.y, h.rw, 6, 0, Math.PI, Math.PI * 2); ctx.stroke();
+    return;
+  }
+  // net
+  const sw = netSway[hi], wob = Math.sin(clock * 20) * 4 * sw;
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.3;
+  for (let k = 0; k <= 6; k++) { const x0 = h.x - h.rw + (k * 2 * h.rw) / 6, x1 = h.x - 16 + (k * 32) / 6 + wob; ctx.beginPath(); ctx.moveTo(x0, h.y + 2); ctx.lineTo(x1, h.y + 44 + sw * 10); ctx.stroke(); }
+  for (let r = 1; r <= 3; r++) { const y = h.y + r * 13 + sw * r * 3, wdt = h.rw - r * 4.5; ctx.beginPath(); ctx.moveTo(h.x - wdt + wob * r / 3, y); ctx.lineTo(h.x + wdt + wob * r / 3, y); ctx.stroke(); }
+  // voorkant van de ring
+  ctx.strokeStyle = '#ff6a1a'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(h.x, h.y, h.rw, 6, 0, 0, Math.PI); ctx.stroke();
+}
+function drawPlayer(p) {
+  const x = p.x, y = p.y, f = p.face, run = p.ground && Math.abs(p.vx) > 30 ? Math.sin(p.anim * 1.4) : 0;
+  const hasBall = ball && ball.held === p, shooting = p.charge >= 0 || p.shootPose > 0 || p.dunk;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x, FLOOR + 2, 20 * (1 - (FLOOR - y) / 600), 5, 0, 0, 7); ctx.fill();
+  const air = !p.ground;
+  // benen
+  ctx.fillStyle = '#1b1d22';
+  if (air) { ctx.save(); ctx.translate(x - 7, y - 30); ctx.rotate(-0.35); ctx.fillRect(-4, 0, 9, 30); ctx.restore(); ctx.save(); ctx.translate(x + 7, y - 30); ctx.rotate(0.45); ctx.fillRect(-4, 0, 9, 26); ctx.restore(); }
+  else { ctx.fillRect(x - 11 + run * 7, y - 32, 9, 32); ctx.fillRect(x + 2 - run * 7, y - 32, 9, 32); }
+  ctx.fillStyle = '#f4f4f4'; if (!air) { ctx.fillRect(x - 13 + run * 7, y - 4, 13, 5); ctx.fillRect(x + 1 - run * 7, y - 4, 13, 5); }
+  // broek en shirt
+  ctx.fillStyle = p.col; RR(ctx, x - 15, y - 46, 30, 18, 4); ctx.fill();
+  ctx.fillStyle = p.col; RR(ctx, x - 14, y - 80, 28, 38, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(x - 14, y - 46, 28, 3);
+  T(ctx, p.i === 0 ? '7' : '23', x, y - 62, 14, p.col === '#ffd23f' ? '#1b1d22' : '#fff', 'center', '900');
+  // armen
+  ctx.strokeStyle = '#c98f6b'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  if (shooting) { ctx.beginPath(); ctx.moveTo(x - 6, y - 74); ctx.lineTo(x + f * 4, y - 98); ctx.moveTo(x + 6, y - 74); ctx.lineTo(x + f * 10, y - 96); ctx.stroke(); }
+  else if (hasBall) { ctx.beginPath(); ctx.moveTo(x + f * 8, y - 72); ctx.lineTo(x + f * 18, y - 50); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - f * 8, y - 72); ctx.lineTo(x - f * 12, y - 52); ctx.stroke(); }
+  else { const up = air ? -30 : 0; ctx.beginPath(); ctx.moveTo(x - 10, y - 72); ctx.lineTo(x - 20, y - 50 + up); ctx.moveTo(x + 10, y - 72); ctx.lineTo(x + 20, y - 50 + up); ctx.stroke(); }
+  ctx.lineCap = 'butt';
+  // hoofd met haarband
+  ctx.fillStyle = p.i === 0 ? '#c98f6b' : '#8a5a3a'; ctx.beginPath(); ctx.arc(x, y - 90, 11, 0, 7); ctx.fill();
+  ctx.fillStyle = '#1b1d22'; ctx.beginPath(); ctx.arc(x, y - 93, 11, Math.PI, 0); ctx.fill();
+  ctx.fillStyle = p.i === 0 ? '#ffffff' : '#ffd23f'; ctx.fillRect(x - 11, y - 94, 22, 4);
+  ctx.fillStyle = '#111'; ctx.fillRect(x + f * 5 - 1, y - 90, 2, 2);
+  ctx.restore();
+  // krachtmeter
+  if (p.charge >= 0) {
+    const mx = x + f * -30 - 6, my = y - 130, mh = 80, zw = zoneW(p);
+    ctx.fillStyle = 'rgba(10,10,12,0.85)'; RR(ctx, mx - 3, my - 3, 18, mh + 6, 6); ctx.fill();
+    ctx.fillStyle = '#3ddc84'; ctx.fillRect(mx, my + mh * (1 - 0.5 - zw / 2), 12, mh * zw);
+    ctx.fillStyle = '#ffd23f'; ctx.fillRect(mx - 3, my + mh * (1 - p.charge) - 2, 18, 4);
+  }
+  if (mode !== 'race') T(ctx, names()[p.i], x, y - 116 - (p.charge >= 0 ? 24 : 0), 12, p.i === 0 ? '#8fc6ff' : '#ff9a9a', 'center', '800');
+}
+function drawBall() {
+  const b = ball; if (!b) return;
+  const x = b.x, y = b.y;
+  if (!b.held) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, FLOOR + 2, BR * (1 - (FLOOR - y) / 700), 4, 0, 0, 7); ctx.fill(); }
+  if (fire && mode === 'race') { for (let k = 0; k < 4; k++) { ctx.fillStyle = `rgba(255,${120 + k * 30},30,${0.25 - k * 0.05})`; ctx.beginPath(); ctx.arc(x - b.vx * 0.012 * k, y - b.vy * 0.012 * k, BR + 6 - k, 0, 7); ctx.fill(); } }
+  const g = ctx.createRadialGradient(x - 4, y - 4, 2, x, y, BR); g.addColorStop(0, '#ff9a4a'); g.addColorStop(1, '#d4621a');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, BR, 0, 7); ctx.fill();
+  ctx.save(); ctx.translate(x, y); ctx.rotate(b.rot); ctx.strokeStyle = '#3a1a08'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(-BR, 0); ctx.lineTo(BR, 0); ctx.moveTo(0, -BR); ctx.lineTo(0, BR); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-BR * 1.1, 0, BR * 0.8, -0.9, 0.9); ctx.stroke(); ctx.beginPath(); ctx.arc(BR * 1.1, 0, BR * 0.8, Math.PI - 0.9, Math.PI + 0.9); ctx.stroke();
+  ctx.restore();
+}
+function drawRaceAim() {
+  if (!drag || !ball.held) {
+    if (ball.held && pause <= 0) { ctx.globalAlpha = 0.6 + 0.4 * Math.sin(clock * 4); T(ctx, Arcade.touch ? 'Sleep naar achteren en laat los' : 'Klik, trek naar achteren en laat los', W / 2, FLOOR + 50, 16, '#fff', 'center', '900'); ctx.globalAlpha = 1; }
+    return;
+  }
+  const dx = drag.x0 - drag.x, dy = drag.y0 - drag.y, len = Math.hypot(dx, dy);
+  if (len < 6) return;
+  const p = Math.min(1, len / 220), sc = 1250 * p, hp = handPos(P[0]);
+  let vx = dx / len * sc, vy = dy / len * sc, x = hp.x, y = hp.y;
+  ctx.fillStyle = '#ffd23f';
+  const steps = cheatAim ? 40 : 9;
+  for (let i = 0; i < steps; i++) { for (let k = 0; k < 4; k++) { vy += GRAV * 0.012; x += vx * 0.012; y += vy * 0.012; } ctx.globalAlpha = 1 - i / steps; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(hp.x, hp.y); ctx.lineTo(hp.x - dx * 0.5, hp.y - dy * 0.5); ctx.stroke();
+}
+function chip(x, y, w, t, col) { ctx.fillStyle = 'rgba(10,10,12,0.88)'; RR(ctx, x, y, w, 36, 10); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.stroke(); T(ctx, t, x + w / 2, y + 19, 15, col || '#fff', 'center', '900'); }
+const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.ceil(s) % 60 === 0 && s % 60 !== 0 ? 0 : Math.floor(s % 60)).padStart(2, '0')}`;
+function drawHUD() {
+  if (mode === 'race') {
+    chip(20, 14, 170, `Score ${racePts}`);
+    chip(W / 2 - 60, 14, 120, `0:${String(Math.ceil(timeLeft)).padStart(2, '0')}`, timeLeft < 10 ? '#ff6b6b' : '#ffd23f');
+    chip(W - 250, 14, 180, fire ? '🔥 IN VUUR · x2' : streak ? `Reeks: ${streak}` : `Record: ${best || 0}`, fire ? '#ff9a4a' : '#fff');
+  } else {
+    ctx.fillStyle = 'rgba(10,10,12,0.9)'; RR(ctx, W / 2 - 230, 10, 460, 56, 14); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.stroke();
+    const nm = names();
+    ctx.fillStyle = P[0].col; ctx.beginPath(); ctx.arc(W / 2 - 205, 32, 7, 0, 7); ctx.fill(); T(ctx, nm[0], W / 2 - 192, 33, 14, '#fff', 'left', '800');
+    ctx.fillStyle = P[1].col; ctx.beginPath(); ctx.arc(W / 2 + 205, 32, 7, 0, 7); ctx.fill(); T(ctx, nm[1], W / 2 + 192, 33, 14, '#fff', 'right', '800');
+    T(ctx, `${score[0]} - ${score[1]}`, W / 2, 32, 24, '#fff', 'center', '900');
+    T(ctx, sudden ? 'Wie scoort, wint!' : `Eerst tot ${toWin} · ${fmtT(timeLeft)}${mode === 'tour' ? ` · ronde ${round() + 1}/8` : ''}`, W / 2, 54, 11, '#9aa1ab', 'center', '700');
+    if (mode === 'vriend' && clock < 99999) {
+      T(ctx, 'Speler 1: A D · W springen · S schieten · L-Shift dunk', 20, H - 16, 12, '#8fc6ff', 'left', '700');
+      T(ctx, 'Speler 2: ← → · ↑ springen · ↓ schieten · R-Shift dunk', W - 20, H - 16, 12, '#ff9a9a', 'right', '700');
+    } else if (!Arcade.touch) T(ctx, 'A D of ← → lopen · W/↑ springen · S/↓ schieten (vasthouden, laat los in het groen) · Shift dunken · zonder bal: S = afpakken', W / 2, H - 16, 12, '#cfd5dd', 'center', '700');
+  }
+  ui.btn('II', W - 58, 14, 40, 40, () => { if (state === 'play') { prevState = 'play'; state = 'pause'; } }, false, false, 16);
+  if (toastT > 0) {
+    ctx.save(); ctx.globalAlpha = Math.min(1, toastT * 2); ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 14;
+    T(ctx, toast, W / 2, 150, 30, toastCol, 'center', '900'); ctx.restore();
+  }
+  if (Arcade.touch && mode !== 'race' && state === 'play') for (const b of TBTN()) {
+    ctx.fillStyle = touch[b.k] ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)'; RR(ctx, b.x, b.y, b.w, b.h, 16); ctx.fill();
+    T(ctx, b.t, b.x + b.w / 2, b.y + b.h / 2, b.t.length > 2 ? 15 : 26, '#fff', 'center', '900');
+  }
+}
+function card(x, y, w, h) { ctx.fillStyle = 'rgba(12,14,20,0.8)'; RR(ctx, x, y, w, h, 14); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke(); }
+function drawMenu() {
+  drawArena(); drawHoop(HOOPS[0], 0, false); drawHoop(HOOPS[1], 1, false); drawHoop(HOOPS[0], 0, true); drawHoop(HOOPS[1], 1, true);
+  ctx.fillStyle = 'rgba(6,7,10,0.72)'; ctx.fillRect(0, 0, W, H);
+  T(ctx, '🏀 BASKET KONING', W / 2, 84, 46, '#fff', 'center', '900');
+  T(ctx, 'Scoor, blok, dunk en word de koning van het veld', W / 2, 122, 15, '#cfd5dd', 'center', '600');
+  const cw = 270, ch = 230, gx = W / 2 - (cw * 3 + 32) / 2;
+  const opts = [
+    ['⏱️ Tijdrace', '60 seconden zoveel mogelijk punten', 'Trek de bal naar achteren en laat los', `Record: ${best || 0}`, () => startMatch('race'), 'Start'],
+    ['🏆 Toernooi', tour ? `Verder: ronde ${tour.round + 1} van 8` : '1 tegen 1 tegen 8 steeds betere bots', 'Eerst tot 7 · 2 minuten', `Beste: ${tourBest}/8 rondes`, () => startMatch('tour'), tour ? 'Verder spelen' : 'Start toernooi'],
+    ['👥 1 tegen 1', 'Met een vriend op één toetsenbord', 'P1: A D W · S schiet · L-Shift dunk', 'P2: ← → ↑ · ↓ schiet · R-Shift dunk', () => startMatch('vriend'), 'Speel samen'],
+  ];
+  opts.forEach(([t, a, b2, b3, fn, lbl], i) => {
+    const x = gx + i * (cw + 16), y = 160;
+    card(x, y, cw, ch);
+    T(ctx, t, x + cw / 2, y + 38, 22, '#fff', 'center', '900');
+    T(ctx, a, x + cw / 2, y + 74, 13, '#cfd5dd', 'center', '600');
+    T(ctx, b2, x + cw / 2, y + 98, 12, '#9aa1ab', 'center', '700');
+    T(ctx, b3, x + cw / 2, y + 120, 12, '#ffd23f', 'center', '700');
+    ui.btn(lbl, x + 30, y + 156, cw - 60, 50, fn, i === 0);
+  });
+  if (tour) ui.btn('Toernooi opnieuw', W / 2 - 100, 412, 200, 40, () => { tour = { round: 0 }; Arcade.save('basket_tour', tour); startMatch('tour'); }, false, false, 13);
+  T(ctx, 'Schieten: houd de knop vast en laat los als het streepje in het groen staat. Met een verdediger in je gezicht wordt het groen kleiner!', W / 2, 482, 13, '#9aa1ab', 'center', '700');
+  T(ctx, 'Dunken kan dicht bij de ring. Zonder bal: spring om te blokken of druk op schieten om de bal af te pakken.', W / 2, 504, 13, '#9aa1ab', 'center', '700');
+}
+function drawOver() {
+  Arcade.overlay(ctx, W, H, overInfo.title, overInfo.lines, '');
+  const by = H / 2 + 90;
+  ui.btn('Menu', W / 2 - 200, by, 180, 50, () => { state = 'menu'; });
+  if (overInfo.next) ui.btn('Volgende ronde →', W / 2 + 20, by, 180, 50, () => startMatch('tour'), true);
+  else if (overInfo.race) ui.btn('Nog een keer', W / 2 + 20, by, 180, 50, () => startMatch('race'), true);
+  else if (overInfo.vriend) ui.btn('Nog een keer', W / 2 + 20, by, 180, 50, () => startMatch('vriend'), true);
+  else ui.btn('Nieuw toernooi', W / 2 + 20, by, 180, 50, () => { tour = { round: 0 }; Arcade.save('basket_tour', tour); startMatch('tour'); }, true);
+}
+function drawPause() {
+  Arcade.overlay(ctx, W, H, 'Pauze', [mode === 'tour' ? 'Opgeven = verloren' : 'Esc = verder'], '');
+  const by = H / 2 + 70;
+  ui.btn('Opgeven', W / 2 - 200, by, 180, 50, () => { if (mode === 'tour') finishMatch(1); else state = 'menu'; });
+  ui.btn('Verder', W / 2 + 20, by, 180, 50, () => { state = prevState; }, true);
+}
+
+// ---------- lus ----------
+let last = performance.now();
+function update(dt) {
+  clock += dt; toastT -= dt; fx.update(dt);
+  netSway = netSway.map((s) => Math.max(0, s - dt * 1.2));
+  if (state !== 'play') return;
+  if (mode === 'race') raceUpdate(dt); else matchUpdate(dt);
+}
+function loop(now) {
+  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+  if (!document.hidden) update(dt);
+  view.begin(); ui.clear();
+  if (state === 'menu') drawMenu();
+  else {
+    fx.begin(ctx);
+    drawArena();
+    HOOPS.forEach((h, i) => drawHoop(h, i, false));
+    for (const p of P) drawPlayer(p);
+    drawBall();
+    HOOPS.forEach((h, i) => drawHoop(h, i, true));
+    if (mode === 'race') drawRaceAim();
+    fx.draw(ctx); fx.end(ctx);
+    drawHUD(); fx.drawFlash(ctx, W, H);
+    if (state === 'over') drawOver();
+    if (state === 'pause') drawPause();
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+ArcadeCore.music.play('basket');
+
+// ---------- admin-voordelen ----------
+ArcadeCore.toggle('🎯 Groot groen vak / lange mikboog', () => cheatAim, (v) => { cheatAim = v; });
+ArcadeCore.toggle('😴 Bot doet niks slims', () => cheatBot, (v) => { cheatBot = v; });
+ArcadeCore.cheat('🏀 +10 punten', () => { if (state !== 'play') return; if (mode === 'race') racePts += 10; else { score[0] += 10; checkWin(); } });
+ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (tour && tour.round < 7) { tour.round++; Arcade.save('basket_tour', tour); state = 'menu'; } });
+
+window.__bk = { get state() { return state; }, get P() { return P; }, get ball() { return ball; }, get score() { return score; }, startMatch, release, get racePts() { return racePts; }, aimVel, HOOPS, keys, setDrag: (d) => { drag = d; }, raceShoot, finishMatch };
+
+  </script>
+  <script type="module" src="../auth.js?v=06a09ff4cf"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="d608afc201">
+<meta name="site-build" content="06a09ff4cf">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Robo Defense · Game Arcade</title>
@@ -61,6 +61,7 @@ const ArcadeCore = (() => {
     sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
     memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
     vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    basket:   { bpm: 96,  root: 40, prog: [[0, 3, 7, 10], [5, 8, 12, 15], [3, 7, 10, 14], [7, 10, 14, 17]], kick: 'x..x..x.x..x....', snare: '....x.......x...', hat: 'x.xxx.x.x.xxx.x.', bass: 'x..x..x.x..x..x.', arp: false, lead: 'square', seed: 91, density: 0.22, pad: 'sawtooth' },
     penalty:  { bpm: 126, root: 45, prog: [[0, 4, 7], [7, 11, 14], [9, 12, 16], [5, 9, 12]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.x...x.x.x...x.', arp: true, lead: 'square', seed: 55, density: 0.28, pad: 'sawtooth' },
     dief:     { bpm: 84,  root: 38, prog: [[0, 3, 7], [0, 3, 8], [5, 8, 12], [3, 7, 10]], kick: 'x.......x..x....', snare: '........x.......', hat: '..x...x...x...x.', bass: 'x..x....x..x....', arp: false, lead: 'triangle', seed: 13, density: 0.12, pad: 'sine' },
     pool:     { bpm: 92,  root: 43, prog: [[0, 4, 7, 10], [5, 9, 12, 15], [2, 5, 9, 12], [7, 11, 14, 17]], kick: 'x.......x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x..xx...x...', arp: false, lead: 'triangle', seed: 31, density: 0.18, pad: 'sine' },
@@ -1059,6 +1060,6 @@ ArcadeCore.cheat('⬆️ Alle torens naar max level', () => { if (towers) towers
 ArcadeCore.cheat('🔓 Alle maps ontgrendelen', () => Arcade.save('td_unlockall', true));
 
   </script>
-  <script type="module" src="../auth.js?v=d608afc201"></script>
+  <script type="module" src="../auth.js?v=06a09ff4cf"></script>
 </body>
 </html>
