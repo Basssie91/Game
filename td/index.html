@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="61b716cda4">
+<meta name="site-build" content="9f1f69f79c">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Robo Defense · Game Arcade</title>
@@ -590,13 +590,20 @@ const GAME = 'td';
 const TS = 40, COLS = 22, ROWS = 13, OX = 0, OY = 60, PANEL = COLS * TS; // speelveld 880×520, paneel rechts
 const TAU = Math.PI * 2;
 const rand = (a, b) => a + Math.random() * (b - a);
-const WAVES = 20;
+let WAVES = 20; // per kaart, zie MAPS
 
 // Kaarten: punten waar het pad langs loopt (in tegels)
 const MAPS = [
   { naam: 'Fabriekshal', money: 220, path: [[-1, 2], [6, 2], [6, 9], [13, 9], [13, 3], [19, 3], [19, 10], [22, 10]] },
   { naam: 'Kronkelweg', money: 200, path: [[-1, 1], [3, 1], [3, 11], [8, 11], [8, 1], [13, 1], [13, 11], [18, 11], [18, 4], [22, 4]] },
   { naam: 'Snelweg', money: 180, path: [[-1, 6], [9, 6], [9, 2], [16, 2], [16, 10], [10, 10], [10, 8], [22, 8]] },
+  // nieuwe, moeilijkere kaarten: meer levens per robot, minder startgeld, nieuwe robots en soms meer golven
+  { naam: 'Serverpark', money: 175, hp: 1.15, waves: 20, path: [[-1, 10], [4, 10], [4, 2], [10, 2], [10, 6], [15, 6], [15, 1], [20, 1], [20, 11], [22, 11]] },
+  { naam: 'Spiraal', money: 165, hp: 1.3, waves: 22, path: [[-1, 1], [20, 1], [20, 11], [2, 11], [2, 4], [17, 4], [17, 8], [6, 8], [6, 6]] },
+  { naam: 'Korte route', money: 160, hp: 1.45, waves: 25, path: [[-1, 3], [8, 3], [8, 9], [14, 9], [14, 3], [22, 3]] },
+  { naam: 'Dubbele lus', money: 150, hp: 1.6, waves: 25, path: [[-1, 11], [5, 11], [5, 1], [10, 1], [10, 11], [15, 11], [15, 1], [20, 1], [20, 7], [22, 7]] },
+  { naam: 'Ringweg', money: 145, hp: 1.8, waves: 25, path: [[-1, 6], [3, 6], [3, 1], [19, 1], [19, 11], [5, 11], [5, 8], [22, 8]] },
+  { naam: 'Eindbaas', money: 140, hp: 2.1, waves: 30, path: [[-1, 2], [18, 2], [18, 5], [2, 5], [2, 8], [18, 8], [18, 11], [22, 11]] },
 ];
 const TOWERS = {
   blaster: { naam: 'Blaster', cost: 50, range: 115, dmg: 11, rate: 0.38, col: '#f2f2f2', info: 'Snel schieten op één robot' },
@@ -609,6 +616,10 @@ const ENEMIES = {
   bot: { hp: 45, sp: 55, reward: 6, r: 12, col: '#8a919b' },
   tank: { hp: 150, sp: 34, reward: 14, r: 16, col: '#5b616b', armor: 4 },
   boss: { hp: 900, sp: 28, reward: 120, r: 22, col: '#2a2d33', armor: 6 },
+  // nieuw vanaf kaart 4
+  sprinter: { hp: 30, sp: 145, reward: 5, r: 8, col: '#ffd23f' },
+  schild: { hp: 95, sp: 44, reward: 12, r: 14, col: '#5ab8ff', armor: 12 },
+  splitter: { hp: 75, sp: 50, reward: 8, r: 13, col: '#c06bff' },
 };
 
 let state = 'menu'; // menu | play | over | win
@@ -669,7 +680,7 @@ function posAt(d) {
 function start(i) {
   setupMap(i);
   towers = []; enemies = []; shots = []; booms = []; parts = [];
-  money = MAP.money; lives = 20; wave = 0; waveOn = false; spawnList = []; spawnT = 0; speed = 1; selected = null; placing = null; score = 0; kills = 0; msg = null;
+  WAVES = MAP.waves || 20; money = MAP.money; lives = 20; wave = 0; waveOn = false; spawnList = []; spawnT = 0; speed = 1; selected = null; placing = null; score = 0; kills = 0; msg = null;
   state = 'play';
 }
 
@@ -681,6 +692,9 @@ function makeWave(n) {
   if (n >= 2) add('scout', 3 + n * 2, 0.4);
   if (n >= 4) add('tank', Math.floor(n / 2), 1.4);
   if (n % 5 === 0) add('boss', n / 5, 3);
+  if (mi >= 3 && n >= 3) add('sprinter', 2 + n, 0.3);
+  if (mi >= 4 && n >= 6) add('schild', Math.floor(n / 3), 1.2);
+  if (mi >= 5 && n >= 5) add('splitter', Math.floor(n / 4), 1.0);
   // Mengen zodat het minder voorspelbaar is
   return list.sort(() => Math.random() - 0.5).sort((a, b) => (a.type === 'boss') - (b.type === 'boss'));
 }
@@ -695,7 +709,7 @@ function startWave() {
 }
 function spawn(type) {
   const base = ENEMIES[type];
-  const hp = base.hp * Math.pow(1.15, wave - 1);
+  const hp = base.hp * Math.pow(1.15, wave - 1) * (MAP.hp || 1);
   enemies.push({ type, d: 0, hp, maxHp: hp, sp: base.sp, r: base.r, col: base.col, armor: base.armor || 0, reward: base.reward, slow: 0, hit: 0, x: -20, y: 0, a: 0 });
 }
 
@@ -746,7 +760,7 @@ c.addEventListener('pointerdown', (e) => {
 });
 c.addEventListener('pointermove', (e) => { const q = view.toGame(e); hover = { tx: Math.floor((q.x - OX) / TS), ty: Math.floor((q.y - OY) / TS) }; });
 addEventListener('keydown', (e) => {
-  if (state === 'menu' && /^Digit[1-3]$/.test(e.code)) { const i = +e.code.slice(5) - 1; if (tdOpen(i)) start(i); return; }
+  if (state === 'menu' && /^Digit[1-9]$/.test(e.code)) { const i = +e.code.slice(5) - 1; if (tdOpen(i)) start(i); return; }
   if (state !== 'play') { if (e.code === 'Enter' && (state === 'over' || state === 'win')) state = 'menu'; return; }
   const k = { Digit1: 'blaster', Digit2: 'kanon', Digit3: 'vries', Digit4: 'laser' }[e.code];
   if (k) { placing = placing === k ? null : k; selected = null; }
@@ -848,6 +862,10 @@ function damage(e, amount, continuous) {
     money += e.reward; score += e.reward * 10; kills++;
     for (let k = 0; k < (e.type === 'boss' ? 40 : 10); k++) parts.push({ x: e.x, y: e.y, vx: rand(-160, 160), vy: rand(-160, 160), life: 0.4, col: k % 3 ? '#8a919b' : '#ff4d55' });
     if (e.type === 'boss') Arcade.beep(80, 0.5, 'sawtooth', 0.06, -30);
+    if (e.type === 'splitter') {
+      for (let k = 0; k < 3; k++) { const hp = ENEMIES.scout.hp * Math.pow(1.15, wave - 1) * (MAP.hp || 1) * 0.7; enemies.push({ type: 'scout', d: Math.max(0, e.d - k * 14), hp, maxHp: hp, sp: ENEMIES.scout.sp, r: 7, col: '#d9a6ff', armor: 0, reward: 2, slow: 0, hit: 0, x: e.x, y: e.y, a: e.a }); }
+      Arcade.beep(520, 0.1, 'square', 0.04, -200);
+    }
   }
 }
 function gameOver(won) {
@@ -944,6 +962,9 @@ function draw() {
     ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1; ctx.stroke();
     ctx.fillStyle = '#16181d'; ctx.fillRect(-e.r + 3, -e.r * 0.45, e.r * 2 - 6, e.r * 0.9);
     ctx.save(); ctx.shadowColor = '#ff3b45'; ctx.shadowBlur = 8; ctx.fillStyle = '#ff3b45'; ctx.beginPath(); ctx.arc(e.r * 0.4, 0, Math.max(2.5, e.r * 0.22), 0, TAU); ctx.fill(); ctx.restore();
+    if (e.type === 'schild') { ctx.strokeStyle = 'rgba(120,200,255,0.75)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, e.r + 5, -1.2, 1.2); ctx.stroke(); }
+    if (e.type === 'sprinter') { ctx.fillStyle = 'rgba(255,210,63,0.35)'; ctx.fillRect(-e.r - 14, -2, 10, 4); ctx.fillRect(-e.r - 22, -1, 6, 2); }
+    if (e.type === 'splitter') { ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-e.r * 0.2, -e.r); ctx.lineTo(0, 0); ctx.lineTo(-e.r * 0.2, e.r); ctx.stroke(); }
     ctx.restore();
     if (e.hp < e.maxHp) {
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - e.r, e.y - e.r - 8, e.r * 2, 4);
@@ -1022,23 +1043,26 @@ function draw() {
 function drawMenu() {
   Arcade.text(ctx, 'ROBO', W / 2 - 12, 92, 62, '#ffffff', 'right', '900');
   Arcade.text(ctx, 'DEFENSE', W / 2 + 6, 92, 62, '#e8282f', 'left', '900');
-  Arcade.text(ctx, `Bouw torens langs het pad en houd ${WAVES} golven robots tegen voordat ze je basis bereiken.`, W / 2, 140, 15, '#c9ced6', 'center', '600');
+  Arcade.text(ctx, 'Bouw torens langs het pad en houd alle golven robots tegen voordat ze je basis bereiken.', W / 2, 140, 15, '#c9ced6', 'center', '600');
   MAPS.forEach((m, i) => {
-    const w = 270, h = 250, x = W / 2 - (3 * w + 40) / 2 + i * (w + 20), y = 180;
-    const open = tdOpen(i);
+    const w = 290, h = 128, x = W / 2 - (3 * w + 24) / 2 + (i % 3) * (w + 12), y = 164 + Math.floor(i / 3) * (h + 10);
+    const open = tdOpen(i), won = bests[i] != null;
     ctx.fillStyle = open ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.03)';
-    Arcade.rr(ctx, x, y, w, h, 14); ctx.fill();
-    // Minikaart van het pad
-    const s = 10, mx = x + (w - COLS * s) / 2, my = y + 20;
+    Arcade.rr(ctx, x, y, w, h, 12); ctx.fill();
+    if (won) { ctx.strokeStyle = 'rgba(255,210,63,0.5)'; ctx.lineWidth = 1.5; Arcade.rr(ctx, x, y, w, h, 12); ctx.stroke(); }
+    // minikaart van het pad
+    const s = 5, mx = x + 12, my = y + (h - ROWS * s) / 2;
     ctx.fillStyle = '#1c1e23'; ctx.fillRect(mx, my, COLS * s, ROWS * s);
-    ctx.strokeStyle = open ? '#9aa1ab' : '#3a3e47'; ctx.lineWidth = 5; ctx.lineJoin = 'round';
+    ctx.strokeStyle = open ? '#9aa1ab' : '#3a3e47'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
     ctx.beginPath(); m.path.forEach(([px, py], k) => { const X = mx + Math.max(0, Math.min(COLS, px + 0.5)) * s, Y = my + (py + 0.5) * s; if (k) ctx.lineTo(X, Y); else ctx.moveTo(X, Y); }); ctx.stroke();
-    Arcade.text(ctx, `${i + 1}. ${m.naam}`, x + 20, y + 175, 18, open ? '#ffffff' : '#4a4f58', 'left', '900');
-    Arcade.text(ctx, open ? `Startgeld €${m.money}` : `🔒 win eerst kaart ${i}`, x + 20, y + 200, 12, '#9aa1ab', 'left', '600');
-    if (bests[i] != null) Arcade.text(ctx, `Record ${bests[i]}`, x + 20, y + 224, 13, '#ffd23f', 'left', '800', true);
+    const tx = mx + COLS * s + 14;
+    Arcade.text(ctx, `${i + 1}. ${m.naam}`, tx, y + 28, 16, open ? '#ffffff' : '#4a4f58', 'left', '900');
+    Arcade.text(ctx, open ? `€${m.money} · ${m.waves || 20} golven` : `🔒 win eerst kaart ${i}`, tx, y + 52, 12, '#9aa1ab', 'left', '600');
+    if (open && i >= 3) Arcade.text(ctx, ['Nieuw: snelle sprinters', '+ robots met schild', '+ splitsende robots', 'Alles, nog sterker', 'Alles, nog sterker', 'Eindbaas: 30 golven!'][i - 3], tx, y + 74, 11, '#c06bff', 'left', '700');
+    if (won) Arcade.text(ctx, `🏆 ${bests[i]}`, tx, y + 102, 13, '#ffd23f', 'left', '800', true);
     if (open) buttons.push({ x, y, w, h, fn: () => start(i) });
   });
-  Arcade.text(ctx, Arcade.touch ? 'Tik op een kaart om te beginnen' : '1-4 = toren kiezen · Spatie = golf starten · U = upgrade · S = verkopen · F = sneller', W / 2, H - 30, 13, '#6f7680', 'center', '600');
+  Arcade.text(ctx, Arcade.touch ? 'Tik op een kaart om te beginnen' : '1-4 = toren kiezen · Spatie = golf starten · U = upgrade · S = verkopen · F = sneller', W / 2, H - 14, 12, '#6f7680', 'center', '600');
 }
 
 let last = performance.now();
@@ -1066,6 +1090,6 @@ ArcadeCore.cheat('⬆️ Alle torens naar max level', () => { if (towers) towers
 ArcadeCore.cheat('🔓 Alle maps ontgrendelen', () => Arcade.save('td_unlockall', true));
 
   </script>
-  <script type="module" src="../auth.js?v=61b716cda4"></script>
+  <script type="module" src="../auth.js?v=9f1f69f79c"></script>
 </body>
 </html>
