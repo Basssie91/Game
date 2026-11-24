@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="600d409beb">
+<meta name="site-build" content="2e5793790c">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Game Arcade · gratis browsergames</title>
-  <meta name="description" content="Speel Turbo Tijdrit, Robo Overval, Patience, Sudoku, Mijnenveger, Memory, Vier op een rij, Snake, 2048 en meer gratis in je browser.">
-  <meta name="theme-color" content="#0b0c10">
+  <meta name="description" content="Speel Turbo Tijdrit, Pool, Escape Room, Robo Overval, Patience, Sudoku, Snake, 2048 en meer gratis in je browser.">
+  <meta name="theme-color" content="#0a0a0a">
   <link rel="icon" type="image/svg+xml" href="arcade-icon.svg">
   <link rel="apple-touch-icon" href="arcade-icon-180.png">
   <meta property="og:type" content="website">
@@ -14,7 +14,7 @@
   <meta property="og:title" content="Game Arcade">
   <meta name="twitter:title" content="Game Arcade">
   <meta name="twitter:image" content="https://basssie91.github.io/Game/game-arcade-share.png">
-  <meta property="og:description" content="17 gratis browsergames: racen, een grote tycoon, puzzelen, kaarten, schieten en meer. Ook rustige games voor in de les.">
+  <meta property="og:description" content="19 gratis browsergames: racen, een grote tycoon, puzzelen, kaarten, pool, voetbal en meer.">
   <meta property="og:image" content="https://basssie91.github.io/Game/game-arcade-share.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -22,67 +22,136 @@
   <meta name="twitter:card" content="summary_large_image">
   <style>
 * { box-sizing: border-box; }
-html, body { margin: 0; min-height: 100%; background: #0b0c10; color: #fff; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-body { background: radial-gradient(1200px 600px at 50% -10%, #262a33 0%, #0b0c10 60%) fixed; }
-body::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: 0.5;
-  background: radial-gradient(600px 300px at 15% 20%, rgba(232,40,47,0.08), transparent 70%), radial-gradient(700px 400px at 85% 10%, rgba(120,140,180,0.08), transparent 70%); animation: drift 14s ease-in-out infinite alternate; }
-@keyframes drift { to { transform: translate3d(0, 30px, 0) scale(1.05); } }
+:root { --bg: #0a0a0a; --panel: #121212; --line: rgba(255,255,255,0.09); --line2: rgba(255,255,255,0.18); --mut: #8c8c8c; --soft: #bdbdbd; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: #fff; font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, #000 0%, transparent 75%); mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, #000 0%, transparent 75%); }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.wrap { position: relative; max-width: 1140px; margin: 0 auto; padding: 44px 20px 40px; }
-header { position: relative; z-index: 30; display: flex; align-items: center; gap: 18px; margin-bottom: 22px; animation: rise 0.5s ease both; }
-header img { width: 64px; height: 64px; border-radius: 16px; box-shadow: 0 10px 30px rgba(232,40,47,0.25); }
-h1 { margin: 0; font-size: clamp(34px, 6vw, 56px); font-style: italic; font-weight: 900; letter-spacing: 0.5px; line-height: 1; }
-h1 span { color: #e8282f; text-shadow: 0 0 30px rgba(232,40,47,0.45); }
-.sub { margin: 6px 0 0; color: #9aa1ab; font-size: 16px; }
-.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 20px; animation: rise 0.5s 0.05s ease both; }
-.chip { border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05); color: #d5d9df; padding: 8px 14px; border-radius: 99px; font: 700 13px system-ui, sans-serif; cursor: pointer; transition: background 0.15s, color 0.15s; }
-.chip:hover { background: rgba(255,255,255,0.12); }
-.chip.on { background: #fff; color: #111214; border-color: #fff; }
-.stats { margin-left: auto; color: #9aa1ab; font-size: 13px; }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+a { color: inherit; }
+/* ---------- menubalk ---------- */
+.nav { position: sticky; top: 0; z-index: 30; background: rgba(10,10,10,0.78); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.nav .in { max-width: 1440px; margin: 0 auto; height: 68px; padding: 0 72px 0 24px; display: flex; align-items: center; gap: 22px; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex: none; }
+.logo .mk { width: 34px; height: 34px; border-radius: 9px; background: #fff; display: grid; place-items: center; }
+.logo .mk svg { width: 22px; height: 22px; }
+.logo b { font-size: 17px; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; }
+.logo b i { font-style: normal; color: var(--mut); }
+.links { display: flex; gap: 4px; }
+.links a { text-decoration: none; color: var(--soft); font-size: 14px; font-weight: 600; padding: 8px 12px; border-radius: 8px; }
+.links a:hover { color: #fff; background: rgba(255,255,255,0.06); }
+.search { position: relative; margin-left: auto; width: min(320px, 30vw); }
+.search input { width: 100%; height: 40px; border-radius: 10px; border: 1px solid var(--line2); background: rgba(255,255,255,0.04); color: #fff; padding: 0 12px 0 36px; font: 500 14px inherit; font-family: inherit; outline: none; -webkit-user-select: text; user-select: text; }
+.search input:focus { border-color: #fff; background: rgba(255,255,255,0.07); }
+.search svg { position: absolute; left: 11px; top: 11px; width: 18px; height: 18px; opacity: .55; }
+.search kbd { position: absolute; right: 9px; top: 9px; font: 700 11px ui-monospace, Consolas, monospace; color: var(--mut); border: 1px solid var(--line2); border-radius: 6px; padding: 2px 6px; }
+.acct { position: relative; flex: none; }
+.syncbtn { height: 40px; border: 0; background: #fff; color: #0a0a0a; padding: 0 16px; border-radius: 10px; font: 800 14px inherit; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.syncbtn:hover { background: #d9d9d9; }
+/* ---------- pagina ---------- */
+.page { position: relative; z-index: 1; max-width: 1440px; margin: 0 auto; padding: 0 24px 40px; }
+.ann { margin: 18px 0 0 !important; }
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 40px; align-items: center; padding: 54px 0 46px; border-bottom: 1px solid var(--line); }
+.kick { display: inline-flex; align-items: center; gap: 8px; font: 700 12px ui-monospace, Consolas, monospace; letter-spacing: 2px; text-transform: uppercase; color: var(--soft); border: 1px solid var(--line2); border-radius: 99px; padding: 6px 12px; animation: rise .5s ease both; }
+.kick::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 12px #fff; }
+.hero h1 { margin: 22px 0 18px; font-size: clamp(46px, 6.2vw, 96px); line-height: .92; font-weight: 900; letter-spacing: -3px; text-transform: uppercase; animation: rise .5s .05s ease both; }
+.hero h1 span { color: transparent; -webkit-text-stroke: 1.5px #fff; }
+.hero .lead { max-width: 470px; color: var(--soft); font-size: 17px; line-height: 1.55; margin: 0 0 26px; animation: rise .5s .1s ease both; }
+.cta { display: flex; gap: 10px; flex-wrap: wrap; animation: rise .5s .15s ease both; }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 20px; border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 15px; border: 1px solid #fff; transition: background .15s, color .15s, transform .15s; }
+.btn.w { background: #fff; color: #0a0a0a; } .btn.w:hover { background: #d9d9d9; }
+.btn.o { color: #fff; border-color: var(--line2); } .btn.o:hover { border-color: #fff; }
+.btn:active { transform: scale(.98); }
+.nums { display: flex; gap: 34px; margin-top: 34px; animation: rise .5s .2s ease both; }
+.nums div b { display: block; font: 800 30px ui-monospace, Consolas, monospace; letter-spacing: -1px; }
+.nums div small { color: var(--mut); font-size: 12px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
+/* spotlight */
+.spot { position: relative; aspect-ratio: 16 / 10; border-radius: 22px; overflow: hidden; border: 1px solid var(--line2); background: #000; animation: fadein .8s .1s ease both; }
+.slide { position: absolute; inset: 0; opacity: 0; transition: opacity .7s ease; text-decoration: none; color: #fff; }
+.slide.on { opacity: 1; z-index: 1; }
+.slide img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.1) brightness(.75); transform: scale(1.04); transition: filter .5s ease, transform 6s ease; }
+.slide.on img { transform: scale(1.1); }
+.spot:hover .slide img { filter: grayscale(0) contrast(1.05) brightness(.85); }
+.slide::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.2) 55%, rgba(0,0,0,0) 100%); }
+.slide .cap { position: absolute; left: 26px; right: 26px; bottom: 24px; z-index: 1; display: flex; align-items: flex-end; gap: 20px; }
+.slide .cap div { flex: 1; min-width: 0; }
+.slide small { font: 700 11px ui-monospace, Consolas, monospace; letter-spacing: 2px; color: var(--soft); text-transform: uppercase; }
+.slide h3 { margin: 6px 0 6px; font-size: clamp(26px, 3vw, 40px); font-weight: 900; letter-spacing: -1px; text-transform: uppercase; line-height: 1; }
+.slide p { margin: 0; color: var(--soft); font-size: 14px; max-width: 420px; }
+.slide .go { flex: none; width: 54px; height: 54px; border-radius: 50%; background: #fff; color: #0a0a0a; display: grid; place-items: center; font-size: 20px; font-weight: 900; transition: transform .2s; }
+.slide:hover .go { transform: translateX(4px); }
+.dots { position: absolute; top: 18px; right: 18px; z-index: 2; display: flex; gap: 6px; }
+.dots button { width: 22px; height: 4px; border-radius: 2px; border: 0; padding: 0; background: rgba(255,255,255,.3); cursor: pointer; transition: width .3s, background .3s; }
+.dots button.on { width: 40px; background: #fff; }
+/* layout met zijbalk */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 36px; align-items: start; padding-top: 34px; }
+@media (max-width: 1100px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.shead { display: flex; align-items: baseline; gap: 14px; margin: 0 0 16px; }
+.shead h2 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: #fff; }
+.shead span { font: 700 12px ui-monospace, Consolas, monospace; color: var(--mut); }
+.shead::after { content: ""; flex: 1; height: 1px; background: var(--line); align-self: center; }
+.recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 34px; }
+.recent:empty, .recent.hide, #recentTitle.hide { display: none; }
+.rc { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; text-decoration: none; color: #fff; background: var(--panel); border: 1px solid var(--line); transition: border-color .15s, transform .15s; animation: rise .4s ease both; }
+.rc:hover { border-color: #fff; transform: translateY(-2px); }
+.rc img { width: 72px; height: 46px; object-fit: cover; border-radius: 9px; flex: none; filter: grayscale(1); transition: filter .3s; }
+.rc:hover img { filter: none; }
+.rc div { min-width: 0; flex: 1; } .rc b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .rc small { color: var(--mut); font-size: 12px; }
+.rc .go { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line2); display: grid; place-items: center; font-size: 12px; transition: background .15s, color .15s; }
+.rc:hover .go { background: #fff; color: #0a0a0a; }
+/* filters */
+.bar { display: flex; align-items: center; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.chip { position: relative; border: 0; background: none; color: var(--mut); padding: 10px 12px 14px; font: 700 14px inherit; font-family: inherit; cursor: pointer; }
+.chip:hover { color: #fff; }
+.chip.on { color: #fff; } .chip.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; background: #fff; }
+.chip i { font-style: normal; font: 700 11px ui-monospace, Consolas, monospace; color: var(--mut); margin-left: 4px; }
+.stats { margin-left: auto; color: var(--mut); font-size: 13px; padding-bottom: 6px; }
 .stats b { color: #fff; font-family: ui-monospace, Consolas, monospace; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 18px; }
-.sect { grid-column: 1 / -1; margin: 14px 0 -4px; font-size: 13px; font-weight: 800; letter-spacing: 1.5px; color: #8a919b; text-transform: uppercase; display: flex; align-items: center; gap: 12px; }
-.sect::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,0.08); }
-.sect.hide { display: none; }
-.recent { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-.recent:empty, .recent.hide { display: none; }
-.rc { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 14px; text-decoration: none; color: #fff; background: linear-gradient(180deg, #1a1d23, #14161b); border: 1px solid rgba(255,255,255,0.08); transition: transform 0.15s, border-color 0.15s; animation: rise 0.4s ease both; }
-.rc:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.3); }
-.rc img { width: 76px; height: 48px; object-fit: cover; border-radius: 9px; flex: none; background: #0e0f13; }
-.rc div { min-width: 0; flex: 1; }
-.rc b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rc small { color: #8a919b; font-size: 12px; }
-.rc .go { flex: none; width: 32px; height: 32px; border-radius: 50%; background: #fff; color: #111214; display: grid; place-items: center; font-size: 12px; font-weight: 900; }
-.rc:hover .go { background: #e8282f; color: #fff; }
-a.card { position: relative; display: flex; flex-direction: column; border-radius: 18px; text-decoration: none; color: #fff; overflow: hidden;
-  background: linear-gradient(180deg, #1a1d23, #14161b); border: 1px solid rgba(255,255,255,0.08);
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; animation: rise 0.5s ease both; }
-a.card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.3); box-shadow: 0 18px 40px rgba(0,0,0,0.45); }
+/* kaarten */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+a.card { position: relative; display: flex; flex-direction: column; text-decoration: none; color: #fff; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; transition: border-color .2s, transform .2s; animation: rise .45s ease both; }
+a.card:hover { border-color: #fff; transform: translateY(-4px); }
 a.card.hide { display: none; }
-.thumb { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #0e0f13; }
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s ease; }
-a.card:hover .thumb img { transform: scale(1.06); }
-.thumb::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,22,27,0) 55%, rgba(20,22,27,0.95)); }
-.cat { position: absolute; top: 10px; left: 10px; z-index: 1; background: rgba(10,11,14,0.75); backdrop-filter: blur(6px); font-size: 11px; font-weight: 800; letter-spacing: 0.4px; padding: 4px 9px; border-radius: 99px; color: #e6e9ee; }
-.body { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 0 18px 18px; flex: 1; }
-.card .icon { width: 52px; height: 52px; margin-top: -30px; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.5)); }
-.card .icon svg { width: 52px; height: 52px; display: block; }
-.card h2 { margin: 0; font-size: 20px; font-weight: 800; }
-.card p { margin: 0; color: #aab0b9; font-size: 14px; line-height: 1.45; flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.9em; }
-.card .meta { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #9aa1ab; }
-.card .meta b { color: #fff; font-family: ui-monospace, Consolas, monospace; font-size: 15px; }
-.card .play { background: #fff; color: #111214; font-weight: 800; padding: 7px 13px; border-radius: 9px; font-size: 13px; transition: background 0.15s, color 0.15s; }
-a.card:hover .play { background: #e8282f; color: #fff; }
-a.feature { grid-column: span 2; min-height: 250px; justify-content: flex-end; padding: 26px; background-size: cover; background-position: center; }
-a.feature::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(11,12,16,0.95) 0%, rgba(11,12,16,0.65) 50%, rgba(11,12,16,0.1) 85%); transition: opacity 0.3s; }
-a.feature > * { position: relative; }
-a.feature h2 { font-size: clamp(28px, 4vw, 40px); font-style: italic; font-weight: 900; margin-top: 10px; }
-a.feature p { max-width: 400px; flex: none; display: block; min-height: 0; color: #d0d4da; font-size: 15px; margin: 8px 0 14px; }
-a.feature .tag { align-self: flex-start; background: #e8282f; color: #fff; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 99px; }
-a.feature .tag.new { background: #fff; color: #111214; }
-a.feature .meta { max-width: 400px; }
-@media (max-width: 620px) { a.feature { grid-column: 1 / -1; } .stats { margin-left: 0; width: 100%; } }
-footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; }
+.thumb { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #000; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(1) contrast(1.08) brightness(.82); transition: filter .4s ease, transform .5s ease; }
+a.card:hover .thumb img { filter: grayscale(0) brightness(.95); transform: scale(1.05); }
+.num { position: absolute; top: 10px; left: 12px; z-index: 1; font: 800 12px ui-monospace, Consolas, monospace; color: #fff; mix-blend-mode: difference; }
+.new { position: absolute; top: 10px; right: 10px; z-index: 1; background: #fff; color: #0a0a0a; font: 800 10px ui-monospace, Consolas, monospace; letter-spacing: 1.5px; padding: 4px 7px; border-radius: 6px; }
+.body { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 16px; flex: 1; }
+.cat { font: 700 10.5px ui-monospace, Consolas, monospace; letter-spacing: 1.6px; color: var(--mut); }
+.card h3 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.3px; }
+.card p { margin: 0; color: #9e9e9e; font-size: 13.5px; line-height: 1.45; flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.9em; }
+.meta { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--mut); }
+.meta b { color: #fff; font: 800 13px ui-monospace, Consolas, monospace; margin-left: 4px; }
+.meta .arr { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line2); display: grid; place-items: center; color: #fff; font-size: 14px; transition: background .15s, color .15s, border-color .15s; }
+a.card:hover .meta .arr { background: #fff; color: #0a0a0a; border-color: #fff; }
+.none { display: none; padding: 40px 0; color: var(--mut); text-align: center; grid-column: 1 / -1; } .none.show { display: block; }
+/* ranglijst */
+#board { position: sticky; top: 88px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; animation: rise .5s .1s ease both; }
+@media (max-width: 1100px) { #board { position: relative; top: 0; margin-top: 30px; } }
+.bhead h2 { font-style: normal !important; font-size: 13px !important; letter-spacing: 2.5px; text-transform: uppercase; }
+#bGame { background-color: #0a0a0a !important; } #bGame:focus { border-color: #fff !important; }
+footer { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: #6f6f6f; font-size: 13px; }
+@media (max-width: 900px) {
+  .hero { grid-template-columns: minmax(0, 1fr); padding-top: 34px; gap: 30px; }
+  .links { display: none; }
+}
+@media (max-width: 620px) {
+  .nav .in { padding: 0 64px 0 14px; gap: 10px; height: 60px; }
+  .logo b { display: none; }
+  .search { width: auto; flex: 1; } .search kbd { display: none; }
+  .syncbtn { padding: 0 12px; font-size: 13px; }
+  .page { padding: 0 14px 30px; }
+  .hero h1 { letter-spacing: -1.5px; }
+  .nums { gap: 22px; } .nums div b { font-size: 24px; }
+  .stats { margin-left: 0; width: 100%; padding: 0 0 10px 12px; }
+  #acctMenu { right: -50px !important; }
+  .spot { aspect-ratio: 1 / 1; border-radius: 18px; }
+  .slide .cap { left: 18px; right: 18px; bottom: 18px; } .slide p { display: none; } .slide .go { width: 46px; height: 46px; }
+  .dots { top: 14px; right: 14px; }
+}
 .ann { display: flex; align-items: center; gap: 12px; margin: -20px 0 24px; padding: 12px 14px 12px 16px; border-radius: 14px; font-weight: 700; font-size: 15px; animation: rise 0.4s ease both; }
 .ann[hidden] { display: none; }
 .ann.red { background: linear-gradient(90deg, rgba(232,40,47,0.22), rgba(232,40,47,0.08)); border: 1px solid rgba(232,40,47,0.5); }
@@ -91,15 +160,15 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 .ann #annText { flex: 1; line-height: 1.4; } .annIc { font-size: 18px; }
 .ann a { flex: none; color: #111214; background: #fff; text-decoration: none; padding: 6px 11px; border-radius: 9px; font-size: 13px; font-weight: 800; }
 .ann button { flex: none; border: 0; background: none; color: #aab; font-size: 16px; cursor: pointer; padding: 4px 6px; } .ann button:hover { color: #fff; }
-#bList li[data-uid] { cursor: pointer; } #bList li[data-uid]:hover { background: rgba(255,255,255,0.05); } #bList li.me[data-uid]:hover { background: rgba(232,40,47,0.18); }
+#bList li[data-uid] { cursor: pointer; } #bList li[data-uid]:hover { background: rgba(255,255,255,0.05); } #bList li.me[data-uid]:hover { background: rgba(255,255,255,0.10); }
 #profModal { position: fixed; inset: 0; z-index: 55; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.8); backdrop-filter: blur(5px); overflow-y: auto; }
 #profModal.open { display: flex; }
 .pbox { position: relative; width: min(520px, 100%); margin: auto; background: #15171d; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 24px; box-shadow: 0 30px 80px rgba(0,0,0,0.6); animation: rise 0.3s ease both; }
-#profClose { position: absolute; top: 14px; right: 14px; border: 0; background: rgba(255,255,255,0.08); color: #fff; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; } #profClose:hover { background: #e8282f; }
+#profClose { position: absolute; top: 14px; right: 14px; border: 0; background: rgba(255,255,255,0.08); color: #fff; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; } #profClose:hover { background: #fff; color: #0a0a0a; }
 .phead { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-.pav { width: 60px; height: 60px; flex: none; border-radius: 18px; background: linear-gradient(135deg, #e8282f, #8e1418); display: grid; place-items: center; font-size: 28px; font-weight: 900; box-shadow: 0 10px 30px rgba(232,40,47,0.3); }
+.pav { width: 60px; height: 60px; flex: none; border-radius: 18px; background: #fff; color: #0a0a0a; display: grid; place-items: center; font-size: 28px; font-weight: 900; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
 .phead h2 { margin: 0; font-size: 24px; font-weight: 900; font-style: italic; } .phead p { margin: 4px 0 0; color: #8a919b; font-size: 13px; }
-.pme { font-style: normal; font-size: 11px; background: #e8282f; padding: 2px 7px; border-radius: 99px; vertical-align: middle; }
+.pme { font-style: normal; font-size: 11px; background: #fff; color: #0a0a0a; padding: 2px 7px; border-radius: 99px; vertical-align: middle; }
 .pstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
 .pstats div { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px; text-align: center; }
 .pstats b { display: block; font: 900 22px ui-monospace, Consolas, monospace; } .pstats small { color: #8a919b; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; }
@@ -110,16 +179,14 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 .prk { flex: none; min-width: 68px; text-align: right; font: 900 12px ui-monospace, Consolas, monospace; color: #aab; } .prk small { font-weight: 600; color: #6f7680; }
 .prk.m1 { color: #f5c542; } .prk.m2 { color: #cfd5dd; } .prk.m3 { color: #d08a4e; }
 @media (max-width: 480px) { .prk small { display: none; } .prk { min-width: 30px; } }
-#board { margin-top: 36px; background: linear-gradient(180deg, #1a1d23, #14161b); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 18px; animation: rise 0.5s 0.1s ease both; }
-@media (min-width: 1800px) { #board { position: absolute; top: 210px; left: calc(100% + 8px); width: 300px; margin: 0; } }
 .bhead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
 .bhead h2 { margin: 0; font-size: 18px; font-weight: 900; font-style: italic; } #bCount { color: #8a919b; font-size: 12px; font-weight: 700; }
 #bGame { width: 100%; appearance: none; -webkit-appearance: none; background: #0b0c10 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23aab' stroke-width='2' fill='none'/%3E%3C/svg%3E") no-repeat right 12px center; color: #fff; border: 1px solid rgba(255,255,255,0.14); border-radius: 11px; padding: 10px 34px 10px 12px; font: 700 14px system-ui, sans-serif; cursor: pointer; outline: none; margin-bottom: 10px; }
-#bGame:focus { border-color: #e8282f; } #bGame option { background: #15171d; }
+#bGame:focus { border-color: #ffffff; } #bGame option { background: #15171d; }
 #bList { list-style: none; margin: 0; padding: 0; }
 #bList li { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: 10px; font-size: 14px; }
 #bList li + li { border-top: 1px solid rgba(255,255,255,0.05); }
-#bList li.me { background: rgba(232,40,47,0.12); box-shadow: inset 3px 0 0 #e8282f; }
+#bList li.me { background: rgba(255,255,255,0.07); box-shadow: inset 3px 0 0 #fff; }
 #bList .rk { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 900 12px ui-monospace, Consolas, monospace; color: #9aa1ab; background: rgba(255,255,255,0.06); }
 #bList li:nth-child(1) .rk { background: #f5c542; color: #1a1400; } #bList li:nth-child(2) .rk { background: #cfd5dd; color: #15171d; } #bList li:nth-child(3) .rk { background: #d08a4e; color: #1c0f04; }
 #bList .nm { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -132,7 +199,6 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 .psub span.gold { color: #f5c542; } .psub i { font-style: normal; color: #6f7680; }
 .bnote { margin: 10px 0 0; color: #8a919b; font-size: 12px; line-height: 1.45; text-align: center; } .bnote:empty { display: none; }
 .bnote a { color: #fff; font-weight: 800; cursor: pointer; text-decoration: underline; }
-.hbtns { margin-left: auto; margin-right: 56px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .acct { position: relative; }
 #acctMenu { display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 260px; background: #15171d; border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; padding: 14px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
 #acctMenu.open { display: block; }
@@ -141,22 +207,22 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 #acctMenu .ghostbtn { display: block; box-sizing: border-box; text-align: center; text-decoration: none; margin-bottom: 8px; font-size: 13px; padding: 9px; }
 #nameBox { margin: 10px 0 4px; } .nlabel { display: block; font-size: 12px; font-weight: 800; color: #ccd; margin-bottom: 5px; }
 .nrow { display: flex; gap: 6px; } .nrow input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.16); background: #0b0c10; color: #fff; font: 600 14px system-ui, sans-serif; outline: none; -webkit-user-select: text; user-select: text; }
-.nrow input:focus { border-color: #e8282f; } .nrow button { border: 0; border-radius: 9px; padding: 8px 10px; background: #fff; color: #111; font: 800 13px system-ui, sans-serif; cursor: pointer; }
+.nrow input:focus { border-color: #ffffff; } .nrow button { border: 0; border-radius: 9px; padding: 8px 10px; background: #fff; color: #111; font: 800 13px system-ui, sans-serif; cursor: pointer; }
 #nameMsg { display: block; min-height: 16px; margin-top: 4px; font-size: 12px; font-weight: 700; color: #aab; } #nameMsg.err { color: #ff8a8f; } #nameMsg.ok { color: #5fd38a; }
-#acctOut { width: 100%; border: 0; border-radius: 10px; padding: 10px; background: #e8282f; color: #fff; font: 800 14px system-ui, sans-serif; cursor: pointer; }
+#acctOut { width: 100%; border: 0; border-radius: 10px; padding: 10px; background: #fff; color: #0a0a0a; font: 800 14px system-ui, sans-serif; cursor: pointer; }
 #authGate { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.88); backdrop-filter: blur(6px); overflow-y: auto; }
 #authGate.open { display: flex; }
 .abox { width: min(400px, 100%); background: #15171d; border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 26px 24px 20px; box-shadow: 0 30px 80px rgba(0,0,0,0.6); text-align: center; animation: rise 0.35s ease both; margin: auto; }
 .abox img { width: 56px; height: 56px; border-radius: 14px; }
-.abox h2 { margin: 10px 0 6px; font-size: 24px; font-style: italic; font-weight: 900; } .abox h2 span { color: #e8282f; }
+.abox h2 { margin: 10px 0 6px; font-size: 24px; font-style: italic; font-weight: 900; } .abox h2 span { color: #fff; -webkit-text-stroke: 0; opacity: .55; }
 .abox .lead { margin: 0 0 16px; color: #aab; font-size: 14px; line-height: 1.45; }
 .abox .tabs { display: flex; background: rgba(255,255,255,0.06); border-radius: 12px; padding: 4px; margin-bottom: 14px; }
 .abox .tab { flex: 1; border: 0; background: none; color: #aab; padding: 9px; border-radius: 9px; font: 800 14px system-ui, sans-serif; cursor: pointer; }
 .abox .tab.on { background: #fff; color: #0b0c10; }
 .abox label { display: block; text-align: left; font-size: 13px; font-weight: 700; color: #ccd; margin-bottom: 10px; }
 .abox input { display: block; width: 100%; margin-top: 5px; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: #0b0c10; color: #fff; font: 600 16px system-ui, sans-serif; outline: none; -webkit-user-select: text; user-select: text; }
-.abox input:focus { border-color: #e8282f; }
-.abox .go { width: 100%; margin-top: 4px; border: 0; border-radius: 12px; padding: 13px; background: #e8282f; color: #fff; font: 900 16px system-ui, sans-serif; cursor: pointer; }
+.abox input:focus { border-color: #ffffff; }
+.abox .go { width: 100%; margin-top: 4px; border: 0; border-radius: 12px; padding: 13px; background: #fff; color: #0a0a0a; font: 900 16px system-ui, sans-serif; cursor: pointer; }
 .abox .go:disabled { opacity: 0.6; }
 .abox .link { border: 0; background: none; color: #aab; font: 700 13px system-ui, sans-serif; margin-top: 10px; cursor: pointer; text-decoration: underline; }
 #aMsg { min-height: 18px; margin-top: 8px; font-size: 14px; font-weight: 700; } #aMsg.ok { color: #5fd38a; } #aMsg.err { color: #ff8a8f; }
@@ -164,8 +230,6 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 .ghostbtn { width: 100%; border: 1px solid rgba(255,255,255,0.2); background: none; color: #fff; border-radius: 12px; padding: 11px; font: 800 14px system-ui, sans-serif; cursor: pointer; }
 .ghostbtn:hover { background: rgba(255,255,255,0.08); }
 .abox .small { margin: 8px 0 0; color: #778; font-size: 12px; }
-.syncbtn { align-self: center; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color: #fff; padding: 10px 14px; border-radius: 12px; font: 800 14px system-ui, sans-serif; cursor: pointer; }
-.syncbtn:hover { background: rgba(255,255,255,0.14); }
 #syncModal { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.75); backdrop-filter: blur(4px); }
 #syncModal.open { display: flex; }
 .sbox { width: min(560px, 100%); max-height: 92vh; overflow: auto; background: linear-gradient(180deg, #20232a, #15171c); border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 22px; box-shadow: 0 30px 80px rgba(0,0,0,0.6); }
@@ -178,22 +242,15 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
 .sbox button.ghost { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.16); }
 #syncMsg { min-height: 20px; margin-top: 12px; font-size: 14px; font-weight: 700; }
 #syncMsg.ok { color: #5fd38a; } #syncMsg.err { color: #ff8a8f; }
-@media (max-width: 620px) { .hbtns { margin: 10px 0 0; justify-content: flex-start; } header { flex-wrap: wrap; } #acctMenu { left: 0; right: auto; } }
-</style>
+@media (max-width: 620px) { </style>
 </head>
 <body>
-  <div class="wrap">
-    <div id="annBar" class="ann" hidden><span class="annIc">📢</span><span id="annText"></span><a id="annLink" target="_blank" rel="noopener" hidden>Bekijk →</a><button id="annClose" aria-label="Sluiten">✕</button></div>
-    <div id="profModal"><div class="pbox"><button id="profClose" aria-label="Sluiten">✕</button><div id="profBody"></div></div></div>
-    <header>
-      <img src="arcade-icon.svg" alt="">
-      <div>
-        <h1>GAME <span>ARCADE</span></h1>
-        <p class="sub">Kies een game en verbeter je record</p>
-      </div>
-      <div class="hbtns">
-        <div class="acct">
-          <button class="syncbtn" id="acctBtn">🔑 Inloggen</button>
+  <nav class="nav"><div class="in">
+    <a class="logo" href="./"><span class="mk"><svg viewBox="0 0 24 24" fill="#0a0a0a"><path d="M7 6h10a5 5 0 0 1 4.9 6l-.8 4.2a2.6 2.6 0 0 1-4.5 1.2L14.4 15H9.6l-2.2 2.4a2.6 2.6 0 0 1-4.5-1.2L2.1 12A5 5 0 0 1 7 6zm0 3v1.5H5.5v1.5H7v1.5h1.5V12H10v-1.5H8.5V9H7zm9.3.2a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2zm2.2 2.2a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2z"/></svg></span><b>Game<i>/</i>Arcade</b></a>
+    <div class="links"><a href="#games">Games</a><a href="#board">Ranglijst</a></div>
+    <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Zoek een game…" autocomplete="off"><kbd>/</kbd></label>
+    <div class="acct">
+      <button class="syncbtn" id="acctBtn">🔑 Inloggen</button>
           <div id="acctMenu">
             <div class="astate" id="acctState"></div>
             <div class="aerr" id="acctErr"></div>
@@ -208,9 +265,11 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
             <button id="syncOpen" class="ghostbtn">🔄 Records overzetten met code</button>
             <button id="acctOut">Uitloggen</button>
           </div>
-        </div>
-      </div>
-    </header>
+    </div>
+  </div></nav>
+  <div class="page">
+    <div id="annBar" class="ann" hidden><span class="annIc">📢</span><span id="annText"></span><a id="annLink" target="_blank" rel="noopener" hidden>Bekijk →</a><button id="annClose" aria-label="Sluiten">✕</button></div>
+    <div id="profModal"><div class="pbox"><button id="profClose" aria-label="Sluiten">✕</button><div id="profBody"></div></div></div>
     <div id="authGate">
       <form class="abox" id="authForm" autocomplete="on">
         <img src="arcade-icon.svg" alt="">
@@ -243,172 +302,88 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
         <div id="syncMsg"></div>
       </div>
     </div>
-    <div class="bar">
-      <button class="chip on" data-f="">Alles</button>
-      <button class="chip" data-f="ACTIE">Actie</button>
-      <button class="chip" data-f="3D">3D</button>
-      <button class="chip" data-f="PUZZEL">Puzzel</button>
-      <button class="chip" data-f="STRATEGIE">Strategie</button>
-      <span class="stats">Records gezet: <b id="nRec">0</b>/19</span>
-    </div>
-    <div class="grid">
-      <div class="sect hide" id="recentTitle">Verder spelen</div>
-      <div class="recent" id="recent"></div>
-      <div class="sect">Uitgelicht</div>
-      <a class="card feature" href="race/" data-cat="RACE · 3D" style="background-image:url(race/banner.png)">
-        <span class="tag">3D · 12 LEVELS</span>
-        <h2>Turbo Tijdrit</h2>
-        <p>Race tegen de klok over loopings, schansen en muren. Haal goud op elk level!</p>
-        <div class="meta"><span>Levels gehaald: <b id="raceDone">–</b></span><span class="play">Spelen ▶</span></div>
+
+    <section class="hero">
+      <div>
+        <span class="kick">19 gratis games · pc en telefoon</span>
+        <h1>Speel.<br><span>Verbeter.</span><br>Win.</h1>
+        <p class="lead">Racen, puzzelen, schieten of een potje pool. Log in, dan bewaar je je records op elk apparaat en strijd je mee op de ranglijst.</p>
+        <div class="cta"><a class="btn w" href="#games">Bekijk alle games ↓</a><a class="btn o" href="#board">🏆 Ranglijst</a></div>
+        <div class="nums"><div><b>19</b><small>Games</small></div><div><b><span id="nRec">0</span>/19</b><small>Jouw records</small></div><div><b id="nPlayers">–</b><small>Spelers</small></div></div>
+      </div>
+      <div class="spot" id="spot"><a class="slide on" href="race/"><img src="race/banner.png" alt=""><div class="cap"><div><small>Uitgelicht · 3D · 12 levels</small><h3>Turbo Tijdrit</h3><p>Race tegen de klok over loopings, schansen en muren. Haal goud op elk level!</p></div><span class="go">→</span></div></a><a class="slide" href="pool/"><img src="pool/preview.jpg?v=4" alt=""><div class="cap"><div><small>Nieuw · tegen bot of vriend</small><h3>Pool</h3><p>8-ball met powerups. Win het toernooi van 8 rondes.</p></div><span class="go">→</span></div></a><a class="slide" href="escape/"><img src="escape/preview.jpg?v=4" alt=""><div class="cap"><div><small>Puzzel · 3D · 10 kamers</small><h3>Escape Room</h3><p>Kraak codes en sloten. Je tijd komt op de ranglijst.</p></div><span class="go">→</span></div></a><a class="slide" href="overval/"><img src="overval/preview.jpg?v=4" alt=""><div class="cap"><div><small>Actie · 3D-shooter</small><h3>Robo Overval</h3><p>Pak de buit, kraak de kluis en ontsnap uit de robotstad.</p></div><span class="go">→</span></div></a><div class="dots"><button class="on" data-s="0" aria-label="Dia 1"></button><button class="" data-s="1" aria-label="Dia 2"></button><button class="" data-s="2" aria-label="Dia 3"></button><button class="" data-s="3" aria-label="Dia 4"></button></div></div>
+    </section>
+    <div class="main">
+      <div>
+        <div class="shead hide" id="recentTitle"><h2>Verder spelen</h2></div>
+        <div class="recent" id="recent"></div>
+        <div class="shead" id="games"><h2>Alle games</h2><span id="gCount">19</span></div>
+        <div class="bar"><button class="chip on" data-f="">Alles<i>19</i></button><button class="chip" data-f="ACTIE">Actie<i>5</i></button><button class="chip" data-f="3D">3D<i>5</i></button><button class="chip" data-f="PUZZEL">Puzzel<i>6</i></button><button class="chip" data-f="STRATEGIE">Strategie<i>2</i></button><button class="chip" data-f="SPORT">Sport<i>2</i></button><span class="stats">Records gezet: <b id="nRec2">0</b>/19</span></div>
+        <div class="grid">
+          <a class="card" href="race/" data-cat="RACE · 3D · ACTIE" data-name="turbo tijdrit" style="animation-delay:0.00s">
+        <div class="thumb"><span class="num">01</span><img src="race/banner.png" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">RACE · 3D · ACTIE</span><h3>Turbo Tijdrit</h3><p>Race tegen de klok over loopings, schansen en muren. Haal goud op elk level!</p><div class="meta"><span>Levels <b id="raceDone">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="overval/" data-cat="ACTIE · 3D" data-name="robo overval" style="animation-delay:0.03s">
+        <div class="thumb"><span class="num">02</span><img src="overval/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">ACTIE · 3D</span><h3>Robo Overval</h3><p>Realistische 3D-shooter: overval een bank vol robotsoldaten. Pak de buit, kraak de kluis en ontsnap!</p><div class="meta"><span>Record <b data-best="overval">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="pool/" data-cat="SPORT" data-name="pool" style="animation-delay:0.06s">
+        <div class="thumb"><span class="num">03</span><span class="new">NIEUW</span><img src="pool/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">SPORT</span><h3>Pool</h3><p>8-ball tegen de bot of een vriend: pot je ballen, kies een slimme powerup en win het toernooi.</p><div class="meta"><span>Record <b data-best="pool">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="voetbal/" data-cat="SPORT" data-name="puck voetbal" style="animation-delay:0.09s">
+        <div class="thumb"><span class="num">04</span><img src="voetbal/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">SPORT</span><h3>Puck Voetbal</h3><p>Voetbal van bovenaf: schiet je schijven tegen de bal, kies 1 slimme powerup en win het toernooi. Of speel tegen een vriend!</p><div class="meta"><span>Record <b data-best="voetbal">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="escape/" data-cat="PUZZEL · 3D" data-name="escape room" style="animation-delay:0.12s">
+        <div class="thumb"><span class="num">05</span><img src="escape/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">PUZZEL · 3D</span><h3>Escape Room</h3><p>10 moeilijke 3D-kamers vol codes, sloten en puzzels. Ontsnap zo snel mogelijk: je tijd komt op de ranglijst!</p><div class="meta"><span>Record <b data-best="escape">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="moto/" data-cat="ACTIE · 3D" data-name="moto stunt" style="animation-delay:0.15s">
+        <div class="thumb"><span class="num">06</span><img src="moto/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">ACTIE · 3D</span><h3>Moto Stunt</h3><p>3D-stuntrace: vlieg over enorme schansen en loopings. Elke salto = 0,5 sec eraf. Haal overal 3 sterren!</p><div class="meta"><span>Record <b data-best="moto">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="tycoon/" data-cat="TYCOON · 3D" data-name="pc tycoon" style="animation-delay:0.18s">
+        <div class="thumb"><span class="num">07</span><img src="tycoon/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">TYCOON · 3D</span><h3>PC Tycoon</h3><p>Run je eigen pc-winkel: pak dozen, vul de schappen, reken af bij de kassa en bouw steeds grotere winkels.</p><div class="meta"><span>Record <b data-best="tycoon">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="td/" data-cat="STRATEGIE" data-name="robo defense" style="animation-delay:0.21s">
+        <div class="thumb"><span class="num">08</span><img src="td/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">STRATEGIE</span><h3>Robo Defense</h3><p>Bouw torens langs het pad en houd de golven robots tegen.</p><div class="meta"><span>Record <b data-best="td">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="meteoren/" data-cat="ACTIE" data-name="meteorenregen 2.0" style="animation-delay:0.24s">
+        <div class="thumb"><span class="num">09</span><img src="meteoren/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">ACTIE</span><h3>Meteorenregen 2.0</h3><p>Schiet meteoren en vijanden kapot. Elke minuut een baas!</p><div class="meta"><span>Record <b data-best="meteoren">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="runner/" data-cat="ACTIE" data-name="neon runner" style="animation-delay:0.27s">
+        <div class="thumb"><span class="num">10</span><img src="runner/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">ACTIE</span><h3>Neon Runner</h3><p>Ren, spring en duik door een neonwereld die steeds sneller gaat.</p><div class="meta"><span>Record <b data-best="runner">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="snake/" data-cat="KLASSIEK" data-name="snake 2.0" style="animation-delay:0.30s">
+        <div class="thumb"><span class="num">11</span><img src="snake/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">KLASSIEK</span><h3>Snake 2.0</h3><p>Eet appels, word langer en overleef de levels met muren.</p><div class="meta"><span>Record <b data-best="snake">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="2048/" data-cat="PUZZEL" data-name="2048" style="animation-delay:0.33s">
+        <div class="thumb"><span class="num">12</span><img src="2048/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">PUZZEL</span><h3>2048</h3><p>Schuif de tegels en maak 2048.</p><div class="meta"><span>Record <b data-best="2048">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="blokken/" data-cat="PUZZEL" data-name="blokken" style="animation-delay:0.36s">
+        <div class="thumb"><span class="num">13</span><img src="blokken/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">PUZZEL</span><h3>Blokken</h3><p>Vallende blokken: maak rijen vol voordat je vastloopt.</p><div class="meta"><span>Record <b data-best="blokken">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="stack/" data-cat="BEHENDIG" data-name="stack tower" style="animation-delay:0.39s">
+        <div class="thumb"><span class="num">14</span><img src="stack/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">BEHENDIG</span><h3>Stack Tower</h3><p>Stapel de blokken precies op elkaar. Hoe hoog kom jij?</p><div class="meta"><span>Record <b data-best="stack">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="patience/" data-cat="KAARTEN" data-name="patience" style="animation-delay:0.42s">
+        <div class="thumb"><span class="num">15</span><img src="patience/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">KAARTEN</span><h3>Patience</h3><p>Het bekende kaartspel: leg alle kaarten op volgorde op de vier stapels.</p><div class="meta"><span>Record <b data-best="patience">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="sudoku/" data-cat="PUZZEL" data-name="sudoku" style="animation-delay:0.45s">
+        <div class="thumb"><span class="num">16</span><img src="sudoku/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">PUZZEL</span><h3>Sudoku</h3><p>Vul de cijfers 1 t/m 9 in. Je puzzel wordt bewaard, dus je kunt later verder.</p><div class="meta"><span>Record <b data-best="sudoku">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="mijnen/" data-cat="PUZZEL" data-name="mijnenveger" style="animation-delay:0.48s">
+        <div class="thumb"><span class="num">17</span><img src="mijnen/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">PUZZEL</span><h3>Mijnenveger</h3><p>Zoek alle veilige vakjes zonder op een mijn te klikken.</p><div class="meta"><span>Record <b data-best="mijnen">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="memory/" data-cat="PUZZEL" data-name="memory" style="animation-delay:0.51s">
+        <div class="thumb"><span class="num">18</span><img src="memory/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">PUZZEL</span><h3>Memory</h3><p>Zoek de paren. Alleen of samen met je buurman of buurvrouw.</p><div class="meta"><span>Record <b data-best="memory">–</b></span><span class="arr">→</span></div></div>
+      </a><a class="card" href="vier/" data-cat="STRATEGIE" data-name="vier op een rij" style="animation-delay:0.54s">
+        <div class="thumb"><span class="num">19</span><img src="vier/preview.jpg?v=4" alt="" loading="lazy"></div>
+        <div class="body"><span class="cat">STRATEGIE</span><h3>Vier op een rij</h3><p>Tegen de computer of met z'n tweeën: wie heeft er als eerste vier op een rij?</p><div class="meta"><span>Record <b data-best="vier">–</b></span><span class="arr">→</span></div></div>
       </a>
-      <a class="card feature" href="overval/" data-cat="ACTIE · 3D" style="background-image:url(overval/preview.jpg?v=4); animation-delay:0.05s">
-        <span class="tag new">NIEUW · 3D-SHOOTER</span>
-        <h2>Robo Overval</h2>
-        <p>Overval een stad vol robotsoldaten. Pak de buit, kraak de kluis en ontsnap!</p>
-        <div class="meta"><span>Record: <b data-best="overval">–</b></span><span class="play">Spelen ▶</span></div>
-      </a>
-      <div class="sect">Alle games</div>
-      <a class="card" href="pool/" data-cat="NIEUW · SPORT" style="animation-delay:0.12s">
-        <div class="thumb"><span class="cat">NIEUW · SPORT</span><img src="pool/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="6" y="14" width="52" height="36" rx="6" fill="#4a2812"/><rect x="11" y="19" width="42" height="26" rx="2" fill="#1f8a5b"/><circle cx="11" cy="19" r="3" fill="#050506"/><circle cx="53" cy="19" r="3" fill="#050506"/><circle cx="11" cy="45" r="3" fill="#050506"/><circle cx="53" cy="45" r="3" fill="#050506"/><circle cx="38" cy="32" r="5" fill="#111"/><circle cx="38" cy="32" r="2.2" fill="#fff"/><circle cx="22" cy="32" r="4" fill="#f4f1ea"/><line x1="4" y1="40" x2="17" y2="34" stroke="#d9b98a" stroke-width="2.5" stroke-linecap="round"/></svg></div>
-        <h2>Pool</h2>
-        <p>8-ball tegen de bot of een vriend: pot je ballen, kies een slimme powerup en win het toernooi.</p>
-        <div class="meta"><span>Record: <b data-best="pool">–</b></span><span class="play">Spelen ▶</span></div>
+          <div class="none" id="none">Geen game gevonden. Probeer een andere zoekterm.</div>
         </div>
-      </a><a class="card" href="voetbal/" data-cat="SPORT" style="animation-delay:0.16s">
-        <div class="thumb"><span class="cat">SPORT</span><img src="voetbal/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="8" y="14" width="48" height="36" rx="4" fill="#357a32" stroke="#e6e8eb" stroke-width="2"/><line x1="32" y1="14" x2="32" y2="50" stroke="#e6e8eb" stroke-width="2"/><circle cx="32" cy="32" r="6" fill="none" stroke="#e6e8eb" stroke-width="2"/><circle cx="20" cy="26" r="5" fill="#2f7fe0" stroke="#173f70" stroke-width="1.5"/><circle cx="44" cy="38" r="5" fill="#e8282f" stroke="#7a1418" stroke-width="1.5"/><circle cx="37" cy="27" r="3" fill="#fff"/></svg></div>
-        <h2>Puck Voetbal</h2>
-        <p>Voetbal van bovenaf: schiet je schijven tegen de bal, kies 1 slimme powerup en win het toernooi. Of speel tegen een vriend!</p>
-        <div class="meta"><span>Record: <b data-best="voetbal">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="escape/" data-cat="PUZZEL · 3D" style="animation-delay:0.20s">
-        <div class="thumb"><span class="cat">PUZZEL · 3D</span><img src="escape/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="18" y="10" width="28" height="44" rx="2" fill="#5a3a26" stroke="#2a1c12" stroke-width="2"/><rect x="22" y="14" width="20" height="16" rx="1" fill="#7a5132"/><rect x="22" y="34" width="20" height="16" rx="1" fill="#7a5132"/><circle cx="40" cy="33" r="2.5" fill="#d4a63c"/><rect x="34" y="36" width="20" height="16" rx="3" fill="#e8282f"/><path d="M38 36 v-5 a6 6 0 0 1 12 0 v5" stroke="#e6e8eb" stroke-width="3" fill="none"/><circle cx="44" cy="43" r="2.5" fill="#fff"/><rect x="43" y="44" width="2" height="5" fill="#fff"/></svg></div>
-        <h2>Escape Room</h2>
-        <p>10 moeilijke 3D-kamers vol codes, sloten en puzzels. Ontsnap zo snel mogelijk: je tijd komt op de ranglijst!</p>
-        <div class="meta"><span>Record: <b data-best="escape">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="moto/" data-cat="ACTIE · 3D" style="animation-delay:0.24s">
-        <div class="thumb"><span class="cat">ACTIE · 3D</span><img src="moto/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><circle cx="18" cy="42" r="9" fill="none" stroke="#e6e8eb" stroke-width="4"/><circle cx="46" cy="42" r="9" fill="none" stroke="#e6e8eb" stroke-width="4"/><path d="M18 42 L28 30 L40 30 L46 42" stroke="#9aa1ab" stroke-width="3" fill="none" stroke-linejoin="round"/><path d="M22 30 L30 24 L42 24 L46 30 L38 34 L26 34 Z" fill="#e8282f"/><circle cx="33" cy="15" r="6" fill="#fff"/><path d="M33 21 L30 29" stroke="#c9ced6" stroke-width="4" stroke-linecap="round"/><path d="M8 52 Q32 44 56 52" stroke="#5b616b" stroke-width="2" fill="none"/></svg></div>
-        <h2>Moto Stunt</h2>
-        <p>3D-stuntrace: vlieg over enorme schansen en loopings. Elke salto = 0,5 sec eraf. Haal overal 3 sterren!</p>
-        <div class="meta"><span>Record: <b data-best="moto">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="tycoon/" data-cat="TYCOON · 3D" style="animation-delay:0.28s">
-        <div class="thumb"><span class="cat">TYCOON · 3D</span><img src="tycoon/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="10" y="16" width="30" height="20" rx="3" fill="#2a2d35" stroke="#c9ced6" stroke-width="2"/><rect x="13" y="19" width="24" height="14" rx="1" fill="#5f7dff"/><rect x="22" y="36" width="6" height="6" fill="#c9ced6"/><rect x="16" y="42" width="18" height="3" rx="1.5" fill="#c9ced6"/><circle cx="45" cy="42" r="10" fill="#f2c14e" stroke="#b8891f" stroke-width="2"/><text x="45" y="46.5" font-family="Arial" font-weight="900" font-size="12" fill="#7a5a10" text-anchor="middle">€</text><path d="M43 12 l6 -6 l6 6 M49 6 v14" stroke="#5fd38a" stroke-width="3" fill="none" stroke-linecap="round"/></svg></div>
-        <h2>PC Tycoon</h2>
-        <p>Run je eigen pc-winkel: pak dozen, vul de schappen, reken af bij de kassa en bouw steeds grotere winkels.</p>
-        <div class="meta"><span>Record: <b data-best="tycoon">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="td/" data-cat="STRATEGIE" style="animation-delay:0.32s">
-        <div class="thumb"><span class="cat">STRATEGIE</span><img src="td/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><path d="M4 46 H20 V22 H44 V46 H60" fill="none" stroke="#3a3e47" stroke-width="9" stroke-linejoin="round"/><circle cx="12" cy="46" r="4" fill="#ff4d55"/><circle cx="20" cy="34" r="4" fill="#ff4d55"/><rect x="26" y="30" width="12" height="12" rx="3" fill="#f2f2f2"/><rect x="30" y="20" width="4" height="12" rx="2" fill="#f2f2f2"/><rect x="48" y="10" width="10" height="10" rx="2" fill="#5ab8ff"/><rect x="6" y="10" width="10" height="10" rx="2" fill="#e8282f"/></svg></div>
-        <h2>Robo Defense</h2>
-        <p>Bouw torens langs het pad en houd de golven robots tegen.</p>
-        <div class="meta"><span>Record: <b data-best="td">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="meteoren/" data-cat="ACTIE" style="animation-delay:0.36s">
-        <div class="thumb"><span class="cat">ACTIE</span><img src="meteoren/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><circle cx="44" cy="17" r="9" fill="#7a7068"/><circle cx="41" cy="15" r="2.4" fill="#5b534c"/><circle cx="17" cy="22" r="5" fill="#7a7068"/><path d="M32 26 L42 48 L35 45 L29 45 L22 48 Z" fill="#f2f2f2"/><path d="M22 48 L26 40 L29 45 Z M42 48 L38 40 L35 45 Z" fill="#e8282f"/><path d="M29 46 L32 56 L35 46 Z" fill="#ff7a2a"/><rect x="31" y="9" width="2" height="9" rx="1" fill="#fff"/></svg></div>
-        <h2>Meteorenregen 2.0</h2>
-        <p>Schiet meteoren en vijanden kapot. Elke minuut een baas!</p>
-        <div class="meta"><span>Record: <b data-best="meteoren">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="runner/" data-cat="ACTIE" style="animation-delay:0.40s">
-        <div class="thumb"><span class="cat">ACTIE</span><img src="runner/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><path d="M4 58 L28 22 M60 58 L36 22 M22 58 L30 22 M42 58 L34 22" stroke="#3fe0ff" stroke-width="2.4" stroke-linecap="round"/><path d="M26 22 H38" stroke="#3fe0ff" stroke-width="2"/><rect x="25" y="34" width="14" height="14" rx="2" fill="#ffffff"/><rect x="40" y="27" width="7" height="5" rx="1" fill="#e8282f"/><circle cx="13" cy="12" r="1.5" fill="#fff"/><circle cx="50" cy="9" r="1" fill="#fff"/></svg></div>
-        <h2>Neon Runner</h2>
-        <p>Ren, spring en duik door een neonwereld die steeds sneller gaat.</p>
-        <div class="meta"><span>Record: <b data-best="runner">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="snake/" data-cat="KLASSIEK" style="animation-delay:0.44s">
-        <div class="thumb"><span class="cat">KLASSIEK</span><img src="snake/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><path d="M14 46 H30 V30 H46 V18" fill="none" stroke="#f2f2f2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="46" cy="16" r="3" fill="#16181d"/><circle cx="20" cy="20" r="6" fill="#e8282f"/><path d="M20 14 q2 -4 5 -4" stroke="#5fae5a" stroke-width="2" fill="none"/></svg></div>
-        <h2>Snake 2.0</h2>
-        <p>Eet appels, word langer en overleef de levels met muren.</p>
-        <div class="meta"><span>Record: <b data-best="snake">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="2048/" data-cat="PUZZEL" style="animation-delay:0.48s">
-        <div class="thumb"><span class="cat">PUZZEL</span><img src="2048/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="8" y="8" width="22" height="22" rx="4" fill="#f2f2f2"/><rect x="34" y="8" width="22" height="22" rx="4" fill="#3a3d45"/><rect x="8" y="34" width="22" height="22" rx="4" fill="#3a3d45"/><rect x="34" y="34" width="22" height="22" rx="4" fill="#e8282f"/><text x="19" y="23.5" font-family="system-ui,sans-serif" font-weight="900" font-size="12" text-anchor="middle" fill="#16181d">2</text><text x="45" y="49.5" font-family="system-ui,sans-serif" font-weight="900" font-size="9" text-anchor="middle" fill="#fff">2048</text></svg></div>
-        <h2>2048</h2>
-        <p>Schuif de tegels en maak 2048.</p>
-        <div class="meta"><span>Record: <b data-best="2048">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="blokken/" data-cat="PUZZEL" style="animation-delay:0.52s">
-        <div class="thumb"><span class="cat">PUZZEL</span><img src="blokken/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><g stroke="#16181d" stroke-width="1.5"><rect x="10" y="40" width="11" height="11" fill="#f2f2f2"/><rect x="21" y="40" width="11" height="11" fill="#f2f2f2"/><rect x="32" y="40" width="11" height="11" fill="#9aa1ab"/><rect x="43" y="40" width="11" height="11" fill="#9aa1ab"/><rect x="43" y="29" width="11" height="11" fill="#9aa1ab"/><rect x="10" y="29" width="11" height="11" fill="#5b616b"/><rect x="21" y="9" width="11" height="11" fill="#e8282f"/><rect x="32" y="9" width="11" height="11" fill="#e8282f"/><rect x="32" y="20" width="11" height="11" fill="#e8282f"/><rect x="43" y="20" width="11" height="11" fill="#e8282f"/></g></svg></div>
-        <h2>Blokken</h2>
-        <p>Vallende blokken: maak rijen vol voordat je vastloopt.</p>
-        <div class="meta"><span>Record: <b data-best="blokken">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="stack/" data-cat="BEHENDIG" style="animation-delay:0.56s">
-        <div class="thumb"><span class="cat">BEHENDIG</span><img src="stack/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><path d="M32 46 L52 38 L32 30 L12 38 Z" fill="#9aa1ab"/><path d="M12 38 V43 L32 51 V46 Z" fill="#5b616b"/><path d="M52 38 V43 L32 51 V46 Z" fill="#7b828c"/><path d="M32 36 L50 29 L32 22 L14 29 Z" fill="#d6dae0"/><path d="M14 29 V34 L32 41 V36 Z" fill="#8a919b"/><path d="M50 29 V34 L32 41 V36 Z" fill="#aab0b9"/><path d="M34 25 L50 19 L34 13 L18 19 Z" fill="#e8282f"/><path d="M18 19 V24 L34 30 V25 Z" fill="#a61d24"/><path d="M50 19 V24 L34 30 V25 Z" fill="#c4232b"/></svg></div>
-        <h2>Stack Tower</h2>
-        <p>Stapel de blokken precies op elkaar. Hoe hoog kom jij?</p>
-        <div class="meta"><span>Record: <b data-best="stack">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="patience/" data-cat="KAARTEN" style="animation-delay:0.60s">
-        <div class="thumb"><span class="cat">KAARTEN</span><img src="patience/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="11" y="15" width="24" height="34" rx="4" fill="#fff" transform="rotate(-12 23 32)"/><text x="23" y="37" font-family="Arial" font-size="15" fill="#d4232b" text-anchor="middle" transform="rotate(-12 23 32)">♥</text><rect x="29" y="14" width="24" height="34" rx="4" fill="#fff" transform="rotate(10 41 31)"/><text x="41" y="28" font-family="Arial" font-weight="900" font-size="11" fill="#15171b" text-anchor="middle" transform="rotate(10 41 31)">A</text><text x="41" y="41" font-family="Arial" font-size="13" fill="#15171b" text-anchor="middle" transform="rotate(10 41 31)">♠</text></svg></div>
-        <h2>Patience</h2>
-        <p>Het bekende kaartspel: leg alle kaarten op volgorde op de vier stapels.</p>
-        <div class="meta"><span>Record: <b data-best="patience">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="sudoku/" data-cat="PUZZEL" style="animation-delay:0.64s">
-        <div class="thumb"><span class="cat">PUZZEL</span><img src="sudoku/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="10" y="10" width="44" height="44" rx="5" fill="#22252c" stroke="#9aa1ab" stroke-width="1.5"/><path d="M24.7 10 V54 M39.3 10 V54 M10 24.7 H54 M10 39.3 H54" stroke="#9aa1ab" stroke-width="1.2"/><text x="17.3" y="21.5" font-family="Arial" font-weight="800" font-size="10" fill="#fff" text-anchor="middle">5</text><text x="32" y="36" font-family="Arial" font-weight="800" font-size="10" fill="#7cc4ff" text-anchor="middle">3</text><text x="46.7" y="50.5" font-family="Arial" font-weight="800" font-size="10" fill="#fff" text-anchor="middle">9</text></svg></div>
-        <h2>Sudoku</h2>
-        <p>Vul de cijfers 1 t/m 9 in. Je puzzel wordt bewaard, dus je kunt later verder.</p>
-        <div class="meta"><span>Record: <b data-best="sudoku">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="mijnen/" data-cat="PUZZEL" style="animation-delay:0.68s">
-        <div class="thumb"><span class="cat">PUZZEL</span><img src="mijnen/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><g fill="#3a3f48"><rect x="10" y="10" width="13" height="13" rx="2.5"/><rect x="25" y="10" width="13" height="13" rx="2.5"/><rect x="40" y="10" width="13" height="13" rx="2.5"/><rect x="10" y="25" width="13" height="13" rx="2.5"/><rect x="25" y="25" width="13" height="13" rx="2.5"/><rect x="40" y="25" width="13" height="13" rx="2.5"/><rect x="10" y="40" width="13" height="13" rx="2.5"/><rect x="25" y="40" width="13" height="13" rx="2.5"/><rect x="40" y="40" width="13" height="13" rx="2.5"/></g><rect x="25" y="25" width="13" height="13" rx="2.5" fill="#1b1e23"/><text x="31.5" y="35" font-family="Arial" font-weight="900" font-size="11" fill="#6cb4ff" text-anchor="middle">2</text><rect x="44" y="12" width="2" height="10" fill="#c9ced6"/><path d="M46 12 L52 15 L46 18 Z" fill="#e8282f"/><circle cx="17" cy="47" r="4" fill="#0b0c10" stroke="#9aa1ab" stroke-width="1"/></svg></div>
-        <h2>Mijnenveger</h2>
-        <p>Zoek alle veilige vakjes zonder op een mijn te klikken.</p>
-        <div class="meta"><span>Record: <b data-best="mijnen">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="memory/" data-cat="PUZZEL" style="animation-delay:0.72s">
-        <div class="thumb"><span class="cat">PUZZEL</span><img src="memory/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="9" y="14" width="20" height="27" rx="4" fill="#fff" transform="rotate(-10 19 27)"/><text x="19" y="33" font-size="14" text-anchor="middle" transform="rotate(-10 19 27)">⭐</text><rect x="34" y="22" width="20" height="27" rx="4" fill="#3a3f48" stroke="#e8282f" stroke-width="1.5" transform="rotate(8 44 35)"/><text x="44" y="40" font-family="Arial" font-weight="900" font-size="13" fill="#9aa1ab" text-anchor="middle" transform="rotate(8 44 35)">?</text></svg></div>
-        <h2>Memory</h2>
-        <p>Zoek de paren. Alleen of samen met je buurman of buurvrouw.</p>
-        <div class="meta"><span>Record: <b data-best="memory">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a><a class="card" href="vier/" data-cat="STRATEGIE" style="animation-delay:0.76s">
-        <div class="thumb"><span class="cat">STRATEGIE</span><img src="vier/preview.jpg?v=4" alt="" loading="lazy"></div>
-        <div class="body">
-        <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16181d"/><rect x="9" y="16" width="46" height="38" rx="5" fill="#2f4f8f"/><circle cx="17" cy="24" r="3.7" fill="#0b0c10"/><circle cx="27" cy="24" r="3.7" fill="#0b0c10"/><circle cx="37" cy="24" r="3.7" fill="#0b0c10"/><circle cx="47" cy="24" r="3.7" fill="#0b0c10"/><circle cx="17" cy="34" r="3.7" fill="#0b0c10"/><circle cx="27" cy="34" r="3.7" fill="#ff6b6b"/><circle cx="37" cy="34" r="3.7" fill="#0b0c10"/><circle cx="47" cy="34" r="3.7" fill="#0b0c10"/><circle cx="17" cy="44" r="3.7" fill="#ffd23f"/><circle cx="27" cy="44" r="3.7" fill="#ff6b6b"/><circle cx="37" cy="44" r="3.7" fill="#ff6b6b"/><circle cx="47" cy="44" r="3.7" fill="#ff6b6b"/><circle cx="17" cy="54" r="3.7" fill="#ffd23f"/><circle cx="27" cy="54" r="3.7" fill="#ffd23f"/><circle cx="37" cy="54" r="3.7" fill="#ffd23f"/><circle cx="47" cy="54" r="3.7" fill="#ff6b6b"/><circle cx="47" cy="10" r="4" fill="#ff6b6b"/></svg></div>
-        <h2>Vier op een rij</h2>
-        <p>Tegen de computer of met z'n tweeën: wie heeft er als eerste vier op een rij?</p>
-        <div class="meta"><span>Record: <b data-best="vier">–</b></span><span class="play">Spelen ▶</span></div>
-        </div>
-      </a>
-    </div>
-    <aside id="board">
-      <div class="bhead"><h2>🏆 Ranglijst</h2><span id="bCount"></span></div>
-      <select id="bGame" aria-label="Kies een ranglijst">
+      </div>
+      <aside id="board">
+        <div class="bhead"><h2>🏆 Ranglijst</h2><span id="bCount"></span></div>
+        <select id="bGame" aria-label="Kies een ranglijst">
         <option value="">👑 Klassement</option>
         <option value="race">🏎️ Turbo Tijdrit (tijd)</option>
         <option value="moto">🏍️ Moto Stunt (tijd)</option>
@@ -423,12 +398,13 @@ footer { margin-top: 36px; color: #6f7680; font-size: 13px; text-align: center; 
         <option value="blokken">🧱 Blokken</option>
         <option value="stack">🏗️ Stack Tower</option>
         <option value="vier">🔴 Vier op een rij</option>
-      </select>
-      <div id="bLvl" hidden></div>
-      <ol id="bList"><li class="empty">Laden…</li></ol>
-      <p class="bnote" id="bNote"></p>
-    </aside>
-    <footer>Alle games werken op pc en telefoon · log in om je records op elk apparaat te bewaren</footer>
+        </select>
+        <div id="bLvl" hidden></div>
+        <ol id="bList"><li class="empty">Laden…</li></ol>
+        <p class="bnote" id="bNote"></p>
+      </aside>
+    </div>
+    <footer><span>© Game Arcade · gemaakt door Bas</span><span>Alle games werken op pc en telefoon · log in om je records te bewaren</span></footer>
   </div>
   <script>
 // ================= Game Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
@@ -767,17 +743,36 @@ ArcadeCore.music.play('menu');
     const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'zojuist' : m < 60 ? m + ' min geleden' : m < 1440 ? Math.round(m / 60) + ' uur geleden' : Math.round(m / 1440) === 1 ? 'gisteren' : Math.round(m / 1440) + ' dagen geleden'; };
     function renderRecent() {
       const r = (load('arcade_recent') || []).filter((x) => INFO[x.id]).slice(0, 4), box = document.getElementById('recent');
-      box.innerHTML = r.map((x, i) => `<a class="rc" href="${x.id}/" style="animation-delay:${i * 0.04}s"><img src="${INFO[x.id][1]}" alt=""><div><b>${INFO[x.id][0]}</b><small>${ago(x.t)}</small></div><span class="go">▶</span></a>`).join('');
-      document.getElementById('recentTitle').classList.toggle('hide', !r.length || !!(document.querySelector('.chip.on') || {}).dataset?.f);
+      box.innerHTML = r.map((x, i) => `<a class="rc" href="${x.id}/" style="animation-delay:${i * 0.04}s"><img src="${INFO[x.id][1]}" alt=""><div><b>${INFO[x.id][0]}</b><small>${ago(x.t)}</small></div><span class="go">→</span></a>`).join('');
+      const filtering = !!((document.querySelector('.chip.on') || {}).dataset || {}).f || !!document.getElementById('q').value.trim();
+      document.getElementById('recentTitle').classList.toggle('hide', !r.length || filtering); box.classList.toggle('hide', filtering);
     }
+
     renderRecords();
-    document.querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => {
-      document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === b));
-      document.querySelectorAll('a.card').forEach((cd) => cd.classList.toggle('hide', !!b.dataset.f && !cd.dataset.cat.includes(b.dataset.f)));
-      document.querySelectorAll('.sect').forEach((x) => x.classList.toggle('hide', !!b.dataset.f));
-      document.getElementById('recent').classList.toggle('hide', !!b.dataset.f);
-      if (!b.dataset.f) renderRecent();
-    }));
+    // filters + zoeken
+    const q = document.getElementById('q');
+    function applyFilter() {
+      const f = (document.querySelector('.chip.on') || {}).dataset.f || '', t = q.value.trim().toLowerCase();
+      let n = 0;
+      document.querySelectorAll('a.card').forEach((cd) => { const ok = (!f || cd.dataset.cat.includes(f)) && (!t || cd.dataset.name.includes(t) || cd.dataset.cat.toLowerCase().includes(t)); cd.classList.toggle('hide', !ok); if (ok) n++; });
+      document.getElementById('gCount').textContent = n;
+      document.getElementById('none').classList.toggle('show', !n);
+      renderRecent();
+    }
+    document.querySelectorAll('.chip').forEach((b) => b.addEventListener('click', () => { document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === b)); applyFilter(); }));
+    q.addEventListener('input', () => { applyFilter(); if (q.value.trim()) document.getElementById('games').scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+    addEventListener('keydown', (e) => { if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); q.focus(); } if (e.key === 'Escape' && document.activeElement === q) { q.value = ''; applyFilter(); q.blur(); } });
+    // spotlight
+    (() => {
+      const sl = [...document.querySelectorAll('.slide')], dt = [...document.querySelectorAll('.dots button')]; let k = 0, tm;
+      const show = (n) => { k = (n + sl.length) % sl.length; sl.forEach((x, i) => x.classList.toggle('on', i === k)); dt.forEach((x, i) => x.classList.toggle('on', i === k)); };
+      const auto = () => { clearInterval(tm); tm = setInterval(() => show(k + 1), 6000); };
+      dt.forEach((d) => d.addEventListener('click', (e) => { e.preventDefault(); show(+d.dataset.s); auto(); }));
+      auto();
+    })();
+    // aantal records ook in de balk
+    new MutationObserver(() => { document.getElementById('nRec2').textContent = document.getElementById('nRec').textContent; }).observe(document.getElementById('nRec'), { childList: true });
+    document.getElementById('nRec2').textContent = document.getElementById('nRec').textContent;
   </script>
   <script>// ================= Records overzetten met een code (geen account nodig) =================
 (() => {
@@ -833,6 +828,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=600d409beb"></script>
+  <script type="module" src="auth.js?v=2e5793790c"></script>
 </body>
 </html>

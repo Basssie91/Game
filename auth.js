@@ -338,6 +338,7 @@ function renderBoard() {
   list.innerHTML = rows.slice(0, 10).map(({ p, s }, i) => `<li data-uid="${esc(p.uid)}" title="Bekijk profiel" class="${user && p.uid === user.uid ? 'me' : ''}"><span class="rk">${i + 1}</span><span class="nm">${esc(p.name)}</span><span class="sc">${esc(s)}</span></li>`).join('')
     || '<li class="empty">Nog niemand op deze ranglijst. Wees de eerste!</li>';
   $('bCount').textContent = boardPlayers.length ? boardPlayers.length + (boardPlayers.length === 1 ? ' speler' : ' spelers') : '';
+  if ($('nPlayers')) $('nPlayers').textContent = boardPlayers.length || '–';
   const note = $('bNote');
   if (!user) note.innerHTML = '<a id="bLogin">Log in</a> en kies een spelersnaam om mee te doen.';
   else if (!myName) note.textContent = 'Kies rechtsboven een spelersnaam om op de ranglijst te komen.';

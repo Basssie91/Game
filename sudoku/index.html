@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="600d409beb">
+<meta name="site-build" content="2e5793790c">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Sudoku · Game Arcade</title>
@@ -812,6 +812,6 @@ ArcadeCore.cheat('🧽 Fouten op 0 zetten', () => { if (G) { G.mistakes = 0; sav
 ArcadeCore.cheat('✅ Puzzel oplossen', () => { if (!G || G.done) return; for (let i = 0; i < 81; i++) if (!G.given[i]) { G.val[i] = G.sol[i]; G.notes[i] = 0; } checkWin(); save(); });
 
   </script>
-  <script type="module" src="../auth.js?v=600d409beb"></script>
+  <script type="module" src="../auth.js?v=2e5793790c"></script>
 </body>
 </html>
