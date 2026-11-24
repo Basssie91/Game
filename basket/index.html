@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="1cf86468dc">
+<meta name="site-build" content="bd1e2e8994">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Basket Koning · Game Arcade</title>
-  <meta name="description" content="Basketbal: tijdrace met trekken en loslaten, of 1 tegen 1 met dunks en blocks tegen de bot of een vriend.">
+  <meta name="description" content="Basketbal: tijdrace met de krachtmeter, of 1 tegen 1 met dunks, blocks en afpakken tegen de bot of een vriend.">
   <meta name="theme-color" content="#0b0c10">
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Crect%20x%3D%2240%22%20y%3D%2210%22%20width%3D%2216%22%20height%3D%2230%22%20rx%3D%222%22%20fill%3D%22%23f2f2f2%22/%3E%3Crect%20x%3D%2244%22%20y%3D%2220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22none%22%20stroke%3D%22%23e8282f%22%20stroke-width%3D%221.5%22/%3E%3Cellipse%20cx%3D%2234%22%20cy%3D%2230%22%20rx%3D%2210%22%20ry%3D%223%22%20fill%3D%22none%22%20stroke%3D%22%23ff6a1a%22%20stroke-width%3D%222.5%22/%3E%3Cpath%20d%3D%22M25%2031l3%209h12l3-9%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.7%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2246%22%20r%3D%229%22%20fill%3D%22%23e8732a%22%20stroke%3D%22%233a1a08%22%20stroke-width%3D%221.2%22/%3E%3Cpath%20d%3D%22M9%2046h18M18%2037v18%22%20stroke%3D%22%233a1a08%22%20stroke-width%3D%221.2%22/%3E%3C/svg%3E">
   <style>
@@ -607,7 +607,7 @@ let tourBest = Arcade.load('basket_tourbest', 0);
 // ---------- status ----------
 let state = 'menu', mode = 'race'; // race | tour | vriend
 let ball = null, P = [], score = [0, 0], timeLeft = 0, clock = 0, toast = '', toastT = 0, overInfo = null, prevState = 'play';
-let racePts = 0, streak = 0, fire = false, drag = null, spotK = 0, raceShots = 0, raceHits = 0;
+let raceHold = false, racePts = 0, streak = 0, fire = false, drag = null, spotK = 0, raceShots = 0, raceHits = 0;
 let netSway = [0, 0], pause = 0, toWin = 11, sudden = false;
 let cheatAim = false, cheatBot = false;
 const keys = {}, taps = {}; // taps: korte tikken worden onthouden tot het spel ze verwerkt
@@ -774,7 +774,7 @@ const KEYS = [
 const touch = { l: false, r: false, j: false, s: false, d: false };
 function ctrl(i) {
   let set = [KEYS[i]];
-  if (mode === 'tour' && i === 0) set = [KEYS[0], KEYS[1]];
+  if ((mode === 'tour' || mode === 'race') && i === 0) set = [KEYS[0], KEYS[1], { l: [], r: [], j: [], s: ['Space'], d: [] }];
   const on = (k) => set.some((s) => s[k].some((code) => keys[code]));
   const tap = (k) => { let t = false; for (const st of set) for (const code of st[k]) if (taps[code]) { t = true; taps[code] = false; } if (i === 0 && mode !== 'vriend' && taps['T' + k]) { t = true; taps['T' + k] = false; } return t; };
   const tp = { jt: tap('j'), st: tap('s'), dt: tap('d') };
@@ -796,7 +796,7 @@ c.addEventListener('pointerdown', (e) => {
   const q = view.toGame(e);
   if (ui.hit(q)) return;
   if (state !== 'play') return;
-  if (mode === 'race') { if (ball.held && pause <= 0) { drag = { x0: q.x, y0: q.y, x: q.x, y: q.y }; c.setPointerCapture && c.setPointerCapture(e.pointerId); } return; }
+  if (mode === 'race') { if (ball.held && pause <= 0) { raceHold = true; c.setPointerCapture && c.setPointerCapture(e.pointerId); } return; }
   if (Arcade.touch) touchBtn(q, e.pointerId, true);
 });
 c.addEventListener('pointermove', (e) => {
@@ -805,7 +805,7 @@ c.addEventListener('pointermove', (e) => {
   if (Arcade.touch && mode !== 'race' && tptr.has(e.pointerId)) touchBtn(q, e.pointerId, true);
 });
 c.addEventListener('pointerup', (e) => {
-  if (drag && mode === 'race') { raceShoot(); drag = null; }
+  if (mode === 'race') raceHold = false;
   if (tptr.has(e.pointerId)) { tptr.delete(e.pointerId); refreshTouch(); }
 });
 const TBTN = () => [
@@ -838,6 +838,15 @@ function raceUpdate(dt) {
   timeLeft -= dt;
   if (timeLeft <= 0) { timeLeft = 0; return endRace(); }
   if (pause > 0) { pause -= dt; ballPhysics(dt); if (pause <= 0) raceSpot(); return; }
+  const p = P[0];
+  p.anim += dt * 6; if (p.shootPose > 0) p.shootPose -= dt;
+  if (ball.held === p) {
+    const cmd = ctrl(0), down = cmd.s || raceHold;
+    if ((down || cmd.st) && p.charge < 0) p.charge = 0;
+    if (down && p.charge >= 0) p.charge = Math.min(1, p.charge + dt * 1.05);
+    if (p.charge >= 0 && (!down && !cmd.st || p.charge >= 1)) { raceShots++; release(p); }
+    if (ball.held === p) { const hp = handPos(p); ball.x = hp.x; ball.y = hp.y; }
+  }
   if (!ball.held) {
     ballPhysics(dt);
     // gemist? (bal ligt stil of is ver weg)
@@ -1098,19 +1107,11 @@ function drawBall() {
   ctx.restore();
 }
 function drawRaceAim() {
-  if (!drag || !ball.held) {
-    if (ball.held && pause <= 0) { ctx.globalAlpha = 0.6 + 0.4 * Math.sin(clock * 4); T(ctx, Arcade.touch ? 'Sleep naar achteren en laat los' : 'Klik, trek naar achteren en laat los', W / 2, FLOOR + 50, 16, '#fff', 'center', '900'); ctx.globalAlpha = 1; }
-    return;
+  if (ball.held && pause <= 0 && P[0].charge < 0) {
+    ctx.globalAlpha = 0.6 + 0.4 * Math.sin(clock * 4);
+    T(ctx, Arcade.touch ? 'Houd je vinger op het scherm en laat los in het groen' : 'Houd S, ↓ of spatie ingedrukt en laat los in het groen', W / 2, FLOOR + 50, 16, '#fff', 'center', '900');
+    ctx.globalAlpha = 1;
   }
-  const dx = drag.x0 - drag.x, dy = drag.y0 - drag.y, len = Math.hypot(dx, dy);
-  if (len < 6) return;
-  const p = Math.min(1, len / 220), sc = 1250 * p, hp = handPos(P[0]);
-  let vx = dx / len * sc, vy = dy / len * sc, x = hp.x, y = hp.y;
-  ctx.fillStyle = '#ffd23f';
-  const steps = cheatAim ? 40 : 9;
-  for (let i = 0; i < steps; i++) { for (let k = 0; k < 4; k++) { vy += GRAV * 0.012; x += vx * 0.012; y += vy * 0.012; } ctx.globalAlpha = 1 - i / steps; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill(); }
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(hp.x, hp.y); ctx.lineTo(hp.x - dx * 0.5, hp.y - dy * 0.5); ctx.stroke();
 }
 function chip(x, y, w, t, col) { ctx.fillStyle = 'rgba(10,10,12,0.88)'; RR(ctx, x, y, w, 36, 10); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1; ctx.stroke(); T(ctx, t, x + w / 2, y + 19, 15, col || '#fff', 'center', '900'); }
 const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.ceil(s) % 60 === 0 && s % 60 !== 0 ? 0 : Math.floor(s % 60)).padStart(2, '0')}`;
@@ -1149,7 +1150,7 @@ function drawMenu() {
   T(ctx, 'Scoor, blok, dunk en word de koning van het veld', W / 2, 122, 15, '#cfd5dd', 'center', '600');
   const cw = 270, ch = 230, gx = W / 2 - (cw * 3 + 32) / 2;
   const opts = [
-    ['⏱️ Tijdrace', '60 seconden zoveel mogelijk punten', 'Trek de bal naar achteren en laat los', `Record: ${best || 0}`, () => startMatch('race'), 'Start'],
+    ['⏱️ Tijdrace', '60 seconden zoveel mogelijk punten', 'Houd S / ↓ vast, laat los in het groen', `Record: ${best || 0}`, () => startMatch('race'), 'Start'],
     ['🏆 Toernooi', tour ? `Verder: ronde ${tour.round + 1} van 8` : '1 tegen 1 tegen 8 steeds betere bots', 'Eerst tot 7 · 2 minuten', `Beste: ${tourBest}/8 rondes`, () => startMatch('tour'), tour ? 'Verder spelen' : 'Start toernooi'],
     ['👥 1 tegen 1', 'Met een vriend op één toetsenbord', 'P1: A D W · S schiet · L-Shift dunk', 'P2: ← → ↑ · ↓ schiet · R-Shift dunk', () => startMatch('vriend'), 'Speel samen'],
   ];
@@ -1222,6 +1223,6 @@ ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (tour && tour.ro
 window.__bk = { get state() { return state; }, get P() { return P; }, get ball() { return ball; }, get score() { return score; }, startMatch, release, get racePts() { return racePts; }, aimVel, HOOPS, keys, setDrag: (d) => { drag = d; }, raceShoot, finishMatch };
 
   </script>
-  <script type="module" src="../auth.js?v=1cf86468dc"></script>
+  <script type="module" src="../auth.js?v=bd1e2e8994"></script>
 </body>
 </html>
