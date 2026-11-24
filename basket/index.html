@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="bd1e2e8994">
+<meta name="site-build" content="23af8412a5">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Basket Koning · Game Arcade</title>
@@ -733,9 +733,10 @@ function release(p) {
   const err = pw - 0.5, zw = zoneW(p);
   const k = Math.abs(err) < zw / 2 ? 1 + (Math.random() - 0.5) * 0.01 : 1 + err * 0.42;
   ball.held = null; ball.x = hp.x; ball.y = hp.y; ball.vx = v.vx * k; ball.vy = v.vy * k;
-  ball.shotBy = p.i; ball.touched = false; ball.dunk = false; ball.freeT = 0;
+  ball.shotBy = p.i; ball.touched = false; ball.dunk = false; ball.freeT = 0; ball.shotId = (ball.shotId || 0) + 1;
   ball.pts = Math.abs(h.x - p.x) > THREE_D ? 3 : 2;
   Arcade.beep(420, 0.05, 'triangle', 0.03);
+  for (const q of P) q.blockShot = null;
   if (Math.abs(err) < zw / 2) fx.text(p.x, p.y - 120, 'Perfect!', '#7bd88f', 14);
 }
 function startDunk(p) {
@@ -764,7 +765,15 @@ function tryAction(p) { // schietknop zonder bal = afpakken
     sfx.steal(); say(`${names()[p.i]}: GESTOLEN!`, '#ffd23f'); fx.burst(o.x, o.y - 50, 14, ['#ffd23f', '#ffffff'], 140);
   } else { fx.text(p.x, p.y - 110, 'Mis!', '#ff9a9a', 14); Arcade.beep(200, 0.05, 'square', 0.03); }
 }
-function jump(p) { if (p.ground && !p.dunk) { p.vy = -640; p.ground = false; } }
+// verdedigen: tegenstander heeft geschoten en jij staat bij je eigen ring -> superhoge sprong
+const DEF_R = 175;
+function defending(p) { return mode !== 'race' && ball && !ball.held && ball.shotBy === 1 - p.i && Math.abs(p.x - ownHoop(p).x) < DEF_R; }
+function jump(p) {
+  if (!p.ground || p.dunk) return;
+  const sup = defending(p);
+  p.vy = sup ? -1010 : -640; p.ground = false; p.superJ = sup;
+  if (sup) { fx.burst(p.x, FLOOR, 16, ['#8fd0ff', '#ffffff'], 160); Arcade.beep(260, 0.25, 'triangle', 0.05, 520); }
+}
 
 // ---------- besturing ----------
 const KEYS = [
@@ -920,13 +929,17 @@ function playerUpdate(p, dt, cmd) {
   if (p.charge >= 1) release(p);
   prevC[p.i] = { ...cmd };
   p.vy += GRAV * dt; p.x += p.vx * dt; p.y += p.vy * dt;
-  if (p.y >= FLOOR) { p.y = FLOOR; p.vy = 0; p.ground = true; } else p.ground = false;
+  if (p.y >= FLOOR) { p.y = FLOOR; p.vy = 0; p.ground = true; p.superJ = false; } else p.ground = false;
   p.x = Math.max(36, Math.min(W - 36, p.x));
   // bal oppakken / blokken
   if (!ball.held) {
     const hx = p.x, hy = p.y - 60;
-    if (Math.hypot(ball.x - hx, ball.y - hy) < 46 && ball.shotBy !== p.i && ball.freeT < 0.6 && ball.vy < 0 && !p.ground) {
-      ball.vx = -ball.vx * 0.4 + p.face * 120; ball.vy = -ball.vy * 0.3 - 200; ball.shotBy = -1; sfx.block(); say(`${names()[p.i]}: BLOCK!`, '#ffd23f'); fx.burst(ball.x, ball.y, 10, '#ffd23f', 100);
+    const reach = Math.min(Math.hypot(ball.x - hx, ball.y - hy), Math.hypot(ball.x - p.x, ball.y - (p.y - 112)));
+    const rimGuard = p.superJ && ball.shotBy === 1 - p.i && ball.shotBy >= 0 && Math.abs(p.x - ownHoop(p).x) < DEF_R + 40;
+    if (reach < (rimGuard ? 54 : 46) && ball.shotBy !== p.i && ball.shotBy >= 0 && !p.ground && ((ball.freeT < 0.6 && ball.vy < 0) || rimGuard) && ball.scoredT <= 0) {
+      const away = ownHoop(p).dir;
+      ball.vx = rimGuard ? away * (380 + Math.random() * 120) : -ball.vx * 0.4 + p.face * 120; ball.vy = rimGuard ? -260 : -ball.vy * 0.3 - 200; ball.shotBy = -1;
+      sfx.block(); say(`${names()[p.i]}: ${rimGuard ? 'WEGGESLAGEN!' : 'BLOCK!'}`, '#ffd23f'); fx.burst(ball.x, ball.y, rimGuard ? 22 : 10, ['#ffd23f', '#8fd0ff'], 160); if (rimGuard) fx.shake(5, 0.2);
     } else if (Math.hypot(ball.x - p.x, ball.y - (p.y - 40)) < 40 && (ball.freeT > 0.35 || ball.shotBy !== p.i) && ball.scoredT <= 0) {
       ball.held = p; ball.shotBy = -1;
     }
@@ -957,6 +970,12 @@ function botCmd(p, dt) {
       go(o.x + mine.dir * (40 + (1 - s) * 30) * -1 * -1 + (mine.x > o.x ? 50 : -50));
       if (o.charge >= 0 || o.dunk) { if (p.react <= 0) { p.react = 0.5 - s * 0.35; if (Math.random() < 0.35 + s * 0.5 && Math.abs(o.x - p.x) < 90) cmd.j = true; } }
       if (Math.abs(o.x - p.x) < 60 && Math.random() < dt * (0.25 + s * 1.0)) cmd.s = true;
+    } else if (ball.shotBy === o.i) {
+      // schot van de tegenstander: terug naar de eigen ring en op tijd hoog springen
+      go(mine.x + mine.dir * 46);
+      if (p.blockShot !== ball) { p.blockShot = ball; p.willBlock = Math.random() < 0.2 + s * 0.55; }
+      const near = Math.abs(ball.x - mine.x) < 230 + s * 60, high = ball.y < mine.y - 30;
+      if (p.willBlock && near && high && p.ground && Math.abs(p.x - mine.x) < DEF_R) cmd.j = true;
     } else {
       go(ball.x);
       if (ball.y < p.y - 120 && Math.abs(ball.x - p.x) < 50 && Math.random() < 0.05) cmd.j = true;
@@ -1056,7 +1075,9 @@ function drawPlayer(p) {
   const x = p.x, y = p.y, f = p.face, run = p.ground && Math.abs(p.vx) > 30 ? Math.sin(p.anim * 1.4) : 0;
   const hasBall = ball && ball.held === p, shooting = p.charge >= 0 || p.shootPose > 0 || p.dunk;
   ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x, FLOOR + 2, 20 * (1 - (FLOOR - y) / 600), 5, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x, FLOOR + 2, 20 * Math.max(0.3, 1 - (FLOOR - y) / 600), 5, 0, 0, 7); ctx.fill();
+  if (p.superJ && !p.ground) { for (let k = 1; k <= 4; k++) { ctx.fillStyle = `rgba(143,208,255,${0.18 - k * 0.035})`; ctx.beginPath(); ctx.ellipse(x, y - 50 + k * 22, 18, 30, 0, 0, 7); ctx.fill(); } }
+  if (defending(p) && p.ground) { ctx.strokeStyle = `rgba(143,208,255,${0.5 + 0.4 * Math.sin(clock * 10)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, FLOOR + 2, 30, 8, 0, 0, 7); ctx.stroke(); }
   const air = !p.ground;
   // benen
   ctx.fillStyle = '#1b1d22';
@@ -1073,6 +1094,7 @@ function drawPlayer(p) {
   if (shooting) { ctx.beginPath(); ctx.moveTo(x - 6, y - 74); ctx.lineTo(x + f * 4, y - 98); ctx.moveTo(x + 6, y - 74); ctx.lineTo(x + f * 10, y - 96); ctx.stroke(); }
   else if (hasBall) { ctx.beginPath(); ctx.moveTo(x + f * 8, y - 72); ctx.lineTo(x + f * 18, y - 50); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - f * 8, y - 72); ctx.lineTo(x - f * 12, y - 52); ctx.stroke(); }
   else if (p.swipe > 0) { ctx.beginPath(); ctx.moveTo(x + f * 8, y - 72); ctx.lineTo(x + f * 38, y - 56 + (0.25 - p.swipe) * 60); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - f * 8, y - 72); ctx.lineTo(x - f * 16, y - 52); ctx.stroke(); }
+  else if (p.superJ && air) { ctx.beginPath(); ctx.moveTo(x - 8, y - 74); ctx.lineTo(x - 6, y - 112); ctx.moveTo(x + 8, y - 74); ctx.lineTo(x + 6, y - 112); ctx.stroke(); }
   else { const up = air ? -30 : 0; ctx.beginPath(); ctx.moveTo(x - 10, y - 72); ctx.lineTo(x - 20, y - 50 + up); ctx.moveTo(x + 10, y - 72); ctx.lineTo(x + 20, y - 50 + up); ctx.stroke(); }
   ctx.lineCap = 'butt';
   // hoofd met haarband
@@ -1089,7 +1111,10 @@ function drawPlayer(p) {
     ctx.fillStyle = '#ffd23f'; ctx.fillRect(mx - 3, my + mh * (1 - p.charge) - 2, 18, 4);
   }
   if (mode !== 'race') T(ctx, names()[p.i], x, y - 116 - (p.charge >= 0 ? 24 : 0), 12, p.i === 0 ? '#8fc6ff' : '#ff9a9a', 'center', '800');
-  if (mode !== 'race' && !p.bot && ball && canSteal(p) && p.stealCd <= 0) {
+  if (mode !== 'race' && !p.bot && defending(p) && p.ground) {
+    const k = p.i === 0 ? 'W' : '↑', ty = y - 140;
+    ctx.fillStyle = '#8fd0ff'; RR(ctx, x - 62, ty - 11, 124, 22, 7); ctx.fill(); T(ctx, `🛡️ ${Arcade.touch ? 'Spring' : k}: hoge sprong!`, x, ty, 11, '#0b1a2a', 'center', '900');
+  } else if (mode !== 'race' && !p.bot && ball && canSteal(p) && p.stealCd <= 0) {
     const k = p.i === 0 ? 'S' : '↓', tx = x, ty = y - 140;
     ctx.fillStyle = '#ffd23f'; RR(ctx, tx - 38, ty - 11, 76, 22, 7); ctx.fill(); T(ctx, `${Arcade.touch ? 'Schiet' : k}: afpakken`, tx, ty, 11, '#111', 'center', '900');
   }
@@ -1165,7 +1190,7 @@ function drawMenu() {
   });
   if (tour) ui.btn('Toernooi opnieuw', W / 2 - 100, 412, 200, 40, () => { tour = { round: 0 }; Arcade.save('basket_tour', tour); startMatch('tour'); }, false, false, 13);
   T(ctx, 'Schieten: houd de knop vast en laat los als het streepje in het groen staat. Met een verdediger in je gezicht wordt het groen kleiner!', W / 2, 482, 13, '#9aa1ab', 'center', '700');
-  T(ctx, 'Dunken kan dicht bij de ring. Zonder bal: spring om te blokken of druk op schieten om de bal af te pakken.', W / 2, 504, 13, '#9aa1ab', 'center', '700');
+  T(ctx, 'Dunken kan dicht bij de ring. Zonder bal: springen = blokken, schieten = afpakken. Bij je eigen ring spring je extra hoog tegen afstandsschoten!', W / 2, 504, 13, '#9aa1ab', 'center', '700');
 }
 function drawOver() {
   Arcade.overlay(ctx, W, H, overInfo.title, overInfo.lines, '');
@@ -1223,6 +1248,6 @@ ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (tour && tour.ro
 window.__bk = { get state() { return state; }, get P() { return P; }, get ball() { return ball; }, get score() { return score; }, startMatch, release, get racePts() { return racePts; }, aimVel, HOOPS, keys, setDrag: (d) => { drag = d; }, raceShoot, finishMatch };
 
   </script>
-  <script type="module" src="../auth.js?v=bd1e2e8994"></script>
+  <script type="module" src="../auth.js?v=23af8412a5"></script>
 </body>
 </html>
