@@ -508,3 +508,54 @@ function adminTools() {
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') push(false); });
   addEventListener('pagehide', () => push(false));
 })();
+
+// ---------- Automatisch bijwerken na een nieuwe versie van de site ----------
+(() => {
+  const mine = (document.querySelector('meta[name="site-build"]') || {}).content;
+  if (!mine) return;
+  const vurl = new URL('version.json', import.meta.url);
+  let pending = null, bar = null, deadline = 0;
+  const GRACE = 5 * 60 * 1000; // in een game: uiterlijk na 5 minuten
+  async function go(build) {
+    // eerst nog even opslaan, dan de nieuwe versie laden (met ?u= zodat de cache wordt overgeslagen)
+    try { await Promise.race([push(true), new Promise((r) => setTimeout(r, 1500))]); } catch (e) { /* toch door */ }
+    try { sessionStorage.setItem('ga_upd_try', build + '|' + Date.now()); } catch (e) { /* privé-modus */ }
+    const u = new URL(location.href); u.searchParams.set('u', build);
+    location.replace(u.toString());
+  }
+  function showBar(build) {
+    if (bar) return;
+    bar = document.createElement('div');
+    bar.id = 'updBar';
+    bar.innerHTML = '<span>🔄 Er is een nieuwe versie van de site!</span><small id="updLeft"></small><button id="updGo">Nu bijwerken</button>';
+    bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 24px);padding:10px 12px 10px 16px;border-radius:14px;background:#15181f;color:#fff;border:1px solid rgba(255,210,63,.5);box-shadow:0 10px 30px rgba(0,0,0,.5);font:700 14px system-ui,sans-serif';
+    document.body.appendChild(bar);
+    const b = bar.querySelector('#updGo');
+    b.style.cssText = 'background:#ffd23f;color:#111;border:0;border-radius:10px;padding:8px 14px;font:800 14px system-ui,sans-serif;cursor:pointer';
+    b.onclick = () => go(build);
+    bar.querySelector('#updLeft').style.cssText = 'color:#9aa1ab;font-weight:600';
+  }
+  function tick() {
+    if (!pending) return;
+    const left = Math.max(0, deadline - Date.now());
+    const el = document.getElementById('updLeft');
+    if (el) el.textContent = `Automatisch over ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`;
+    if (!left) go(pending);
+  }
+  async function check() {
+    let build;
+    try { const r = await fetch(vurl + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return; build = (await r.json()).build; } catch (e) { return; }
+    if (!build || build === mine) return;
+    // net geprobeerd en nog steeds oud (GitHub is nog bezig)? Even wachten
+    try { const [b, t] = (sessionStorage.getItem('ga_upd_try') || '').split('|'); if (b === build && Date.now() - +t < 120000) return; } catch (e) { /* ok */ }
+    if (pending) return;
+    pending = build;
+    // op de startpagina of als niemand kijkt: meteen. In een game: melding, zodat je je potje kunt afmaken
+    if (IS_HUB || document.hidden) return go(build);
+    deadline = Date.now() + GRACE;
+    showBar(build); tick(); setInterval(tick, 1000);
+  }
+  document.addEventListener('visibilitychange', () => { if (document.hidden && pending) go(pending); else if (!document.hidden) check(); });
+  setTimeout(check, 4000);
+  setInterval(check, 60000);
+})();
