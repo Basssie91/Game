@@ -515,7 +515,8 @@ function adminTools() {
   const mine = (document.querySelector('meta[name="site-build"]') || {}).content;
   if (!mine) return;
   const vurl = new URL('version.json', import.meta.url);
-  let pending = null, bar = null, deadline = 0;
+  let pending = null, bar = null, deadline = 0, note = '';
+  const esc2 = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
   const GRACE = 5 * 60 * 1000; // in een game: uiterlijk na 5 minuten
   async function go(build) {
     // eerst nog even opslaan, dan de nieuwe versie laden (met ?u= zodat de cache wordt overgeslagen)
@@ -528,7 +529,7 @@ function adminTools() {
     if (bar) return;
     bar = document.createElement('div');
     bar.id = 'updBar';
-    bar.innerHTML = '<span>🔄 Er is een nieuwe versie van de site!</span><small id="updLeft"></small><button id="updGo">Nu bijwerken</button>';
+    bar.innerHTML = '<span>🔄 Er is een nieuwe versie van de site!</span><small id="updLeft"></small><button id="updGo">Nu bijwerken</button>' + (note ? `<small style="flex-basis:100%;text-align:center;color:#bdbdbd;font-weight:600;font-size:12px">Nieuw: ${esc2(note)}</small>` : '');
     bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 24px);padding:10px 12px 10px 16px;border-radius:14px;background:#15181f;color:#fff;border:1px solid rgba(255,210,63,.5);box-shadow:0 10px 30px rgba(0,0,0,.5);font:700 14px system-ui,sans-serif';
     document.body.appendChild(bar);
     const b = bar.querySelector('#updGo');
@@ -540,10 +541,10 @@ function adminTools() {
   function bigModal(build) {
     const m = document.createElement('div');
     m.id = 'updModal';
-    m.innerHTML = `<div class="ub"><div class="ui"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg></div><h2>Nieuwe update!</h2><p>Er staat een nieuwe versie van Game Arcade klaar. Werk de site bij om verder te spelen.</p><button id="updNow">Nu bijwerken</button><small id="updAuto"></small></div>`;
+    m.innerHTML = `<div class="ub"><div class="ui"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg></div><h2>Nieuwe update!</h2><p>Er staat een nieuwe versie van Game Arcade klaar. Werk de site bij om verder te spelen.</p><button id="updNow">Nu bijwerken</button><small id="updAuto"></small>${note ? `<div class="un"><b>Nieuw</b>${esc2(note)}</div>` : ''}</div>`;
     m.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,5,5,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff;animation:updIn .35s ease both';
     const st = document.createElement('style');
-    st.textContent = '@keyframes updIn{from{opacity:0}to{opacity:1}}@keyframes updSpin{to{transform:rotate(360deg)}}#updModal .ub{width:min(560px,100%);text-align:center;background:#121212;border:1px solid rgba(255,255,255,.18);border-radius:26px;padding:44px 32px 34px;box-shadow:0 40px 120px rgba(0,0,0,.7)}#updModal .ui{width:96px;height:96px;margin:0 auto 18px;border-radius:50%;background:#fff;color:#0a0a0a;display:grid;place-items:center;font-size:48px;animation:updSpin 3s linear infinite}#updModal h2{margin:0 0 12px;font-size:clamp(34px,7vw,54px);font-weight:900;letter-spacing:-1.5px;text-transform:uppercase;line-height:1}#updModal p{margin:0 auto 26px;max-width:420px;color:#bdbdbd;font-size:18px;line-height:1.5}#updModal button{width:100%;height:64px;border:0;border-radius:16px;background:#fff;color:#0a0a0a;font:900 22px system-ui,sans-serif;cursor:pointer}#updModal button:hover{background:#d9d9d9}#updModal small{display:block;margin-top:14px;color:#8c8c8c;font-size:14px}';
+    st.textContent = '@keyframes updIn{from{opacity:0}to{opacity:1}}@keyframes updSpin{to{transform:rotate(360deg)}}#updModal .ub{width:min(560px,100%);text-align:center;background:#121212;border:1px solid rgba(255,255,255,.18);border-radius:26px;padding:44px 32px 34px;box-shadow:0 40px 120px rgba(0,0,0,.7)}#updModal .ui{width:96px;height:96px;margin:0 auto 18px;border-radius:50%;background:#fff;color:#0a0a0a;display:grid;place-items:center;font-size:48px;animation:updSpin 3s linear infinite}#updModal h2{margin:0 0 12px;font-size:clamp(34px,7vw,54px);font-weight:900;letter-spacing:-1.5px;text-transform:uppercase;line-height:1}#updModal p{margin:0 auto 26px;max-width:420px;color:#bdbdbd;font-size:18px;line-height:1.5}#updModal button{width:100%;height:64px;border:0;border-radius:16px;background:#fff;color:#0a0a0a;font:900 22px system-ui,sans-serif;cursor:pointer}#updModal button:hover{background:#d9d9d9}#updModal small{display:block;margin-top:14px;color:#8c8c8c;font-size:14px}#updModal .un{margin-top:22px;padding-top:16px;border-top:1px solid rgba(255,255,255,.1);color:#bdbdbd;font-size:13px;line-height:1.5}#updModal .un b{display:block;margin-bottom:4px;color:#fff;font-size:11px;letter-spacing:2px;text-transform:uppercase}';
     document.head.appendChild(st); document.body.appendChild(m);
     document.body.style.overflow = 'hidden';
     const btn = m.querySelector('#updNow');
@@ -561,7 +562,7 @@ function adminTools() {
   }
   async function check() {
     let build;
-    try { const r = await fetch(vurl + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return; build = (await r.json()).build; } catch (e) { return; }
+    try { const r = await fetch(vurl + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return; const j = await r.json(); build = j.build; note = j.note || ''; } catch (e) { return; }
     if (!build || build === mine) return;
     // net geprobeerd en nog steeds oud (GitHub is nog bezig)? Even wachten
     try { const [b, t] = (sessionStorage.getItem('ga_upd_try') || '').split('|'); if (b === build && Date.now() - +t < 120000) return; } catch (e) { /* ok */ }
