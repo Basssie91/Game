@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="2e5793790c">
+<meta name="site-build" content="d8b6933839">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Game Arcade · gratis browsergames</title>
@@ -71,9 +71,9 @@ a { color: inherit; }
 .spot { position: relative; aspect-ratio: 16 / 10; border-radius: 22px; overflow: hidden; border: 1px solid var(--line2); background: #000; animation: fadein .8s .1s ease both; }
 .slide { position: absolute; inset: 0; opacity: 0; transition: opacity .7s ease; text-decoration: none; color: #fff; }
 .slide.on { opacity: 1; z-index: 1; }
-.slide img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.1) brightness(.75); transform: scale(1.04); transition: filter .5s ease, transform 6s ease; }
+.slide img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: grayscale(.35) contrast(1.05) brightness(.8); transform: scale(1.04); transition: filter .5s ease, transform 6s ease; }
 .slide.on img { transform: scale(1.1); }
-.spot:hover .slide img { filter: grayscale(0) contrast(1.05) brightness(.85); }
+.spot:hover .slide img { filter: grayscale(0) contrast(1.05) brightness(.9); }
 .slide::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.2) 55%, rgba(0,0,0,0) 100%); }
 .slide .cap { position: absolute; left: 26px; right: 26px; bottom: 24px; z-index: 1; display: flex; align-items: flex-end; gap: 20px; }
 .slide .cap div { flex: 1; min-width: 0; }
@@ -96,7 +96,7 @@ a { color: inherit; }
 .recent:empty, .recent.hide, #recentTitle.hide { display: none; }
 .rc { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; text-decoration: none; color: #fff; background: var(--panel); border: 1px solid var(--line); transition: border-color .15s, transform .15s; animation: rise .4s ease both; }
 .rc:hover { border-color: #fff; transform: translateY(-2px); }
-.rc img { width: 72px; height: 46px; object-fit: cover; border-radius: 9px; flex: none; filter: grayscale(1); transition: filter .3s; }
+.rc img { width: 72px; height: 46px; object-fit: cover; border-radius: 9px; flex: none; filter: grayscale(.4); transition: filter .3s; }
 .rc:hover img { filter: none; }
 .rc div { min-width: 0; flex: 1; } .rc b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .rc small { color: var(--mut); font-size: 12px; }
 .rc .go { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line2); display: grid; place-items: center; font-size: 12px; transition: background .15s, color .15s; }
@@ -115,8 +115,8 @@ a.card { position: relative; display: flex; flex-direction: column; text-decorat
 a.card:hover { border-color: #fff; transform: translateY(-4px); }
 a.card.hide { display: none; }
 .thumb { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #000; }
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(1) contrast(1.08) brightness(.82); transition: filter .4s ease, transform .5s ease; }
-a.card:hover .thumb img { filter: grayscale(0) brightness(.95); transform: scale(1.05); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(.4) contrast(1.04) brightness(.88); transition: filter .4s ease, transform .5s ease; }
+a.card:hover .thumb img { filter: grayscale(0) brightness(1); transform: scale(1.05); }
 .num { position: absolute; top: 10px; left: 12px; z-index: 1; font: 800 12px ui-monospace, Consolas, monospace; color: #fff; mix-blend-mode: difference; }
 .new { position: absolute; top: 10px; right: 10px; z-index: 1; background: #fff; color: #0a0a0a; font: 800 10px ui-monospace, Consolas, monospace; letter-spacing: 1.5px; padding: 4px 7px; border-radius: 6px; }
 .body { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 16px; flex: 1; }
@@ -828,6 +828,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=2e5793790c"></script>
+  <script type="module" src="auth.js?v=d8b6933839"></script>
 </body>
 </html>
