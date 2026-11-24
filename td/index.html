@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="23af8412a5">
+<meta name="site-build" content="61b716cda4">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Robo Defense · Game Arcade</title>
@@ -1042,13 +1042,19 @@ function drawMenu() {
 }
 
 let last = performance.now();
+// Ook op de achtergrond doorspelen: verstreken tijd in kleine stapjes inhalen (max. 30 minuten)
+function catchUp(sec) {
+  sec = Math.min(sec, 1800);
+  while (sec > 0) { const d = Math.min(0.05, sec); update(d); sec -= d; if (state !== 'play') break; }
+}
 function loop(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const el = (now - last) / 1000;
   last = now;
-  update(dt);
+  if (el > 0.25 && state === 'play') catchUp(el); else update(Math.min(0.05, el));
   draw();
   requestAnimationFrame(loop);
 }
+setInterval(() => { if (!document.hidden) return; const now = performance.now(); catchUp((now - last) / 1000); last = now; }, 1000);
 parts = [];
 requestAnimationFrame(loop);
 
@@ -1060,6 +1066,6 @@ ArcadeCore.cheat('⬆️ Alle torens naar max level', () => { if (towers) towers
 ArcadeCore.cheat('🔓 Alle maps ontgrendelen', () => Arcade.save('td_unlockall', true));
 
   </script>
-  <script type="module" src="../auth.js?v=23af8412a5"></script>
+  <script type="module" src="../auth.js?v=61b716cda4"></script>
 </body>
 </html>
