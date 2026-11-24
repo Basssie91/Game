@@ -536,6 +536,22 @@ function adminTools() {
     b.onclick = () => go(build);
     bar.querySelector('#updLeft').style.cssText = 'color:#9aa1ab;font-weight:600';
   }
+  // startscherm: groot verplicht scherm dat je niet kunt wegklikken
+  function bigModal(build) {
+    const m = document.createElement('div');
+    m.id = 'updModal';
+    m.innerHTML = `<div class="ub"><div class="ui"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg></div><h2>Nieuwe update!</h2><p>Er staat een nieuwe versie van Game Arcade klaar. Werk de site bij om verder te spelen.</p><button id="updNow">Nu bijwerken</button><small id="updAuto"></small></div>`;
+    m.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,5,5,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff;animation:updIn .35s ease both';
+    const st = document.createElement('style');
+    st.textContent = '@keyframes updIn{from{opacity:0}to{opacity:1}}@keyframes updSpin{to{transform:rotate(360deg)}}#updModal .ub{width:min(560px,100%);text-align:center;background:#121212;border:1px solid rgba(255,255,255,.18);border-radius:26px;padding:44px 32px 34px;box-shadow:0 40px 120px rgba(0,0,0,.7)}#updModal .ui{width:96px;height:96px;margin:0 auto 18px;border-radius:50%;background:#fff;color:#0a0a0a;display:grid;place-items:center;font-size:48px;animation:updSpin 3s linear infinite}#updModal h2{margin:0 0 12px;font-size:clamp(34px,7vw,54px);font-weight:900;letter-spacing:-1.5px;text-transform:uppercase;line-height:1}#updModal p{margin:0 auto 26px;max-width:420px;color:#bdbdbd;font-size:18px;line-height:1.5}#updModal button{width:100%;height:64px;border:0;border-radius:16px;background:#fff;color:#0a0a0a;font:900 22px system-ui,sans-serif;cursor:pointer}#updModal button:hover{background:#d9d9d9}#updModal small{display:block;margin-top:14px;color:#8c8c8c;font-size:14px}';
+    document.head.appendChild(st); document.body.appendChild(m);
+    document.body.style.overflow = 'hidden';
+    const btn = m.querySelector('#updNow');
+    btn.onclick = () => { btn.textContent = 'Bijwerken…'; btn.disabled = true; go(build); };
+    let left = 15;
+    const t = () => { m.querySelector('#updAuto').textContent = `Automatisch over ${left} seconden`; if (left-- <= 0) btn.click(); };
+    t(); setInterval(t, 1000);
+  }
   function tick() {
     if (!pending) return;
     const left = Math.max(0, deadline - Date.now());
@@ -552,7 +568,8 @@ function adminTools() {
     if (pending) return;
     pending = build;
     // op de startpagina of als niemand kijkt: meteen. In een game: melding, zodat je je potje kunt afmaken
-    if (IS_HUB || document.hidden) return go(build);
+    if (document.hidden) return go(build);
+    if (IS_HUB) return bigModal(build);
     deadline = Date.now() + GRACE;
     showBar(build); tick(); setInterval(tick, 1000);
   }
