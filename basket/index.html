@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="06a09ff4cf">
+<meta name="site-build" content="1cf86468dc">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Basket Koning · Game Arcade</title>
@@ -610,7 +610,7 @@ let ball = null, P = [], score = [0, 0], timeLeft = 0, clock = 0, toast = '', to
 let racePts = 0, streak = 0, fire = false, drag = null, spotK = 0, raceShots = 0, raceHits = 0;
 let netSway = [0, 0], pause = 0, toWin = 11, sudden = false;
 let cheatAim = false, cheatBot = false;
-const keys = {};
+const keys = {}, taps = {}; // taps: korte tikken worden onthouden tot het spel ze verwerkt
 const say = (s, col) => { toast = s; toastT = 1.6; toastCol = col || '#fff'; };
 let toastCol = '#fff';
 const round = () => (tour ? tour.round : 0);
@@ -747,16 +747,22 @@ function startDunk(p) {
   p.face = Math.sign(h.x - p.x) || p.face; p.ground = false;
   Arcade.beep(300, 0.2, 'triangle', 0.04, 300);
 }
+const STEAL_R = 78;
+const canSteal = (p) => { const o = ball.held; return o && o !== p && Math.abs(o.x - p.x) < STEAL_R && Math.abs(o.y - p.y) < 70; };
 function tryAction(p) { // schietknop zonder bal = afpakken
   if (ball.held === p) return;
   const o = ball.held;
   if (!o || o === p || p.stealCd > 0) return;
-  p.stealCd = 0.7;
-  if (Math.abs(o.x - p.x) < 58 && Math.abs(o.y - p.y) < 40) {
-    const chance = o.charge >= 0 ? 0.55 : 0.3;
-    if (Math.random() < chance) { ball.held = p; o.charge = -1; sfx.steal(); say(`${names()[p.i]}: GESTOLEN!`, '#ffd23f'); }
-    else Arcade.beep(200, 0.05, 'square', 0.03);
-  }
+  p.stealCd = 0.45; p.swipe = 0.25;
+  if (!canSteal(p)) { fx.text(p.x + p.face * 30, p.y - 70, 'Te ver', '#9aa1ab', 12); return; }
+  if (o.safe > 0) { fx.text(p.x, p.y - 110, 'Mis!', '#ff9a9a', 14); Arcade.beep(200, 0.05, 'square', 0.03); return; }
+  // kans: groter als de ander aan het mikken is of net landt, kleiner tegen een sterke bot
+  let chance = o.charge >= 0 ? 0.85 : !o.ground ? 0.7 : 0.55;
+  if (o.bot) chance -= o.skill * 0.15;
+  if (Math.random() < chance) {
+    ball.held = p; o.charge = -1; p.safe = 0.7; p.stealCd = 0.3;
+    sfx.steal(); say(`${names()[p.i]}: GESTOLEN!`, '#ffd23f'); fx.burst(o.x, o.y - 50, 14, ['#ffd23f', '#ffffff'], 140);
+  } else { fx.text(p.x, p.y - 110, 'Mis!', '#ff9a9a', 14); Arcade.beep(200, 0.05, 'square', 0.03); }
 }
 function jump(p) { if (p.ground && !p.dunk) { p.vy = -640; p.ground = false; } }
 
@@ -770,12 +776,15 @@ function ctrl(i) {
   let set = [KEYS[i]];
   if (mode === 'tour' && i === 0) set = [KEYS[0], KEYS[1]];
   const on = (k) => set.some((s) => s[k].some((code) => keys[code]));
-  if (i === 0 && mode !== 'vriend') return { l: on('l') || touch.l, r: on('r') || touch.r, j: on('j') || touch.j, s: on('s') || touch.s, d: on('d') || touch.d || (mode === 'tour' && keys.ShiftRight) };
-  return { l: on('l'), r: on('r'), j: on('j'), s: on('s'), d: on('d') };
+  const tap = (k) => { let t = false; for (const st of set) for (const code of st[k]) if (taps[code]) { t = true; taps[code] = false; } if (i === 0 && mode !== 'vriend' && taps['T' + k]) { t = true; taps['T' + k] = false; } return t; };
+  const tp = { jt: tap('j'), st: tap('s'), dt: tap('d') };
+  if (i === 0 && mode !== 'vriend') return { ...tp, l: on('l') || touch.l, r: on('r') || touch.r, j: on('j') || touch.j, s: on('s') || touch.s, d: on('d') || touch.d || (mode === 'tour' && keys.ShiftRight) };
+  return { ...tp, l: on('l'), r: on('r'), j: on('j'), s: on('s'), d: on('d') };
 }
 const prevC = [{}, {}];
 addEventListener('keydown', (e) => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+  if (!keys[e.code]) taps[e.code] = true;
   keys[e.code] = true;
   if (e.key === 'Escape') { if (state === 'play') { prevState = 'play'; state = 'pause'; } else if (state === 'pause') state = prevState; }
 });
@@ -804,7 +813,7 @@ const TBTN = () => [
   { k: 'j', x: W - 300, y: H - 96, w: 84, h: 80, t: 'Spring' }, { k: 'd', x: W - 204, y: H - 96, w: 84, h: 80, t: 'Dunk' }, { k: 's', x: W - 108, y: H - 96, w: 92, h: 80, t: 'Schiet' },
 ];
 const tptr = new Map();
-function touchBtn(q, id, down) { const b = TBTN().find((b) => q.x > b.x && q.x < b.x + b.w && q.y > b.y && q.y < b.y + b.h); tptr.set(id, b ? b.k : null); refreshTouch(); }
+function touchBtn(q, id, down) { const b = TBTN().find((b) => q.x > b.x && q.x < b.x + b.w && q.y > b.y && q.y < b.y + b.h); if (b && tptr.get(id) !== b.k) taps['T' + b.k] = true; tptr.set(id, b ? b.k : null); refreshTouch(); }
 function refreshTouch() { for (const k in touch) touch[k] = false; for (const k of tptr.values()) if (k) touch[k] = true; }
 
 // ---------- tijdrace ----------
@@ -860,6 +869,7 @@ function startMatch(m) {
   checkBall(Math.random() < 0.5 ? 0 : 1);
 }
 function checkBall(who) {
+  for (const k in taps) taps[k] = false;
   // wie de bal krijgt begint op eigen helft, de ander verdedigt
   const p = P[who], o = P[1 - who];
   p.x = who === 0 ? 300 : 660; o.x = who === 0 ? 560 : 400; p.y = o.y = FLOOR; p.vx = o.vx = 0; p.vy = o.vy = 0; p.dunk = o.dunk = null; p.charge = o.charge = -1;
@@ -868,7 +878,7 @@ function checkBall(who) {
 }
 function playerUpdate(p, dt, cmd) {
   p.anim += dt * 6;
-  if (p.stealCd > 0) p.stealCd -= dt; if (p.shootPose > 0) p.shootPose -= dt;
+  if (p.stealCd > 0) p.stealCd -= dt; if (p.shootPose > 0) p.shootPose -= dt; if (p.safe > 0) p.safe -= dt; if (p.swipe > 0) p.swipe -= dt;
   if (p.dunk) {
     const d = p.dunk; d.t += dt / 0.62;
     const k = Math.min(1, d.t), h = target(p);
@@ -893,11 +903,11 @@ function playerUpdate(p, dt, cmd) {
   if (ball.held === p && p.charge < 0) p.face = Math.sign(target(p).x - p.x) || p.face;
   if (ball.held !== p && ball.held) p.face = Math.sign(ball.held.x - p.x) || p.face;
   const pc = prevC[p.i];
-  if (cmd.j && !pc.j) jump(p);
-  if (cmd.d && !pc.d) startDunk(p);
-  if (cmd.s && !pc.s) { if (ball.held === p) p.charge = 0; else tryAction(p); }
+  if ((cmd.j && !pc.j) || cmd.jt) jump(p);
+  if ((cmd.d && !pc.d) || cmd.dt) startDunk(p);
+  if ((cmd.s && !pc.s) || cmd.st) { if (ball.held === p) { if (p.charge < 0) p.charge = 0; } else tryAction(p); }
   if (cmd.s && p.charge >= 0) p.charge = Math.min(1, p.charge + dt * 1.05);
-  if (!cmd.s && pc.s && p.charge >= 0) release(p);
+  if (!cmd.s && p.charge >= 0 && !cmd.st) release(p);
   if (p.charge >= 1) release(p);
   prevC[p.i] = { ...cmd };
   p.vy += GRAV * dt; p.x += p.vx * dt; p.y += p.vy * dt;
@@ -937,7 +947,7 @@ function botCmd(p, dt) {
       // verdedigen: tussen aanvaller en eigen ring
       go(o.x + mine.dir * (40 + (1 - s) * 30) * -1 * -1 + (mine.x > o.x ? 50 : -50));
       if (o.charge >= 0 || o.dunk) { if (p.react <= 0) { p.react = 0.5 - s * 0.35; if (Math.random() < 0.35 + s * 0.5 && Math.abs(o.x - p.x) < 90) cmd.j = true; } }
-      if (Math.abs(o.x - p.x) < 55 && Math.random() < dt * (0.4 + s * 1.6)) cmd.s = true;
+      if (Math.abs(o.x - p.x) < 60 && Math.random() < dt * (0.25 + s * 1.0)) cmd.s = true;
     } else {
       go(ball.x);
       if (ball.y < p.y - 120 && Math.abs(ball.x - p.x) < 50 && Math.random() < 0.05) cmd.j = true;
@@ -1053,6 +1063,7 @@ function drawPlayer(p) {
   ctx.strokeStyle = '#c98f6b'; ctx.lineWidth = 7; ctx.lineCap = 'round';
   if (shooting) { ctx.beginPath(); ctx.moveTo(x - 6, y - 74); ctx.lineTo(x + f * 4, y - 98); ctx.moveTo(x + 6, y - 74); ctx.lineTo(x + f * 10, y - 96); ctx.stroke(); }
   else if (hasBall) { ctx.beginPath(); ctx.moveTo(x + f * 8, y - 72); ctx.lineTo(x + f * 18, y - 50); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - f * 8, y - 72); ctx.lineTo(x - f * 12, y - 52); ctx.stroke(); }
+  else if (p.swipe > 0) { ctx.beginPath(); ctx.moveTo(x + f * 8, y - 72); ctx.lineTo(x + f * 38, y - 56 + (0.25 - p.swipe) * 60); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - f * 8, y - 72); ctx.lineTo(x - f * 16, y - 52); ctx.stroke(); }
   else { const up = air ? -30 : 0; ctx.beginPath(); ctx.moveTo(x - 10, y - 72); ctx.lineTo(x - 20, y - 50 + up); ctx.moveTo(x + 10, y - 72); ctx.lineTo(x + 20, y - 50 + up); ctx.stroke(); }
   ctx.lineCap = 'butt';
   // hoofd met haarband
@@ -1069,6 +1080,10 @@ function drawPlayer(p) {
     ctx.fillStyle = '#ffd23f'; ctx.fillRect(mx - 3, my + mh * (1 - p.charge) - 2, 18, 4);
   }
   if (mode !== 'race') T(ctx, names()[p.i], x, y - 116 - (p.charge >= 0 ? 24 : 0), 12, p.i === 0 ? '#8fc6ff' : '#ff9a9a', 'center', '800');
+  if (mode !== 'race' && !p.bot && ball && canSteal(p) && p.stealCd <= 0) {
+    const k = p.i === 0 ? 'S' : '↓', tx = x, ty = y - 140;
+    ctx.fillStyle = '#ffd23f'; RR(ctx, tx - 38, ty - 11, 76, 22, 7); ctx.fill(); T(ctx, `${Arcade.touch ? 'Schiet' : k}: afpakken`, tx, ty, 11, '#111', 'center', '900');
+  }
 }
 function drawBall() {
   const b = ball; if (!b) return;
@@ -1207,6 +1222,6 @@ ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (tour && tour.ro
 window.__bk = { get state() { return state; }, get P() { return P; }, get ball() { return ball; }, get score() { return score; }, startMatch, release, get racePts() { return racePts; }, aimVel, HOOPS, keys, setDrag: (d) => { drag = d; }, raceShoot, finishMatch };
 
   </script>
-  <script type="module" src="../auth.js?v=06a09ff4cf"></script>
+  <script type="module" src="../auth.js?v=1cf86468dc"></script>
 </body>
 </html>
