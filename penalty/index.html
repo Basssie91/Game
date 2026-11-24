@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="af2e0d6f7d">
+<meta name="site-build" content="2034895852">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Penalty Koning · Game Arcade</title>
@@ -671,7 +671,7 @@ function aimStep(dt) {
   holdT += dt;
   // langzaam omhoog, snel heen en weer: zo komt het mikpunt in (bijna) elk deel van het doel
   aimV = holdT * 0.55 * (cheatAim ? 0.7 : 1);
-  aimU += zdir * dt * 2.4 * aimSp * (cheatAim ? 0.5 : 1);
+  aimU += zdir * dt * 2.4 * (0.4 + aimSp) * (cheatAim ? 0.5 : 1);
   if (aimU > 0.62) { aimU = 0.62; zdir = -1; } if (aimU < -0.62) { aimU = -0.62; zdir = 1; }
 }
 function release() {
@@ -1061,6 +1061,6 @@ window.__pen = { get state() { return state; }, get phase() { return phase; }, g
 
   
   </script>
-  <script type="module" src="../auth.js?v=af2e0d6f7d"></script>
+  <script type="module" src="../auth.js?v=2034895852"></script>
 </body>
 </html>
