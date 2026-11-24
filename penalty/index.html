@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="e65a02adc0">
+<meta name="site-build" content="af2e0d6f7d">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Penalty Koning · Game Arcade</title>
@@ -660,7 +660,7 @@ function nextKick() {
 }
 // --- schieten (jij, of speler 1/2 in vriendmodus) ---
 function beginShoot() {
-  phase = 'aim'; hold = false; holdT = 0; aimU = 0; aimV = 0; zdir = Math.random() < 0.5 ? -1 : 1;
+  phase = 'aim'; hold = false; holdT = 0; aimU = (Math.random() - 0.5) * 0.6; aimV = 0; zdir = Math.random() < 0.5 ? -1 : 1;
   const r = mode === 'reeks' ? Math.min(10, kicks[0].length) * 0.8 : mode === 'tour' ? round() : 3;
   aimSp = 0.9 + r * 0.09;
   keeper = { u: 0, v: 0, du: 0, dv: 0, t: 0, dive: null };
@@ -669,8 +669,9 @@ function beginShoot() {
 }
 function aimStep(dt) {
   holdT += dt;
-  aimV = holdT * 0.78 * (cheatAim ? 0.7 : 1);
-  aimU += zdir * dt * 1.25 * aimSp * (cheatAim ? 0.6 : 1);
+  // langzaam omhoog, snel heen en weer: zo komt het mikpunt in (bijna) elk deel van het doel
+  aimV = holdT * 0.55 * (cheatAim ? 0.7 : 1);
+  aimU += zdir * dt * 2.4 * aimSp * (cheatAim ? 0.5 : 1);
   if (aimU > 0.62) { aimU = 0.62; zdir = -1; } if (aimU < -0.62) { aimU = -0.62; zdir = 1; }
 }
 function release() {
@@ -776,7 +777,7 @@ c.addEventListener('pointermove', (e) => ui.hover(view.toGame(e)));
 function update(dt) {
   clock += dt; toastT -= dt; fx.update(dt);
   if (state !== 'play') return;
-  if (phase === 'aim' && hold) { aimStep(dt); if (aimV > 1.35) { release(); } }
+  if (phase === 'aim' && hold) { aimStep(dt); if (aimV > 1.3) { release(); } }
   if (phase === 'run') { shooter.run += dt * 2.6; if (shooter.run >= 1) kickBall(); }
   if (phase === 'keep') {
     keep.runT -= dt; shooter.run = Math.min(1, 1 - keep.runT / 1.25);
@@ -1058,7 +1059,8 @@ ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (tour && tour.ro
 
 window.__pen = { get state() { return state; }, get phase() { return phase; }, get kicks() { return kicks; }, get ball() { return ball; }, get turn() { return turn; }, get aim() { return [aimU, aimV]; }, startMatch, release, playerDive, get keeper() { return keeper; }, setHold: (v) => { hold = v; holdT = 0; } };
 
+  
   </script>
-  <script type="module" src="../auth.js?v=e65a02adc0"></script>
+  <script type="module" src="../auth.js?v=af2e0d6f7d"></script>
 </body>
 </html>
