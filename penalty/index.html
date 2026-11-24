@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta name="site-build" content="e65a02adc0">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Penalty Koning · Game Arcade</title>
+  <meta name="description" content="Houd spatie ingedrukt, het mikpunt zigzagt omhoog: laat los en schiet! Keep zelf ook en word Penalty Koning.">
+  <meta name="theme-color" content="#0b0c10">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%2316181d%22/%3E%3Crect%20x%3D%228%22%20y%3D%2212%22%20width%3D%2248%22%20height%3D%2228%22%20rx%3D%222%22%20fill%3D%22none%22%20stroke%3D%22%23f4f4f4%22%20stroke-width%3D%223%22/%3E%3Cpath%20d%3D%22M11%2016h42M11%2022h42M11%2028h42M11%2034h42M18%2014v24M26%2014v24M34%2014v24M42%2014v24M50%2014v24%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%22.25%22%20stroke-width%3D%221%22/%3E%3Crect%20x%3D%224%22%20y%3D%2244%22%20width%3D%2256%22%20height%3D%2212%22%20rx%3D%223%22%20fill%3D%22%232f8a33%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2250%22%20r%3D%226%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2250%22%20r%3D%222.2%22%20fill%3D%22%231b1d22%22/%3E%3Cpath%20d%3D%22M44%2020l-6%206M38%2020l6%206%22%20stroke%3D%22%23ffd23f%22%20stroke-width%3D%222.5%22%20stroke-linecap%3D%22round%22/%3E%3C/svg%3E">
+  <style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c10; color: #fff; overflow: hidden;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-user-select: none; user-select: none; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); }
+.terug, .geluid { position: fixed; top: 12px; z-index: 5; color: #fff; text-decoration: none; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.22); padding: 8px 12px; border-radius: 10px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+.terug { left: 12px; } .geluid { right: 12px; }
+.terug:hover, .geluid:hover { background: rgba(255,255,255,0.2); }
+</style>
+</head>
+<body>
+  <a class="terug" href="../">← Games</a>
+  <canvas id="c"></canvas>
+  
+  <script>
+'use strict';
+// ================= Game Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
+const ArcadeCore = (() => {
+  const KEY = 'arcade_settings';
+  const DEF = { music: 0.5, sfx: 0.8, quality: 'normaal', muted: false };
+  let S = { ...DEF };
+  try { Object.assign(S, JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { /* standaard */ }
+  const listeners = [];
+  const save = () => {
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* */ }
+    listeners.forEach((f) => f(S));
+  };
+  const set = (k, v) => { S[k] = v; save(); };
+  const sfx = () => (S.muted ? 0 : S.sfx);
+  const musicVol = () => (S.muted ? 0 : S.music);
+  // Hoeveel pixels we tekenen: lager = soepeler op trage apparaten
+  const dprCap = () => ({ hoog: 2, normaal: 1.5, laag: 1 })[S.quality] || 1.5;
+
+  // ---------- Muziek: kleine sequencer met drums, bas, akkoorden en melodie ----------
+  const SCALE = [0, 2, 3, 5, 7, 8, 10]; // mineur
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  // Elke game een eigen nummer
+  const SONGS = {
+    menu:     { bpm: 92,  root: 57, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x.....x.x.......', arp: true,  lead: 'triangle', seed: 3, density: 0.35, pad: 'triangle' },
+    race:     { bpm: 128, root: 52, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xo', bass: 'x.xox.xox.xox.xo', arp: true,  lead: 'sawtooth', seed: 11, density: 0.45, pad: 'sawtooth' },
+    meteoren: { bpm: 140, root: 50, prog: [[0, 3, 7], [1, 5, 8], [-2, 2, 5], [0, 3, 7]], kick: 'x..x..x.x..x..x.', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx', bass: 'xxoxxxoxxxoxxxox', arp: false, lead: 'square', seed: 21, density: 0.55, pad: 'sawtooth' },
+    runner:   { bpm: 124, root: 54, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..o...o...o...o.', bass: 'x.x.x.x.x.x.x.x.', arp: true,  lead: 'sawtooth', seed: 31, density: 0.4, pad: 'sawtooth' },
+    snake:    { bpm: 112, root: 60, prog: [[0, 3, 7], [5, 8, 12], [3, 7, 10], [-2, 2, 5]], kick: 'x.....x.x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...o...x...o...', arp: false, lead: 'square', seed: 41, density: 0.6, pad: null },
+    2048:     { bpm: 84,  root: 55, prog: [[0, 3, 7, 10], [-4, 0, 3, 7], [3, 7, 10, 14], [-2, 2, 5, 9]], kick: 'x.........x.....', snare: '....x.......x...', hat: '..x...x...x..xx.', bass: 'x.......x..x....', arp: false, lead: 'triangle', seed: 51, density: 0.25, pad: 'triangle' },
+    blokken:  { bpm: 120, root: 57, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.o.x.o.x.o.x.o.', arp: false, lead: 'square', seed: 61, density: 0.65, pad: null },
+    overval:  { bpm: 132, root: 50, prog: [[0, 3, 7], [0, 3, 7], [1, 5, 8], [-2, 2, 5]], kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', bass: 'x..x..x.x..x..xo', arp: false, lead: 'sawtooth', seed: 81, density: 0.35, pad: 'sawtooth' },
+    td:       { bpm: 108, root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [3, 7, 10]], kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x.o.x...x.o.', arp: true, lead: 'triangle', seed: 91, density: 0.4, pad: 'triangle' },
+    mijnen:   { bpm: 80,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [-7, -3, 0], [-5, -1, 2]], kick: 'x.........x.....', snare: '................', hat: '........x.......', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 81, density: 0.25, pad: 'triangle' },
+    sudoku:   { bpm: 72,  root: 60, prog: [[0, 4, 7], [5, 9, 12], [-3, 0, 4], [-5, -1, 2]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 91, density: 0.2, pad: 'triangle' },
+    memory:   { bpm: 88,  root: 62, prog: [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]], kick: 'x.......x.......', snare: '................', hat: '....x.......x...', bass: 'x...x...x...x...', arp: true,  lead: 'triangle', seed: 101, density: 0.3, pad: 'triangle' },
+    vier:     { bpm: 84,  root: 55, prog: [[0, 3, 7], [-4, 0, 3], [-2, 2, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '............x...', hat: '..x.......x.....', bass: 'x.....x.........', arp: false, lead: 'triangle', seed: 111, density: 0.28, pad: 'triangle' },
+    penalty:  { bpm: 126, root: 45, prog: [[0, 4, 7], [7, 11, 14], [9, 12, 16], [5, 9, 12]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x.x...x.x.x...x.', arp: true, lead: 'square', seed: 55, density: 0.28, pad: 'sawtooth' },
+    dief:     { bpm: 84,  root: 38, prog: [[0, 3, 7], [0, 3, 8], [5, 8, 12], [3, 7, 10]], kick: 'x.......x..x....', snare: '........x.......', hat: '..x...x...x...x.', bass: 'x..x....x..x....', arp: false, lead: 'triangle', seed: 13, density: 0.12, pad: 'sine' },
+    pool:     { bpm: 92,  root: 43, prog: [[0, 4, 7, 10], [5, 9, 12, 15], [2, 5, 9, 12], [7, 11, 14, 17]], kick: 'x.......x.......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'x...x..xx...x...', arp: false, lead: 'triangle', seed: 31, density: 0.18, pad: 'sine' },
+    voetbal:  { bpm: 128, root: 50, prog: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [5, 9, 12]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'square', seed: 77, density: 0.3, pad: 'sawtooth' },
+    escape:   { bpm: 84,  root: 45, prog: [[0, 3, 7], [-4, 0, 3], [-2, 1, 5], [-5, -2, 2]], kick: 'x.......x.......', snare: '........x.......', hat: '....x.......x...', bass: 'x.......x...x...', arp: true,  lead: 'triangle', seed: 171, density: 0.22, pad: 'triangle' },
+    moto:     { bpm: 132, root: 50, prog: [[0, 3, 7], [-2, 2, 5], [-4, 0, 3], [-5, -1, 2]], kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.xox.xox.xox.xo', bass: 'x.x.xox.x.x.xox.', arp: true,  lead: 'sawtooth', seed: 151, density: 0.42, pad: 'sawtooth' },
+    tycoon:   { bpm: 96,  root: 57, prog: [[0, 4, 7], [-3, 0, 4], [5, 9, 12], [-5, -1, 2]], kick: 'x.......x.......', snare: '....x.......x...', hat: '..x...x...x...x.', bass: 'x..x..x.x..x..x.', arp: true,  lead: 'triangle', seed: 131, density: 0.32, pad: 'triangle' },
+    patience: { bpm: 70,  root: 58, prog: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [-5, -1, 2, 5]], kick: 'x...............', snare: '................', hat: '................', bass: 'x.......x.......', arp: true,  lead: 'sine', seed: 121, density: 0.18, pad: 'triangle' },
+    stack:    { bpm: 100, root: 59, prog: [[0, 3, 7], [3, 7, 10], [-4, 0, 3], [-2, 2, 5]], kick: 'x.......x.......', snare: '........x.......', hat: 'x...x...x...x...', bass: 'x.....x.........', arp: true,  lead: 'triangle', seed: 71, density: 0.3, pad: 'triangle' },
+  };
+  // Melodie maken uit de toonladder (altijd hetzelfde per nummer)
+  function makeMelody(song) {
+    const R = rng(song.seed);
+    const motif = [];
+    for (let i = 0; i < 32; i++) {
+      if (R() > song.density || i % 2 === 1 && R() < 0.5) { motif.push(null); continue; }
+      const deg = Math.floor(R() * 7) + (R() < 0.3 ? 7 : 0);
+      const len = R() < 0.25 ? 3 : R() < 0.5 ? 2 : 1;
+      motif.push({ deg, len });
+    }
+    const mel = [];
+    for (let bar = 0; bar < 8; bar++) {
+      for (let i = 0; i < 16; i++) {
+        let m = motif[(bar % 2) * 16 + i];
+        if (m && bar >= 4 && bar % 2 === 1 && i > 8) m = { deg: m.deg + 2, len: m.len }; // kleine variatie
+        mel.push(m);
+      }
+    }
+    return mel;
+  }
+  for (const k in SONGS) SONGS[k].mel = makeMelody(SONGS[k]);
+
+  let ac = null, master = null, delayIn = null, reverbIn = null, duck = null, noise = null, timer = null;
+  let song = null, wanted = null, step = 0, nextT = 0;
+  const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  // Galm: zelf gemaakte impulsrespons (geen bestanden nodig)
+  function makeReverb(sec = 2.2) {
+    const len = Math.floor(ac.sampleRate * sec), buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+    const cv = ac.createConvolver(); cv.buffer = buf; return cv;
+  }
+  function initAudio() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = musicVol() * 0.5;
+      const comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -16; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+      const warm = ac.createBiquadFilter(); warm.type = 'highshelf'; warm.frequency.value = 6000; warm.gain.value = -4;
+      master.connect(warm); warm.connect(comp); comp.connect(ac.destination);
+      // 'duck' zakt even weg op elke kick (pompend effect zoals in echte dance-muziek)
+      duck = ac.createGain(); duck.connect(master);
+      // Echo voor melodie
+      delayIn = ac.createGain(); delayIn.gain.value = 0.2;
+      const d = ac.createDelay(); d.delayTime.value = 0.3;
+      const fb = ac.createGain(); fb.gain.value = 0.32;
+      const dlp = ac.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2400;
+      delayIn.connect(d); d.connect(dlp); dlp.connect(fb); fb.connect(d); dlp.connect(duck);
+      reverbIn = ac.createGain(); reverbIn.gain.value = 0.28;
+      const rv = makeReverb(); reverbIn.connect(rv); rv.connect(duck);
+      noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.5), ac.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    } catch (e) { ac = null; }
+  }
+  function env(g, t, a, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function out(node, pan = 0) {
+    if (pan && ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = pan; node.connect(p); return p; }
+    return node;
+  }
+  function kick(t) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    env(g, t, 0.002, 0.95, 0.28);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3);
+    noiseHit(t, 3000, 0.12, 0.012, 0, master);            // tikje voor de aanslag
+    duck.gain.cancelScheduledValues(t);
+    duck.gain.setValueAtTime(0.45, t); duck.gain.linearRampToValueAtTime(1, t + 0.22);
+  }
+  function noiseHit(t, hp, peak, dur, pan = 0, dest = null, type = 'highpass', q = 0.7) {
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise;
+    f.type = type; f.frequency.value = hp; f.Q.value = q;
+    env(g, t, 0.002, peak, dur);
+    s.connect(f); f.connect(g); out(g, pan).connect(dest || master);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
+    return g;
+  }
+  function snare(t) {
+    const g = noiseHit(t, 1800, 0.32, 0.18, 0, master, 'bandpass', 0.6);
+    g.connect(reverbIn);
+    const o = ac.createOscillator(), g2 = ac.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    env(g2, t, 0.002, 0.22, 0.1); o.connect(g2); g2.connect(master); o.start(t); o.stop(t + 0.12);
+  }
+  // Toon met twee licht ontstemde oscillatoren en een filter dat 'opengaat'
+  function tone(t, midi, dur, type, vol, cutoff, echo, attack = 0.006, opt = {}) {
+    const f = ac.createBiquadFilter(), g = ac.createGain();
+    f.type = 'lowpass'; f.Q.value = opt.q || 0.8;
+    f.frequency.setValueAtTime(cutoff * (opt.sweep ? 0.25 : 1), t);
+    if (opt.sweep) f.frequency.exponentialRampToValueAtTime(cutoff, t + Math.min(dur, 0.08)), f.frequency.exponentialRampToValueAtTime(cutoff * 0.35, t + dur);
+    const n = opt.unison ? 2 : 1;
+    for (let k = 0; k < n; k++) {
+      const o = ac.createOscillator();
+      o.type = type; o.frequency.value = mtof(midi); o.detune.value = n > 1 ? (k ? 9 : -9) : 0;
+      if (opt.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5.5; lg.gain.value = 7; l.connect(lg); lg.connect(o.detune); l.start(t + 0.12); l.stop(t + dur + 0.05); }
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+    env(g, t, attack, vol / n, dur);
+    f.connect(g);
+    const dst = out(g, opt.pan || 0);
+    dst.connect(opt.dry ? master : duck);
+    if (echo) dst.connect(delayIn);
+    if (opt.verb) dst.connect(reverbIn);
+  }
+  function playStep(s, t) {
+    const sp = 60 / song.bpm / 4;
+    const i = s % 16, barN = Math.floor(s / 16), bar = barN % 4, chord = song.prog[bar];
+    const intro = barN < 2 && song.introDone !== true;
+    const fill = barN % 8 === 7 && i >= 12;                       // drumroffel aan het eind van elke 8 maten
+    if (!intro) {
+      if (song.kick[i] === 'x') kick(t);
+      if (song.snare[i] === 'x' || (fill && i % 2 === 0)) snare(t);
+      if (song.hat[i] === 'x') noiseHit(t, 8000, 0.06 + (i % 4 === 2 ? 0.03 : 0), 0.03, i % 2 ? 0.25 : -0.25);
+      if (song.hat[i] === 'o') noiseHit(t, 7000, 0.08, 0.16, 0.2);
+      if (barN % 8 === 0 && i === 0 && song.introDone) noiseHit(t, 5000, 0.12, 1.4, 0, reverbIn);  // bekken
+    }
+    const b = song.bass[i];
+    if (b !== '.') tone(t, song.root - 12 + chord[0] + (b === 'o' ? 12 : 0), sp * 0.9, 'sawtooth', 0.2, 900, false, 0.004, { sweep: true, unison: true, q: 4 });
+    if (song.pad && i === 0) for (const n of chord) tone(t, song.root + n, sp * 16 * 0.98, song.pad, 0.045, intro ? 700 : 1500, false, 0.35, { unison: true, verb: true, pan: (n % 3 - 1) * 0.3 });
+    if (song.arp && i % 2 === 0) tone(t, song.root + 12 + chord[(i / 2) % chord.length] + (barN % 2 && i >= 8 ? 12 : 0), sp * 0.7, 'square', 0.022, 2400, true, 0.003, { pan: ((i / 2) % 2 ? 0.35 : -0.35) });
+    const m = song.mel[s % song.mel.length];
+    if (m && !intro) {
+      const deg = m.deg;
+      const note = song.root + 12 + SCALE[deg % 7] + 12 * Math.floor(deg / 7);
+      tone(t, note, sp * m.len * 0.95, song.lead, 0.055, song.lead === 'sawtooth' ? 2600 : 3800, true, 0.008, { vib: m.len > 1, verb: true, unison: song.lead === 'sawtooth' });
+    }
+  }
+  function tick() {
+    if (!ac || !song) return;
+    const sp = 60 / song.bpm / 4;
+    if (nextT < ac.currentTime) nextT = ac.currentTime + 0.05;
+    while (nextT < ac.currentTime + 0.15) {
+      playStep(step, nextT);
+      nextT += sp;
+      step++;
+      if (step >= 128) { step = 0; song.introDone = true; }
+    }
+  }
+  function startIfWanted() {
+    if (!wanted) return;
+    initAudio();
+    if (!ac) return;
+    if (song !== SONGS[wanted]) { song = SONGS[wanted]; step = 0; nextT = ac.currentTime + 0.1; }
+    if (!timer) timer = setInterval(tick, 25);
+  }
+  // Muziek mag pas starten na een klik of toetsaanslag (regel van browsers)
+  addEventListener('pointerdown', startIfWanted);
+  addEventListener('keydown', startIfWanted);
+  document.addEventListener('visibilitychange', () => {
+    if (!ac) return;
+    if (document.hidden) ac.suspend(); else ac.resume();
+  });
+  listeners.push(() => { if (master) master.gain.setTargetAtTime(musicVol() * 0.5, ac.currentTime, 0.1); });
+
+  const music = { play(name) { wanted = name; if (ac) startIfWanted(); }, status: () => ({ running: !!timer, song: wanted, step, audio: ac ? ac.state : 'geen' }) };
+
+  // ---------- Instellingenpaneel ----------
+  const CSS = `
+  .ac-gear { position: fixed; top: 12px; right: 12px; z-index: 50; width: 42px; height: 42px; border-radius: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .ac-gear:hover { background: rgba(255,255,255,0.2); }
+  .ac-gear svg { width: 22px; height: 22px; transition: transform 0.4s ease; }
+  .ac-gear:hover svg { transform: rotate(60deg); }
+  .ac-ov { position: fixed; inset: 0; z-index: 60; background: rgba(5,6,9,0.6); display: none; align-items: center; justify-content: center; padding: 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-user-select: none; user-select: none; }
+  .ac-ov.open { display: flex; }
+  .ac-card { width: min(380px, 100%); background: #16181d; border: 1px solid rgba(255,255,255,0.14); border-radius: 18px; padding: 20px 22px; color: #fff;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .ac-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .ac-head b { font-size: 20px; font-weight: 900; }
+  .ac-x { background: rgba(255,255,255,0.1); border: 0; color: #fff; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+  .ac-row { margin: 14px 0; }
+  .ac-lab { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #e6e9ee; }
+  .ac-lab span { color: #9aa1ab; font-family: ui-monospace, Consolas, monospace; }
+  .ac-card input[type=range] { width: 100%; accent-color: #e8282f; height: 22px; }
+  .ac-seg { display: flex; gap: 6px; background: #0e0f13; padding: 4px; border-radius: 12px; }
+  .ac-seg button { flex: 1; border: 0; background: transparent; color: #c9ced6; padding: 9px 0; border-radius: 9px; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .ac-seg button.on { background: #fff; color: #111214; }
+  .ac-hint { font-size: 12px; color: #7d848e; margin-top: 6px; }
+  .ac-check { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: #e6e9ee; cursor: pointer; }
+  .ac-check input { width: 18px; height: 18px; accent-color: #e8282f; }
+  .ac-danger { width: 100%; margin-top: 8px; padding: 11px; border-radius: 12px; border: 1px solid rgba(232,40,47,0.6); background: rgba(232,40,47,0.12);
+    color: #ff6b72; font-weight: 800; font-size: 14px; cursor: pointer; }
+  .ac-danger:hover { background: rgba(232,40,47,0.25); }`;
+  const GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  let ov = null;
+  function buildPanel() {
+    const st = document.createElement('style');
+    st.textContent = CSS;
+    document.head.appendChild(st);
+    const gear = document.createElement('button');
+    gear.className = 'ac-gear';
+    gear.type = 'button';
+    gear.title = 'Instellingen';
+    gear.setAttribute('aria-label', 'Instellingen');
+    gear.innerHTML = GEAR;
+    document.body.appendChild(gear);
+    ov = document.createElement('div');
+    ov.className = 'ac-ov';
+    ov.innerHTML = `
+      <div class="ac-card" role="dialog" aria-label="Instellingen">
+        <div class="ac-head"><b>⚙ Instellingen</b><button class="ac-x" type="button" aria-label="Sluiten">✕</button></div>
+        <div class="ac-row"><div class="ac-lab">🎵 Muziek <span id="acMv"></span></div><input type="range" min="0" max="100" id="acM"></div>
+        <div class="ac-row"><div class="ac-lab">🔊 Geluidseffecten <span id="acSv"></span></div><input type="range" min="0" max="100" id="acS"></div>
+        <div class="ac-row"><label class="ac-check"><input type="checkbox" id="acMute"> Alles dempen (sneltoets M)</label></div>
+        <div class="ac-row"><div class="ac-lab">🖥 Beeldkwaliteit</div>
+          <div class="ac-seg"><button type="button" data-q="laag">Laag</button><button type="button" data-q="normaal">Normaal</button><button type="button" data-q="hoog">Hoog</button></div>
+          <div class="ac-hint">Laag = soepeler op oudere laptops en telefoons. Hoog = scherper beeld.</div></div>
+        <button class="ac-danger" type="button">🗑 Alle records wissen</button>
+      </div>`;
+    document.body.appendChild(ov);
+    const $ = (id) => ov.querySelector('#' + id);
+    const refresh = () => {
+      $('acM').value = Math.round(S.music * 100); $('acMv').textContent = Math.round(S.music * 100) + '%';
+      $('acS').value = Math.round(S.sfx * 100); $('acSv').textContent = Math.round(S.sfx * 100) + '%';
+      $('acMute').checked = !!S.muted;
+      ov.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('on', b.dataset.q === S.quality));
+    };
+    refresh();
+    listeners.push(refresh);
+    $('acM').addEventListener('input', (e) => { set('music', e.target.value / 100); startIfWanted(); });
+    $('acS').addEventListener('input', (e) => set('sfx', e.target.value / 100));
+    $('acS').addEventListener('change', () => { if (window.Arcade) Arcade.beep(660, 0.08, 'triangle', 0.06); });
+    $('acMute').addEventListener('change', (e) => set('muted', e.target.checked));
+    ov.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => set('quality', b.dataset.q)));
+    ov.querySelector('.ac-danger').addEventListener('click', () => {
+      if (!confirm('Weet je zeker dat je ALLE records, medailles en spookauto\'s wilt wissen? Dit kan niet ongedaan worden.')) return;
+      const kill = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (/^arcade_(best_|2048_state)|^tt2_(bests|ghost)/.test(k)) kill.push(k);
+      }
+      kill.forEach((k) => localStorage.removeItem(k));
+      location.reload();
+    });
+    const close = () => ov.classList.remove('open');
+    ov.querySelector('.ac-x').addEventListener('click', close);
+    ov.addEventListener('pointerdown', (e) => { if (e.target === ov) close(); });
+    // Toetsen in het paneel niet doorgeven aan de game
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); e.stopPropagation(); });
+    gear.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ov.classList.add('open');
+      // Games pauzeren als het venster de focus verliest: dat doen we hier ook
+      window.dispatchEvent(new Event('blur'));
+      gear.blur();
+    });
+    gear.addEventListener('pointerdown', (e) => e.stopPropagation());
+  }
+  addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM' && !(ov && ov.classList.contains('open'))) set('muted', !S.muted);
+  });
+  if (document.body) buildPanel(); else document.addEventListener('DOMContentLoaded', buildPanel);
+
+  const cheats = [];   // admin-voordelen per game (alleen zichtbaar voor de admin)
+  return {
+    cheats,
+    cheat: (label, fn) => cheats.push({ label, fn }),
+    toggle: (label, get, set) => cheats.push({ label, get, set }),
+    get settings() { return S; },
+    set, sfx, musicVol, dprCap, music,
+    onChange: (f) => listeners.push(f),
+    isOpen: () => !!(ov && ov.classList.contains('open')),
+  };
+})();
+
+
+// ================= Gedeeld voor alle games: opslag, geluid, scherm, knoppen =================
+const Arcade = (() => {
+  const load = (k, d) => { try { const v = localStorage.getItem('arcade_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+  const save = (k, v) => { try { localStorage.setItem('arcade_' + k, JSON.stringify(v)); } catch (e) { /* uit */ } };
+  let audio = null;
+
+  function initAudio() {
+    if (audio) { if (audio.state === 'suspended') audio.resume(); return; }
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+  }
+  addEventListener('pointerdown', initAudio);
+  addEventListener('keydown', initAudio);
+
+  let sfxBus = null, noiseBuf = null;
+  function bus() {
+    if (sfxBus || !audio) return sfxBus;
+    // zachte filter + compressor: effecten klinken voller en minder schel
+    const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200;
+    const comp = audio.createDynamicsCompressor(); comp.threshold.value = -12; comp.ratio.value = 4;
+    lp.connect(comp); comp.connect(audio.destination);
+    sfxBus = lp;
+    noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return sfxBus;
+  }
+  function beep(freq, dur, type = 'square', vol = 0.05, slide = 0, delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    vol *= level * 1.25 * (type === 'square' || type === 'sawtooth' ? 0.8 : 1.1);
+    try {
+      const t = audio.currentTime + delay;
+      const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+      o.type = o2.type = type;
+      o.frequency.setValueAtTime(freq, t); o2.frequency.setValueAtTime(freq, t); o2.detune.value = 7;
+      if (slide) { o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); o2.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur); }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      const g2 = audio.createGain(); g2.gain.value = 0.5;
+      o.connect(g); o2.connect(g2); g2.connect(g);
+      g.connect(bus());
+      o.start(t); o2.start(t);
+      o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Ruisgeluid: knal, plof, zoef, explosie
+  function noise(dur = 0.2, vol = 0.1, f0 = 3000, f1 = 300, type = 'lowpass', delay = 0) {
+    const level = ArcadeCore.sfx();
+    if (!level || !audio) return;
+    try {
+      const t = audio.currentTime + delay;
+      bus();
+      const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+      s.buffer = noiseBuf; f.type = type;
+      f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      g.gain.setValueAtTime(vol * level * 1.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(sfxBus);
+      s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    } catch (e) { /* negeren */ }
+  }
+  // Effecten: deeltjes, schudden, zwevende tekst (zelfde stijl in elke game)
+  function makeFx() {
+    const parts = [], texts = [], rings = [];
+    let shakeT = 0, shakeA = 0, flashA = 0, flashC = '#fff';
+    return {
+      burst(x, y, n = 14, color = '#fff', speed = 180, life = 0.6, size = 3, grav = 200) {
+        const max = ArcadeCore.settings.quality === 'laag' ? 0.5 : 1;
+        for (let i = 0; i < n * max; i++) {
+          const a = Math.random() * Math.PI * 2, v = speed * (0.3 + Math.random() * 0.7);
+          parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: life * (0.6 + Math.random() * 0.4), max: life, color: Array.isArray(color) ? color[i % color.length] : color, size: size * (0.6 + Math.random() * 0.8), grav });
+        }
+        if (parts.length > 600) parts.splice(0, parts.length - 600);
+      },
+      ring(x, y, color = '#fff', r = 40, life = 0.4) { rings.push({ x, y, color, r, life, max: life }); },
+      text(x, y, t, color = '#fff', size = 18) { texts.push({ x, y, t, color, size, life: 0.9 }); },
+      shake(a = 6, t = 0.25) { shakeA = Math.max(shakeA, a); shakeT = Math.max(shakeT, t); },
+      flash(c = '#fff', a = 0.35) { flashC = c; flashA = Math.max(flashA, a); },
+      update(dt) {
+        for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; } p.vy += p.grav * dt; p.vx *= 1 - dt * 1.5; p.x += p.vx * dt; p.y += p.vy * dt; }
+        for (let i = texts.length - 1; i >= 0; i--) { const q = texts[i]; q.life -= dt; q.y -= 40 * dt; if (q.life <= 0) texts.splice(i, 1); }
+        for (let i = rings.length - 1; i >= 0; i--) { const q = rings[i]; q.life -= dt; if (q.life <= 0) rings.splice(i, 1); }
+        shakeT = Math.max(0, shakeT - dt); if (!shakeT) shakeA = 0;
+        flashA = Math.max(0, flashA - dt * 2.5);
+      },
+      // roep aan vóór het tekenen van de wereld (ctx.save gebeurt hier)
+      begin(ctx) { ctx.save(); if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeA * 2, (Math.random() - 0.5) * shakeA * 2); },
+      end(ctx) { ctx.restore(); },
+      draw(ctx) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (const p of parts) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
+        ctx.globalCompositeOperation = 'source-over';
+        for (const q of rings) { const k = 1 - q.life / q.max; ctx.globalAlpha = 1 - k; ctx.strokeStyle = q.color; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(q.x, q.y, q.r * (0.3 + k), 0, Math.PI * 2); ctx.stroke(); }
+        for (const q of texts) { ctx.globalAlpha = Math.min(1, q.life * 2); text(ctx, q.t, q.x, q.y, q.size, q.color, 'center', '900'); }
+        ctx.restore();
+      },
+      drawFlash(ctx, W, H) { if (flashA > 0) { ctx.save(); ctx.globalAlpha = flashA; ctx.fillStyle = flashC; ctx.fillRect(0, 0, W, H); ctx.restore(); } },
+      clear() { parts.length = 0; texts.length = 0; rings.length = 0; shakeT = 0; },
+      get count() { return parts.length; },
+    };
+  }
+
+  // Canvas met vaste spelgrootte (W×H) die netjes in het venster past
+  function canvas(id, W, H) {
+    const c = document.getElementById(id);
+    const ctx = c.getContext('2d');
+    const view = { W, H, scale: 1 };
+    const fit = () => {
+      const s = Math.min(innerWidth / W, innerHeight / H);
+      const dpr = Math.min(ArcadeCore.dprCap(), devicePixelRatio || 1);
+      c.style.width = Math.floor(W * s) + 'px';
+      c.style.height = Math.floor(H * s) + 'px';
+      c.width = Math.floor(W * s * dpr);
+      c.height = Math.floor(H * s * dpr);
+      view.scale = s * dpr;
+      ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    };
+    fit();
+    addEventListener('resize', fit);
+    ArcadeCore.onChange(fit);
+    view.begin = () => ctx.setTransform(view.scale, 0, 0, view.scale, 0, 0);
+    view.toGame = (e) => {
+      const r = c.getBoundingClientRect();
+      return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    };
+    return { c, ctx, view };
+  }
+
+  // Vegen (swipe) op touchscreens: geeft 'links', 'rechts', 'op' of 'neer'
+  function onSwipe(el, fn, onTap) {
+    let sx = 0, sy = 0, st = 0, active = false;
+    el.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; st = performance.now(); active = true; });
+    el.addEventListener('pointerup', (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) { if (onTap) onTap(e); return; }
+      if (Math.abs(dx) > Math.abs(dy)) fn(dx > 0 ? 'rechts' : 'links');
+      else fn(dy > 0 ? 'neer' : 'op');
+    });
+  }
+
+  // Tekenhulpjes in dezelfde stijl
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function text(ctx, t, x, y, size, color = '#fff', align = 'center', weight = '700', mono = false) {
+    ctx.font = `${weight} ${size}px ${mono ? 'ui-monospace, Consolas, monospace' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, x, y);
+  }
+  // Knoppen op het canvas (zelfde stijl overal). btn() elke frame opnieuw tekenen; hit() bij klikken.
+  function ui(ctx) {
+    let list = [], hover = null;
+    return {
+      clear() { list = []; },
+      btn(label, x, y, w, h, fn, primary = false, active = false, size = 0) {
+        const on = hover && hover.x >= x && hover.x <= x + w && hover.y >= y && hover.y <= y + h;
+        const g = ctx.createLinearGradient(0, y, 0, y + h);
+        if (primary || active) { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#dfe2e6'); }
+        else { g.addColorStop(0, on ? '#30343c' : '#262930'); g.addColorStop(1, on ? '#24272d' : '#1b1d22'); }
+        ctx.fillStyle = g; rr(ctx, x, y, w, h, Math.min(10, h / 3)); ctx.fill();
+        ctx.strokeStyle = primary || active ? 'rgba(255,255,255,0.6)' : on ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, label, x + w / 2, y + h / 2 + 1, size || Math.min(16, h * 0.4), primary || active ? '#111214' : '#ffffff', 'center', '800');
+        list.push({ x, y, w, h, fn });
+      },
+      hit(q) { for (let i = list.length - 1; i >= 0; i--) { const b = list[i]; if (q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h) { b.fn(); return true; } } return false; },
+      hover(q) { hover = q; },
+    };
+  }
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  // Standaard scherm voor start / pauze / game over
+  function overlay(ctx, W, H, title, lines = [], hint = '') {
+    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(10, 11, 14, 0.55)'); g.addColorStop(1, 'rgba(4, 5, 7, 0.85)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 40, 400), ph = 130 + lines.length * 30 + (hint ? 40 : 0);
+    const x = (W - pw) / 2, y = (H - ph) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+    const cg = ctx.createLinearGradient(0, y, 0, y + ph);
+    cg.addColorStop(0, 'rgba(32, 35, 42, 0.97)'); cg.addColorStop(1, 'rgba(18, 20, 24, 0.97)');
+    ctx.fillStyle = cg;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, x, y, pw, ph, 18);
+    ctx.stroke();
+    ctx.fillStyle = '#e8282f';
+    rr(ctx, W / 2 - 24, y + 78, 48, 3, 1.5); ctx.fill();
+    text(ctx, title, W / 2, y + 48, 32, '#fff', 'center', '900');
+    lines.forEach((l, i) => {
+      const s = typeof l === 'string' ? { t: l } : l;
+      text(ctx, s.t, W / 2, y + 108 + i * 30, s.size || 18, s.color || '#c9ced6', 'center', s.weight || '600', s.mono);
+    });
+    if (hint) { ctx.globalAlpha = 0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 450)); text(ctx, hint, W / 2, y + ph - 30, 15, '#ffffff', 'center', '700'); ctx.globalAlpha = 1; }
+  }
+  // Achtergrond met diepte: zacht licht in het midden + vignet
+  function backdrop(ctx, W, H, top = '#15171c', bottom = '#0a0b0e') {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, top); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.035)'); v.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+
+  return {
+    load, save, beep, noise, makeFx, backdrop, ui, fmtTime,
+    get muted() { return !ArcadeCore.sfx(); },
+    best: (game) => load('best_' + game, 0),
+    // Slaat een nieuwe topscore op; geeft true terug als het een record is
+    record: (game, score, lowerIsBetter = false) => {
+      const b = load('best_' + game, 0);
+      if (!b || (lowerIsBetter ? score < b : score > b)) { save('best_' + game, score); return true; }
+      return false;
+    },
+    canvas, onSwipe, rr, text, overlay,
+    touch: matchMedia('(hover: none) and (pointer: coarse)').matches,
+  };
+})();
+
+ArcadeCore.music.play('penalty');
+
+// ================= PENALTY KONING =================
+// Schieten: houd spatie (of muis/vinger) ingedrukt; het mikpunt zigzagt omhoog. Loslaten = schieten.
+// Keepen: kies links / midden / rechts (pijltjes of tik) voordat de bal er is.
+const W = 960, H = 600;
+const { c, ctx, view } = Arcade.canvas('c', W, H);
+const GAME = 'penalty';
+const fx = Arcade.makeFx();
+const ui = Arcade.ui(ctx);
+const T = Arcade.text, RR = Arcade.rr;
+
+// doel op het scherm
+const GX = 480, GW = 380, GL = GX - GW / 2, GR = GX + GW / 2, GT = 168, GB = 334, GH = GB - GT;
+const toScr = (u, v) => [GX + u * GW, GB - v * GH];
+const SPOT = [480, 532];
+
+const TEAMS = [
+  ['Polder Pumas', '#e8a33c'], ['Dijk Dynamo', '#3fbf9f'], ['Molen Mustangs', '#9b6bd6'], ['Haven Haaien', '#2f7fe0'],
+  ['Tulpen Tijgers', '#e05a9a'], ['Storm Stieren', '#e8282f'], ['Kaas Kanonnen', '#ffd23f'], ['Wereld XI', '#f2f2f2'],
+];
+const ME = ['Jouw team', '#ffffff'];
+
+// ---------- opslag ----------
+let best = Arcade.best(GAME);                       // beste reeks (goals op rij)
+let tour = Arcade.load('penalty_tour', null);        // { round }
+let tourBest = Arcade.load('penalty_tourbest', 0);
+
+// ---------- status ----------
+let state = 'menu', mode = 'tour';   // tour | reeks | vriend
+let kicks = [[], []], turn = 0, phase = '', clock = 0;
+let hold = false, holdT = 0, aimU = 0, aimV = 0, zdir = 1, aimSp = 1;
+let ball = null, keeper = null, shooter = null, res = null, resT = 0, streak = 0, overInfo = null;
+let keep = null, diveIn = null, prevState = 'play', toast = '', toastT = 0;
+let cheatKeeper = false, cheatAim = false;
+const round = () => (tour ? tour.round : 0);
+const opp = () => (mode === 'vriend' ? ['Speler 2', '#e8282f'] : TEAMS[Math.min(7, round())]);
+const names = () => (mode === 'vriend' ? ['Speler 1', 'Speler 2'] : [ME[0], opp()[0]]);
+const say = (s) => { toast = s; toastT = 2; };
+
+// ---------- geluid ----------
+const sfx = {
+  kick: () => { Arcade.noise(0.06, 0.12, 2400, 300); Arcade.beep(120, 0.08, 'sine', 0.08, -40); },
+  goal: () => { Arcade.noise(1.6, 0.12, 1400, 500, 'bandpass'); [523, 659, 784].forEach((f, i) => Arcade.beep(f, 0.18, 'square', 0.04, 0, 0.1 + i * 0.1)); },
+  save: () => { Arcade.noise(0.12, 0.1, 900, 200); Arcade.noise(1.0, 0.07, 700, 300, 'bandpass'); },
+  post: () => { Arcade.beep(1300, 0.3, 'triangle', 0.07); Arcade.beep(870, 0.4, 'sine', 0.05); },
+  miss: () => { Arcade.noise(0.9, 0.06, 400, 200, 'bandpass'); Arcade.beep(220, 0.4, 'sawtooth', 0.03, -80); },
+  whistle: () => { Arcade.beep(2200, 0.12, 'sine', 0.05); Arcade.beep(2300, 0.3, 'sine', 0.05, 0, 0.16); },
+};
+
+// ---------- wedstrijd ----------
+function startMatch(m) {
+  mode = m; kicks = [[], []]; streak = 0; turn = 0; res = null;
+  if (m === 'tour' && !tour) { tour = { round: 0 }; Arcade.save('penalty_tour', tour); }
+  state = 'play'; sfx.whistle();
+  nextKick();
+}
+function decided() {
+  const [a, b] = kicks, na = a.length, nb = b.length;
+  const ga = a.filter(Boolean).length, gb = b.filter(Boolean).length;
+  if (mode === 'reeks') return null;
+  if (na <= 5 && nb <= 5) {
+    const leftA = 5 - na, leftB = 5 - nb;
+    if (ga > gb + leftB) return 0;
+    if (gb > ga + leftA) return 1;
+    if (na === 5 && nb === 5 && ga !== gb) return ga > gb ? 0 : 1;
+    return null;
+  }
+  if (na === nb && ga !== gb) return ga > gb ? 0 : 1; // sudden death
+  return null;
+}
+function nextKick() {
+  if (mode === 'reeks') { turn = 0; return beginShoot(); }
+  const w = decided();
+  if (w !== null) return finishMatch(w);
+  turn = kicks[0].length <= kicks[1].length ? 0 : 1;
+  if (turn === 0) beginShoot(); else beginKeep();
+}
+// --- schieten (jij, of speler 1/2 in vriendmodus) ---
+function beginShoot() {
+  phase = 'aim'; hold = false; holdT = 0; aimU = 0; aimV = 0; zdir = Math.random() < 0.5 ? -1 : 1;
+  const r = mode === 'reeks' ? Math.min(10, kicks[0].length) * 0.8 : mode === 'tour' ? round() : 3;
+  aimSp = 0.9 + r * 0.09;
+  keeper = { u: 0, v: 0, du: 0, dv: 0, t: 0, dive: null };
+  shooter = { run: 0 };
+  ball = null; diveIn = null;
+}
+function aimStep(dt) {
+  holdT += dt;
+  aimV = holdT * 0.78 * (cheatAim ? 0.7 : 1);
+  aimU += zdir * dt * 1.25 * aimSp * (cheatAim ? 0.6 : 1);
+  if (aimU > 0.62) { aimU = 0.62; zdir = -1; } if (aimU < -0.62) { aimU = -0.62; zdir = 1; }
+}
+function release() {
+  if (phase !== 'aim' || !hold) return;
+  hold = false;
+  if (holdT < 0.06) return;
+  phase = 'run'; shooter.run = 0;
+  ball = { u: aimU, v: Math.max(0.02, aimV), t: 0, dur: 0.55, x: SPOT[0], y: SPOT[1] };
+}
+function kickBall() {
+  sfx.kick();
+  const u = ball.u, v = ball.v;
+  // keeper (bot) of speler 2 kiest
+  if (mode === 'vriend') keeperDive(diveIn || 'mid', u, v, false);
+  else botKeeper(u, v);
+  phase = 'fly';
+}
+function botKeeper(u, v) {
+  const r = mode === 'tour' ? round() : Math.min(9, kicks[0].length * 0.7);
+  const side = Math.abs(u) < 0.14 ? 'mid' : u < 0 ? 'left' : 'right';
+  const smart = cheatKeeper ? 0 : 0.22 + r * 0.06;
+  let guess;
+  if (Math.random() < smart) guess = side;
+  else guess = ['left', 'mid', 'right'][Math.floor(Math.random() * 3)];
+  keeperDive(guess, u, v, true);
+}
+// geeft terug of het een redding is
+function reach(dive, u, v, bot) {
+  const au = Math.abs(u);
+  if (dive === 'mid') return au < 0.2 && v < 0.85;
+  if ((dive === 'left') !== (u < 0)) return false;
+  if (au < 0.1) return v < 0.5;
+  // hoeken zijn moeilijk: hoog in de hoek bijna niet te houden
+  const corner = au > 0.4 && v > 0.7;
+  if (corner) return Math.random() < (bot ? 0.12 : 0.25);
+  return au < 0.5 && v < 0.95;
+}
+function keeperDive(dive, u, v, bot) {
+  const save = reach(dive, u, v, bot) && !(Math.abs(u) > 0.5 || v > 1.0);
+  const tu = dive === 'mid' ? 0 : dive === 'left' ? -0.3 : 0.3;
+  keeper.dive = dive; keeper.t = 0;
+  keeper.tu = save ? u : tu + (Math.random() - 0.5) * 0.1;
+  keeper.tv = save ? v : (dive === 'mid' ? 0.35 : 0.35 + Math.random() * 0.3);
+  ball.save = save;
+}
+function outcome() {
+  const u = ball.u, v = ball.v, au = Math.abs(u);
+  const postU = au > 0.48 && au < 0.53 && v < 1.03, bar = v > 0.97 && v < 1.04 && au < 0.53;
+  if (postU || bar) return Math.random() < 0.45 ? 'postin' : 'post';
+  if (au >= 0.5 || v >= 1.0) return 'miss';
+  if (ball.save) return 'save';
+  return 'goal';
+}
+// --- keepen (jij) ---
+function beginKeep() {
+  phase = 'keep'; diveIn = null;
+  keeper = { u: 0, v: 0, t: 0, dive: null };
+  shooter = { run: 0 };
+  const r = mode === 'vriend' ? 0 : round();
+  if (mode === 'vriend') { ball = null; phase = 'aim'; holdT = 0; hold = false; aimU = 0; aimV = 0; zdir = Math.random() < 0.5 ? -1 : 1; aimSp = 1.15; return; }
+  // de bot kiest een doel
+  let u = (Math.random() < 0.5 ? -1 : 1) * (0.12 + Math.random() * 0.36), v = 0.06 + Math.random() * 0.86;
+  if (Math.random() < 0.2) u = (Math.random() - 0.5) * 0.24;
+  if (Math.random() < Math.max(0.04, 0.12 - r * 0.01)) { if (Math.random() < 0.5) u = Math.sign(u) * 0.56; else v = 1.08; }
+  ball = { u, v, t: 0, dur: Math.max(0.42, 0.56 - r * 0.015), x: SPOT[0], y: SPOT[1] };
+  // hint: de schutter leunt naar zijn kant (in latere rondes soms een schijnbeweging)
+  const bluff = Math.random() < 0.15 + r * 0.06;
+  const real = Math.abs(u) < 0.14 ? 0 : Math.sign(u);
+  keep = { lean: bluff ? (real === 0 ? (Math.random() < 0.5 ? -1 : 1) : -real) : real, runT: 1.25 };
+}
+function playerDive(d) {
+  if (diveIn) return;
+  if (mode === 'vriend' ? (phase === 'aim' || phase === 'run') : (phase === 'keep' || (phase === 'fly' && turn === 1))) {
+    diveIn = d;
+    if (mode !== 'vriend' && turn === 1 && phase === 'fly') { keeperDive(d, ball.u, ball.v, false); }
+  }
+}
+
+// ---------- invoer ----------
+const down = (e) => {
+  if (state === 'play') {
+    if (e.key === ' ' && phase === 'aim' && (mode !== 'vriend' || true)) { e.preventDefault(); if (!hold && !e.repeat) { hold = true; holdT = 0; aimV = 0; } return; }
+    const map = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowDown: 'mid', ArrowUp: 'mid', s: 'mid', S: 'mid', w: 'mid', W: 'mid' };
+    if (map[e.key]) { e.preventDefault(); playerDive(map[e.key]); }
+  }
+  if (e.key === 'Escape') { if (state === 'play') { prevState = state; state = 'pause'; } else if (state === 'pause') state = prevState; }
+};
+addEventListener('keydown', down);
+addEventListener('keyup', (e) => { if (e.key === ' ' && state === 'play') { e.preventDefault(); release(); } });
+c.addEventListener('pointerdown', (e) => {
+  const q = view.toGame(e);
+  if (ui.hit(q)) return;
+  if (state !== 'play') return;
+  // keepen: tik links/midden/rechts van het doel
+  const keepNow = (mode !== 'vriend' && turn === 1 && (phase === 'keep' || phase === 'fly'));
+  if (keepNow) { playerDive(q.x < GX - 70 ? 'left' : q.x > GX + 70 ? 'right' : 'mid'); return; }
+  if (phase === 'aim') { hold = true; holdT = 0; aimV = 0; c.setPointerCapture && c.setPointerCapture(e.pointerId); }
+});
+c.addEventListener('pointerup', () => { if (state === 'play') release(); });
+c.addEventListener('pointermove', (e) => ui.hover(view.toGame(e)));
+
+// ---------- update ----------
+function update(dt) {
+  clock += dt; toastT -= dt; fx.update(dt);
+  if (state !== 'play') return;
+  if (phase === 'aim' && hold) { aimStep(dt); if (aimV > 1.35) { release(); } }
+  if (phase === 'run') { shooter.run += dt * 2.6; if (shooter.run >= 1) kickBall(); }
+  if (phase === 'keep') {
+    keep.runT -= dt; shooter.run = Math.min(1, 1 - keep.runT / 1.25);
+    if (keep.runT <= 0) { sfx.kick(); phase = 'fly'; if (diveIn) keeperDive(diveIn, ball.u, ball.v, false); }
+  }
+  if (phase === 'fly') {
+    ball.t += dt / ball.dur;
+    if (keeper.dive) keeper.t = Math.min(1, keeper.t + dt / 0.38);
+    // zonder keuze blijft de keeper in het midden staan
+    if (turn === 1 && mode !== 'vriend' && !keeper.dive && ball.t > 0.75) keeperDive('mid', ball.u, ball.v, false);
+    if (ball.t >= 1) { ball.t = 1; resolve(); }
+  }
+  if (phase === 'result') { resT -= dt; if (resT <= 0) { phase = ''; nextKick(); } }
+}
+function resolve() {
+  const o = outcome();
+  const goal = o === 'goal' || o === 'postin';
+  kicks[turn].push(goal);
+  const [x, y] = toScr(ball.u, ball.v);
+  if (goal) { sfx.goal(); fx.burst(x, y, 40, [turn === 0 ? '#ffffff' : opp()[1], '#ffd23f'], 260); fx.flash('#ffffff', 0.15); }
+  else if (o === 'save') { sfx.save(); fx.burst(x, y, 16, ['#7bd88f', '#ffffff'], 140); }
+  else if (o === 'post') sfx.post(); else sfx.miss();
+  const txt = { goal: 'GOAL!', postin: 'Paal... en erin!', save: 'GERED!', post: 'Op de paal!', miss: ball.v >= 1 ? 'Over!' : 'Naast!' }[o];
+  res = { o, txt, goal, by: turn };
+  if (mode === 'reeks') { if (goal) { streak++; if (streak > best) { Arcade.record(GAME, streak); best = Arcade.best(GAME); } } else return endReeks(); }
+  phase = 'result'; resT = 1.6;
+}
+function endReeks() {
+  state = 'over'; overInfo = { title: 'Reeks voorbij', lines: [`${streak} goals op rij`, `Beste reeks: ${best}`], reeks: true };
+}
+function finishMatch(w) {
+  state = 'over';
+  const g = kicks.map((k) => k.filter(Boolean).length), score = `${g[0]} - ${g[1]}`;
+  if (mode === 'vriend') { overInfo = { title: `${names()[w]} wint!`, lines: [score], vriend: true }; return; }
+  if (w === 0) {
+    tour.round++;
+    if (tour.round > tourBest) { tourBest = tour.round; Arcade.save('penalty_tourbest', tourBest); }
+    if (tour.round >= TEAMS.length) { overInfo = { title: '🏆 Penalty Koning!', lines: [score, 'Je hebt alle 8 rondes gewonnen'], done: true }; tour = null; Arcade.save('penalty_tour', null); }
+    else { Arcade.save('penalty_tour', tour); overInfo = { title: 'Gewonnen!', lines: [score + ' tegen ' + TEAMS[tour.round - 1][0], 'Volgende: ' + TEAMS[tour.round][0]], next: true }; }
+    [523, 659, 784, 1047].forEach((f, i) => Arcade.beep(f, 0.16, 'square', 0.05, 0, i * 0.11));
+  } else {
+    overInfo = { title: 'Uitgeschakeld', lines: [score + ' tegen ' + TEAMS[round()][0], `${round()} van 8 rondes gewonnen`], done: true };
+    tour = null; Arcade.save('penalty_tour', null);
+    Arcade.beep(300, 0.5, 'sawtooth', 0.04, -150);
+  }
+}
+
+// ---------- tekenen ----------
+function drawStadium() {
+  // lucht en tribunes
+  const sky = ctx.createLinearGradient(0, 0, 0, 200); sky.addColorStop(0, '#05070d'); sky.addColorStop(1, '#141a28'); ctx.fillStyle = sky; ctx.fillRect(0, 0, W, 200);
+  for (let row = 0; row < 7; row++) {
+    const y = 40 + row * 18; ctx.fillStyle = row % 2 ? '#1a1f2c' : '#1f2533'; ctx.fillRect(0, y, W, 18);
+    for (let k = 0; k < 120; k++) {
+      const x = (k * 8.3 + row * 5) % W, h = ((k * 37 + row * 11) % 7);
+      const cols = ['#e8e8e8', '#e8a33c', '#2f7fe0', '#e8282f', '#7bd88f', '#c9a0ff'];
+      ctx.fillStyle = cols[(k + row) % cols.length]; ctx.globalAlpha = 0.55;
+      const bob = state === 'play' && res && phase === 'result' && res.goal ? Math.sin(clock * 14 + k) * 2 : 0;
+      ctx.fillRect(x, y + 6 - h * 0.3 + bob, 4, 7); ctx.globalAlpha = 1;
+    }
+  }
+  // flitsjes in het publiek
+  for (let k = 0; k < 6; k++) if (Math.sin(clock * 3 + k * 7) > 0.97) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc((k * 173 + Math.floor(clock) * 59) % W, 50 + (k * 31) % 110, 2.5, 0, 7); ctx.fill(); }
+  // lichtmasten
+  for (const lx of [60, 900]) { ctx.fillStyle = '#2a2f3a'; ctx.fillRect(lx - 2, 0, 4, 40); ctx.fillStyle = '#fffbe6'; for (let i = 0; i < 4; i++) ctx.fillRect(lx - 16 + i * 8, 4, 6, 6); const g = ctx.createRadialGradient(lx, 8, 2, lx, 8, 120); g.addColorStop(0, 'rgba(255,250,220,0.35)'); g.addColorStop(1, 'rgba(255,250,220,0)'); ctx.fillStyle = g; ctx.fillRect(lx - 120, 0, 240, 130); }
+  // reclameborden
+  ctx.fillStyle = '#0f1218'; ctx.fillRect(0, 168, W, 34);
+  const ads = ['GAME ARCADE', 'SPEEL GRATIS', 'PENALTY KONING', 'GAME ARCADE', 'SCHIET RAAK'];
+  const off = (clock * 40) % 240;
+  for (let i = -1; i < 6; i++) { const x = i * 240 - off; ctx.fillStyle = i % 2 ? '#1c2a44' : '#2a1c3a'; ctx.fillRect(x, 170, 236, 30); T(ctx, ads[(i + 10) % ads.length], x + 118, 186, 15, i % 2 ? '#8fd0ff' : '#ffb3e6', 'center', '900'); }
+  // gras
+  const g = ctx.createLinearGradient(0, 200, 0, H); g.addColorStop(0, '#256b2a'); g.addColorStop(1, '#3a9a3c'); ctx.fillStyle = g; ctx.fillRect(0, 200, W, H - 200);
+  for (let i = 0; i < 9; i++) { // banen in perspectief
+    const y0 = 200 + Math.pow(i / 9, 1.6) * 400, y1 = 200 + Math.pow((i + 1) / 9, 1.6) * 400;
+    if (i % 2) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, y0, W, y1 - y0); }
+  }
+  // lijnen: doelgebied in perspectief
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, GB + 2); ctx.lineTo(W, GB + 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(GL - 90, GB + 2); ctx.lineTo(GL - 150, GB + 70); ctx.lineTo(GR + 150, GB + 70); ctx.lineTo(GR + 90, GB + 2); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(SPOT[0], SPOT[1] + 8, 9, 4, 0, 0, 7); ctx.fill();
+}
+function drawGoal() {
+  // net
+  ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(GL, GT, GW, GH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1;
+  const shake = res && phase === 'result' && res.goal ? Math.sin(clock * 30) * 3 * Math.max(0, resT - 0.6) : 0;
+  for (let x = GL; x <= GR; x += 14) { ctx.beginPath(); ctx.moveTo(x, GT); ctx.lineTo(x + shake, GB); ctx.stroke(); }
+  for (let y = GT; y <= GB; y += 14) { ctx.beginPath(); ctx.moveTo(GL, y); ctx.quadraticCurveTo(GX, y + shake * 2, GR, y); ctx.stroke(); }
+  // palen
+  ctx.fillStyle = '#f4f4f4'; ctx.fillRect(GL - 6, GT - 6, 7, GH + 6); ctx.fillRect(GR - 1, GT - 6, 7, GH + 6); ctx.fillRect(GL - 6, GT - 6, GW + 12, 7);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(GL - 6, GB, GW + 12, 4);
+}
+function drawKeeper() {
+  const col = turn === 0 ? opp()[1] : ME[1];
+  const k = keeper.t, ease = k < 1 ? 1 - Math.pow(1 - k, 2) : 1;
+  const tu = keeper.dive ? keeper.tu : 0, tv = keeper.dive ? keeper.tv : 0;
+  const u = tu * ease, v = tv * ease;
+  const [x, yb] = toScr(u, 0); const y = yb - v * GH;
+  const ang = keeper.dive && keeper.dive !== 'mid' ? (tu < 0 ? -1 : 1) * Math.min(1.25, Math.abs(tu) * 3) * ease : 0;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  const sway = !keeper.dive ? Math.sin(clock * 6) * 3 : 0;
+  ctx.translate(sway, 0);
+  // schaduw
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 2, 26, 6, 0, 0, 7); ctx.fill();
+  // benen
+  ctx.fillStyle = '#1b1d22'; ctx.fillRect(-14, -34, 10, 34); ctx.fillRect(4, -34, 10, 34);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(-14, -16, 10, 6); ctx.fillRect(4, -16, 10, 6);
+  // shirt (eigen ontwerp: felle kleur met diagonale band)
+  const shirt = turn === 0 ? '#3ddc84' : '#ff8a3c';
+  ctx.fillStyle = shirt; RR(ctx, -18, -76, 36, 44, 8); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.moveTo(-18, -60); ctx.lineTo(18, -76); ctx.lineTo(18, -66); ctx.lineTo(-18, -50); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = col; ctx.fillRect(-18, -36, 36, 6);
+  // armen (wijd)
+  const armUp = keeper.dive ? 1 : 0;
+  ctx.fillStyle = shirt;
+  ctx.save(); ctx.translate(-16, -70); ctx.rotate(-1.1 - armUp * 0.9); ctx.fillRect(-5, 0, 10, 30); ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(0, 34, 7, 0, 7); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(16, -70); ctx.rotate(1.1 + armUp * 0.9); ctx.fillRect(-5, 0, 10, 30); ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(0, 34, 7, 0, 7); ctx.fill(); ctx.restore();
+  // hoofd met pet
+  ctx.fillStyle = '#c98f6b'; ctx.beginPath(); ctx.arc(0, -86, 10, 0, 7); ctx.fill();
+  ctx.fillStyle = '#1b1d22'; ctx.beginPath(); ctx.arc(0, -89, 10, Math.PI, 0); ctx.fill(); ctx.fillRect(-2, -92, 14, 3);
+  ctx.restore();
+}
+function drawShooter() {
+  // speler van achteren gezien, loopt aan naar de bal
+  const col = turn === 0 ? '#ffffff' : opp()[1];
+  const r = phase === 'aim' ? 0 : shooter.run;
+  const x = 430 + r * 40, y = 560 + (1 - r) * 30 - r * 18, s = 1.25 - r * 0.15;
+  const step = Math.sin(r * 14) * 6;
+  const lean = turn === 1 && keep ? keep.lean * Math.min(1, r * 1.6) * 0.18 : 0;
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.rotate(lean);
+  ctx.fillStyle = '#16181d'; ctx.fillRect(-12 + step * 0.4, -30, 9, 30); ctx.fillRect(3 - step * 0.4, -30, 9, 30);
+  ctx.fillStyle = col === '#ffffff' ? '#2f7fe0' : '#16181d'; ctx.fillRect(-14, -46, 28, 18);
+  ctx.fillStyle = col; RR(ctx, -16, -88, 32, 44, 8); ctx.fill();
+  T(ctx, turn === 0 ? '9' : '10', 0, -68, 18, col === '#ffffff' || col === '#f2f2f2' || col === '#ffd23f' ? '#1b1d22' : '#fff', 'center', '900');
+  ctx.fillStyle = col; ctx.fillRect(-22, -84, 7, 26); ctx.fillRect(15, -84, 7, 26);
+  ctx.fillStyle = '#3a2a1e'; ctx.beginPath(); ctx.arc(0, -98, 11, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawBall() {
+  let x = SPOT[0], y = SPOT[1], r = 13;
+  if (ball && (phase === 'fly' || phase === 'result')) {
+    const t = ball.t, [tx, ty] = toScr(ball.u, ball.v);
+    let ex = tx, ey = ty;
+    if (phase === 'result' && res) {
+      const k = Math.min(1, (1.6 - resT) * 2);
+      if (res.o === 'save') { ex = tx + (ball.u < 0 ? -1 : 1) * 70 * k; ey = ty + 120 * k * k - 60 * k; }
+      if (res.o === 'post') { ex = tx + (ball.u < 0 ? -1 : 1) * 120 * k; ey = ty + 90 * k; }
+      if (res.goal) { ex = tx + (tx - GX) * 0.1 * k; ey = ty - 6 * k + 30 * k * k; }
+    }
+    x = SPOT[0] + (ex - SPOT[0]) * (phase === 'result' ? 1 : t); y = SPOT[1] + (ey - SPOT[1]) * (phase === 'result' ? 1 : t) - Math.sin(Math.min(1, t) * Math.PI) * 60 * (phase === 'result' ? 0 : 1);
+    r = 13 - 7 * Math.min(1, t);
+    // schaduw op het gras
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(SPOT[0] + (tx - SPOT[0]) * t, SPOT[1] + 6 + (GB - SPOT[1]) * t, r, r * 0.35, 0, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  ctx.fillStyle = '#1b1d22'; ctx.beginPath(); ctx.arc(x + r * 0.15, y - r * 0.1, r * 0.35, 0, 7); ctx.fill();
+  for (let k = 0; k < 5; k++) { const a = k * 1.2566 + clock * (phase === 'fly' ? 12 : 0); ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.72, y + Math.sin(a) * r * 0.72, r * 0.18, 0, 7); ctx.fill(); }
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+}
+function drawAim() {
+  if (phase !== 'aim') return;
+  if (mode !== 'vriend' && turn === 1) return;
+  const [x, y] = toScr(aimU, aimV);
+  if (!hold) {
+    const p = 0.6 + 0.4 * Math.sin(clock * 5);
+    ctx.globalAlpha = p; T(ctx, Arcade.touch ? 'Houd je vinger op het scherm' : 'Houd SPATIE ingedrukt', GX, GB + 120, 20, '#fff', 'center', '900'); ctx.globalAlpha = 1;
+    T(ctx, 'Het mikpunt zigzagt omhoog · loslaten = schieten', GX, GB + 148, 14, '#e6f2e6', 'center', '700');
+    return;
+  }
+  // spoor van het zigzaggen
+  ctx.strokeStyle = 'rgba(255,210,63,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]);
+  ctx.beginPath(); ctx.moveTo(SPOT[0], SPOT[1]); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
+  const out = Math.abs(aimU) >= 0.5 || aimV >= 1;
+  ctx.strokeStyle = out ? '#ff3b4f' : '#ffd23f'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x, y, 14, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 22, y); ctx.lineTo(x - 8, y); ctx.moveTo(x + 8, y); ctx.lineTo(x + 22, y); ctx.moveTo(x, y - 22); ctx.lineTo(x, y - 8); ctx.moveTo(x, y + 8); ctx.lineTo(x, y + 22); ctx.stroke();
+  ctx.fillStyle = out ? '#ff3b4f' : '#ffd23f'; ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fill();
+}
+function drawKeepHint() {
+  const vriendKeeper = mode === 'vriend' && (phase === 'aim' || phase === 'run');
+  const botShot = mode !== 'vriend' && turn === 1 && (phase === 'keep' || (phase === 'fly' && !keeper.dive));
+  if (!vriendKeeper && !botShot) return;
+  const who = mode === 'vriend' ? `${names()[1 - turn]} keept:` : 'Jij keept!';
+  const msg = Arcade.touch ? 'tik links, midden of rechts' : '← links · ↓ midden · → rechts';
+  ctx.fillStyle = 'rgba(10,10,12,0.8)'; RR(ctx, GX - 190, GB + 92, 380, 56, 12); ctx.fill();
+  T(ctx, who, GX, GB + 110, 16, '#fff', 'center', '900');
+  T(ctx, diveIn ? `Gekozen: ${{ left: 'links', mid: 'midden', right: 'rechts' }[diveIn]}` : msg, GX, GB + 132, 14, diveIn ? '#7bd88f' : '#cfd5dd', 'center', '800');
+}
+function drawHUD() {
+  const nm = names();
+  ctx.fillStyle = 'rgba(10,10,12,0.9)'; RR(ctx, W / 2 - 300, 10, 600, 58, 14); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1; ctx.stroke();
+  for (const t of [0, 1]) {
+    const x = t ? W / 2 + 280 : W / 2 - 280, al = t ? 'right' : 'left';
+    if (mode === 'reeks' && t) continue;
+    T(ctx, nm[t], x, 28, 15, turn === t && phase && phase !== 'result' ? '#ffd23f' : '#fff', al, '900');
+    const n = Math.max(5, kicks[0].length, kicks[1].length);
+    if (mode !== 'reeks') for (let i = 0; i < Math.min(n, 10); i++) {
+      const k = kicks[t][i], cx = t ? x - 8 - i * 20 : x + 8 + i * 20;
+      ctx.fillStyle = k === undefined ? 'rgba(255,255,255,0.15)' : k ? '#3ddc84' : '#ff3b4f'; ctx.beginPath(); ctx.arc(cx, 50, 7, 0, 7); ctx.fill();
+    }
+  }
+  if (mode === 'reeks') { T(ctx, `Reeks: ${streak}`, W / 2, 30, 20, '#fff', 'center', '900'); T(ctx, `Beste: ${best}`, W / 2, 52, 13, '#9aa1ab', 'center', '700'); }
+  else { const g = kicks.map((k) => k.filter(Boolean).length); T(ctx, `${g[0]} - ${g[1]}`, W / 2, 34, 24, '#fff', 'center', '900'); T(ctx, mode === 'tour' ? `Ronde ${round() + 1}/8` : kicks[0].length > 5 ? 'Sudden death' : 'Strafschoppen', W / 2, 55, 11, '#9aa1ab', 'center', '700'); }
+  ui.btn('II', W - 58, 14, 40, 40, () => { if (state === 'play') { prevState = state; state = 'pause'; } }, false, false, 16);
+  if (phase === 'result' && res) {
+    const k = Math.min(1, (1.6 - resT) * 4);
+    ctx.save(); ctx.globalAlpha = Math.min(1, resT * 2);
+    T(ctx, res.txt, W / 2, 250, 40 + 30 * (1 - k), res.goal ? '#fff' : res.o === 'save' ? '#7bd88f' : '#ff8a8f', 'center', '900');
+    ctx.restore();
+  }
+  if (toastT > 0) T(ctx, toast, W / 2, 96, 15, '#fff', 'center', '800');
+}
+function card(x, y, w, h) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; RR(ctx, x, y, w, h, 14); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke(); }
+function drawMenu() {
+  drawStadium(); drawGoal(); keeper = keeper || { u: 0, v: 0, t: 0, dive: null }; drawKeeper();
+  ctx.fillStyle = 'rgba(6,7,10,0.78)'; ctx.fillRect(0, 0, W, H);
+  T(ctx, '⚽ PENALTY KONING', W / 2, 86, 46, '#fff', 'center', '900');
+  T(ctx, 'Houd spatie ingedrukt: het mikpunt zigzagt omhoog. Laat los om te schieten!', W / 2, 124, 15, '#cfd5dd', 'center', '600');
+  const cw = 270, ch = 210, gx = W / 2 - (cw * 3 + 32) / 2;
+  const opts = [
+    ['🏆 Toernooi', tour ? `Verder: ronde ${tour.round + 1} van 8` : '8 rondes, steeds betere keepers', `Beste: ${tourBest}/8 rondes`, () => startMatch('tour'), tour ? 'Verder spelen' : 'Start toernooi'],
+    ['🔥 Reeks', 'Blijf scoren tot je mist', `Beste reeks: ${best || 0}`, () => startMatch('reeks'), 'Start reeks'],
+    ['👥 Tegen een vriend', 'Om de beurt schieten en keepen', 'Schutter: spatie · keeper: pijltjes', () => startMatch('vriend'), 'Speel samen'],
+  ];
+  opts.forEach(([t, a, b, fn, lbl], i) => {
+    const x = gx + i * (cw + 16), y = 170;
+    card(x, y, cw, ch);
+    T(ctx, t, x + cw / 2, y + 40, 22, '#fff', 'center', '900');
+    T(ctx, a, x + cw / 2, y + 76, 14, '#cfd5dd', 'center', '600');
+    T(ctx, b, x + cw / 2, y + 100, 12, '#ffd23f', 'center', '700');
+    ui.btn(lbl, x + 30, y + 136, cw - 60, 50, fn, i === 0);
+  });
+  if (tour) ui.btn('Toernooi opnieuw', W / 2 - 100, 400, 200, 40, () => { tour = { round: 0 }; Arcade.save('penalty_tour', tour); startMatch('tour'); }, false, false, 13);
+  T(ctx, 'Keepen: ← links · ↓ midden · → rechts (of tik op het doel) · let op hoe de schutter aanloopt!', W / 2, 470, 13, '#9aa1ab', 'center', '700');
+  T(ctx, 'Hoog in de hoek is bijna niet te houden, maar te lang vasthouden = over het doel.', W / 2, 494, 13, '#9aa1ab', 'center', '700');
+}
+function drawOver() {
+  Arcade.overlay(ctx, W, H, overInfo.title, overInfo.lines, '');
+  const by = H / 2 + 90;
+  ui.btn('Menu', W / 2 - 200, by, 180, 50, () => { state = 'menu'; });
+  if (overInfo.next) ui.btn('Volgende ronde →', W / 2 + 20, by, 180, 50, () => startMatch('tour'), true);
+  else if (overInfo.reeks) ui.btn('Nog een reeks', W / 2 + 20, by, 180, 50, () => startMatch('reeks'), true);
+  else if (overInfo.vriend) ui.btn('Nog een keer', W / 2 + 20, by, 180, 50, () => startMatch('vriend'), true);
+  else ui.btn('Nieuw toernooi', W / 2 + 20, by, 180, 50, () => { tour = { round: 0 }; Arcade.save('penalty_tour', tour); startMatch('tour'); }, true);
+}
+function drawPause() {
+  Arcade.overlay(ctx, W, H, 'Pauze', [mode === 'tour' ? 'Opgeven = uitgeschakeld' : 'Esc = verder'], '');
+  const by = H / 2 + 70;
+  ui.btn('Opgeven', W / 2 - 200, by, 180, 50, () => { if (mode === 'tour') finishMatch(1); else state = 'menu'; });
+  ui.btn('Verder', W / 2 + 20, by, 180, 50, () => { state = prevState; }, true);
+}
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+  if (!document.hidden) update(dt);
+  view.begin(); ui.clear();
+  if (state === 'menu') drawMenu();
+  else {
+    fx.begin(ctx);
+    drawStadium(); drawGoal(); drawKeeper();
+    if (phase !== 'fly' && phase !== 'result') drawShooter();
+    drawBall(); drawAim(); drawKeepHint();
+    fx.draw(ctx); fx.end(ctx);
+    drawHUD(); fx.drawFlash(ctx, W, H);
+    if (state === 'over') drawOver();
+    if (state === 'pause') drawPause();
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+ArcadeCore.music.play('penalty');
+
+// ---------- admin-voordelen ----------
+ArcadeCore.toggle('🧤 Keeper gokt altijd mis', () => cheatKeeper, (v) => { cheatKeeper = v; });
+ArcadeCore.toggle('🎯 Langzaam mikpunt', () => cheatAim, (v) => { cheatAim = v; });
+ArcadeCore.cheat('🏆 Wedstrijd meteen winnen', () => { if (state === 'play' && mode !== 'reeks') { kicks = [[true, true, true, true, true], [false, false, false, false, false]]; finishMatch(0); } });
+ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (tour && tour.round < 7) { tour.round++; Arcade.save('penalty_tour', tour); state = 'menu'; } });
+
+window.__pen = { get state() { return state; }, get phase() { return phase; }, get kicks() { return kicks; }, get ball() { return ball; }, get turn() { return turn; }, get aim() { return [aimU, aimV]; }, startMatch, release, playerDive, get keeper() { return keeper; }, setHold: (v) => { hold = v; holdT = 0; } };
+
+  </script>
+  <script type="module" src="../auth.js?v=e65a02adc0"></script>
+</body>
+</html>
