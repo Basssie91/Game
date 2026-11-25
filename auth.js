@@ -493,6 +493,7 @@ function adminTools() {
   try { await loadFb(); } catch (e) { console.warn('Firebase niet geladen (offline?)', e); return; }
   fb.onAuthStateChanged(fb.auth, async (u) => {
     user = u; ready = false; acctUI();
+    if (IS_HUB) renderSug();
     if (!u) { if (IS_HUB) renderBoard(); if (IS_HUB && localStorage.getItem(GUEST_KEY) !== '1') gate(true); return; }
     localStorage.removeItem(GUEST_KEY);
     if ((u.email || '').toLowerCase() === ADMIN_EMAIL) adminTools();
@@ -511,19 +512,89 @@ function adminTools() {
       pendingName = '';
       if (IS_HUB) acctUI();
       await push(true);
-      if (IS_HUB) loadBoard();
+      if (IS_HUB) { loadBoard(); loadSug(); }
     } catch (e) {
       if (killed) return;
       setStatus('error', e);
       if (IS_HUB) { const m = $('acctMenu'); if (m) $('acctErr').textContent = errText(e); }
     }
   });
-  if (IS_HUB) { loadBoard(); setInterval(loadBoard, 60000); loadAnnouncement(); }
+  if (IS_HUB) { loadBoard(); setInterval(loadBoard, 60000); loadAnnouncement(); initSug(); loadSug(); }
   // regelmatig en bij weggaan opslaan
   setInterval(() => push(false), 15000);
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') push(false); });
   addEventListener('pagehide', () => push(false));
 })();
+
+
+// ---------- Suggesties (startpagina): iedereen leest, ingelogden sturen in, alleen de admin beheert ----------
+const ago = (t) => { const s = Math.max(0, (Date.now() - t) / 1000); if (s < 60) return 'zojuist'; if (s < 3600) return Math.floor(s / 60) + ' min geleden'; if (s < 86400) return Math.floor(s / 3600) + ' uur geleden'; const d = Math.floor(s / 86400); return d === 1 ? 'gisteren' : d + ' dagen geleden'; };
+const SUG_ST = { open: '💡 Nieuw', gepland: '🛠️ Gepland', toegevoegd: '✅ Toegevoegd', gesloten: 'Gesloten' };
+let sugAll = [], sugTab = 'open', sugMail = {};
+const escS = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const isAdmin = () => !!user && (user.email || '').toLowerCase() === ADMIN_EMAIL;
+async function loadSug() {
+  if (!fb || !document.getElementById('sugList')) return;
+  try {
+    const snap = await fb.getDocs(fb.collection(fb.db, 'suggestions'));
+    sugAll = snap.docs.map((d) => ({ id: d.id, ...d.data() })).map((x) => ({ ...x, t: x.created && x.created.toMillis ? x.created.toMillis() : (+x.created || 0) }));
+    sugAll.sort((p, q) => q.t - p.t);
+  } catch (e) { sugAll = null; }
+  // alleen voor de admin: e-mailadressen opzoeken in de accountlijst (die mag alleen de admin lezen)
+  if (isAdmin() && sugAll && !Object.keys(sugMail).length) { try { const us = await fb.getDocs(fb.collection(fb.db, 'users')); us.docs.forEach((d) => { sugMail[d.id] = d.data().email || ''; }); } catch (e) { /* geen toegang */ } }
+  renderSug();
+}
+function renderSug() {
+  const ul = document.getElementById('sugList'); if (!ul) return;
+  if (sugAll === null) { ul.innerHTML = '<li class="sempty">Suggesties konden niet geladen worden.</li>'; return; }
+  const want = (x) => sugTab === 'open' ? (x.status === 'open' || x.status === 'gepland') : x.status === sugTab;
+  const list = sugAll.filter(want);
+  document.getElementById('sugCount').textContent = sugAll.filter((x) => x.status === 'open' || x.status === 'gepland').length + ' open';
+  if (!list.length) { ul.innerHTML = `<li class="sempty">${sugTab === 'open' ? 'Nog geen open suggesties. Wees de eerste!' : 'Nog niets hier.'}</li>`; return; }
+  const adm = isAdmin();
+  ul.innerHTML = list.slice(0, 60).map((x, i) => `<li style="animation-delay:${Math.min(i, 12) * 0.03}s">
+    <div class="sugtop"><b>${escS(x.name || 'Speler')}</b><span>${x.t ? ago(x.t) : ''}</span><span class="sbadge ${x.status}">${SUG_ST[x.status] || x.status}</span></div>
+    <div class="sugtxt">${escS(x.text || '')}</div>
+    ${adm ? `<div class="sugadm" data-id="${x.id}">${x.status !== 'gepland' ? '<button data-st="gepland">🛠️ Gepland</button>' : ''}${x.status !== 'toegevoegd' ? '<button data-st="toegevoegd">✅ Toegevoegd</button>' : ''}${x.status !== 'gesloten' ? '<button data-st="gesloten">✕ Sluiten</button>' : ''}${x.status !== 'open' ? '<button data-st="open">↺ Weer open</button>' : ''}<button class="del" data-del="1">🗑️ Verwijderen</button><small style="color:#8c8c8c;align-self:center">${escS(sugMail[x.uid] || '')}</small></div>` : ''}
+  </li>`).join('');
+}
+function sugMsg(t, cls) { const m = document.getElementById('sugMsg'); if (m) { m.textContent = t; m.className = cls || ''; } }
+function initSug() {
+  const form = document.getElementById('sugForm'); if (!form) return;
+  const ta = document.getElementById('sugText');
+  ta.addEventListener('input', () => { document.getElementById('sugLeft').textContent = `${ta.value.length}/300`; });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = ta.value.trim();
+    if (!user) { sugMsg('Log eerst in om een suggestie in te sturen.', 'err'); return; }
+    if (text.length < 5) { sugMsg('Schrijf iets meer (minimaal 5 tekens).', 'err'); return; }
+    const last = +localStorage.getItem('ga_sug_last') || 0;
+    if (Date.now() - last < 60000) { sugMsg('Even wachten: één suggestie per minuut.', 'err'); return; }
+    const btn = document.getElementById('sugBtn'); btn.disabled = true;
+    try {
+      const id = user.uid + '_' + Date.now();
+      await fb.setDoc(fb.doc(fb.db, 'suggestions', id), { text, name: myName || 'Speler', uid: user.uid, status: 'open', created: fb.serverTimestamp() });
+      localStorage.setItem('ga_sug_last', Date.now());
+      ta.value = ''; document.getElementById('sugLeft').textContent = '0/300';
+      sugMsg('Bedankt! Je suggestie staat erbij.', 'ok'); sugTab = 'open';
+      document.querySelectorAll('.sugtabs button').forEach((b) => b.classList.toggle('on', b.dataset.s === 'open'));
+      await loadSug();
+    } catch (err) { sugMsg('Insturen lukte niet: ' + (err.code || err.message), 'err'); }
+    btn.disabled = false;
+  });
+  document.querySelectorAll('.sugtabs button').forEach((b) => b.addEventListener('click', () => {
+    sugTab = b.dataset.s; document.querySelectorAll('.sugtabs button').forEach((x) => x.classList.toggle('on', x === b)); renderSug();
+  }));
+  document.getElementById('sugList').addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b || !isAdmin()) return;
+    const id = b.closest('.sugadm').dataset.id;
+    try {
+      if (b.dataset.del) { if (!b.classList.contains('sure')) { b.classList.add('sure'); b.textContent = 'Zeker?'; return; } await fb.deleteDoc(fb.doc(fb.db, 'suggestions', id)); }
+      else await fb.setDoc(fb.doc(fb.db, 'suggestions', id), { status: b.dataset.st }, { merge: true });
+      await loadSug();
+    } catch (err) { b.textContent = 'Lukt niet: ' + (err.code || err.message); }
+  });
+}
 
 // ---------- Automatisch bijwerken na een nieuwe versie van de site ----------
 (() => {
