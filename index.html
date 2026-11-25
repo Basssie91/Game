@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="ffedd90e0c">
+<meta name="site-build" content="61e21c22dd">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Game Arcade · gratis browsergames</title>
@@ -47,6 +47,42 @@ a { color: inherit; }
 .search svg { position: absolute; left: 11px; top: 11px; width: 18px; height: 18px; opacity: .55; }
 .search kbd { position: absolute; right: 9px; top: 9px; font: 700 11px ui-monospace, Consolas, monospace; color: var(--mut); border: 1px solid var(--line2); border-radius: 6px; padding: 2px 6px; }
 .acct { position: relative; flex: none; }
+/* ---------- Nieuw-knop + venster met updates ---------- */
+.newsbtn { position: relative; flex: none; height: 40px; display: inline-flex; align-items: center; gap: 7px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255,210,63,.55); background: rgba(255,210,63,.1); color: #ffd23f; font: 800 14px inherit; font-family: inherit; cursor: pointer; white-space: nowrap; transition: background .15s, transform .15s; }
+.newsbtn:hover { background: rgba(255,210,63,.2); transform: translateY(-1px); }
+.newsbtn .dot { position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 99px; background: #ff3b3b; color: #fff; font: 800 11px/19px ui-monospace, Consolas, monospace; text-align: center; border: 2px solid #0a0a0a; animation: newsPulse 1.6s ease-in-out infinite; }
+.newsbtn .dot[hidden] { display: none; }
+@keyframes newsPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,59,.6); } 50% { box-shadow: 0 0 0 7px rgba(255,59,59,0); } }
+#newsModal { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(5,5,5,.82); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+#newsModal.show { display: flex; animation: rise .25s ease both; }
+#newsModal .nbox { position: relative; width: min(620px, 100%); max-height: min(82vh, 820px); display: flex; flex-direction: column; background: #121212; border: 1px solid var(--line2); border-radius: 22px; box-shadow: 0 40px 120px rgba(0,0,0,.7); overflow: hidden; }
+#newsModal .nhead { padding: 24px 26px 16px; border-bottom: 1px solid var(--line); }
+#newsModal .nhead h2 { margin: 0; font-size: clamp(26px, 5vw, 36px); font-weight: 900; letter-spacing: -1px; text-transform: uppercase; line-height: 1; }
+#newsModal .nhead h2 span { color: #ffd23f; }
+#newsModal .nhead p { margin: 8px 0 0; color: var(--mut); font-size: 14px; }
+#newsClose { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line2); background: none; color: #fff; font-size: 15px; cursor: pointer; }
+#newsClose:hover { background: #fff; color: #0a0a0a; }
+#newsList { overflow-y: auto; padding: 6px 26px 24px; overscroll-behavior: contain; }
+.nday { margin-top: 18px; }
+.nday h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font: 800 12px ui-monospace, Consolas, monospace; letter-spacing: 2px; text-transform: uppercase; color: var(--soft); }
+.nday h3::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.nitem { display: flex; align-items: center; gap: 12px; padding: 11px 12px; margin-bottom: 8px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+.nitem.unseen { border-color: rgba(255,210,63,.45); }
+.nitem img { width: 64px; height: 40px; object-fit: cover; border-radius: 8px; flex: none; }
+.nitem .ntx { flex: 1; min-width: 0; font-size: 14.5px; line-height: 1.4; color: #e6e6e6; }
+.nitem .tags { display: flex; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+.ntag { font: 800 10px ui-monospace, Consolas, monospace; letter-spacing: 1.4px; padding: 3px 6px; border-radius: 5px; background: #fff; color: #0a0a0a; }
+.ntag.y { background: #ffd23f; } .ntag.r { background: #ff3b3b; color: #fff; }
+.nitem .play { flex: none; text-decoration: none; background: #fff; color: #0a0a0a; font: 800 13px inherit; font-family: inherit; padding: 8px 12px; border-radius: 9px; }
+.nitem .play:hover { background: #ffd23f; }
+@media (max-width: 620px) {
+  .newsbtn { width: 40px; padding: 0; justify-content: center; font-size: 18px; } .newsbtn .lbl { display: none; }
+  #newsModal { padding: 0; align-items: flex-end; } #newsModal .nbox { border-radius: 22px 22px 0 0; max-height: 88vh; }
+  #newsModal .nhead, #newsList { padding-left: 18px; padding-right: 18px; }
+  .nitem { flex-wrap: wrap; } .nitem img { width: 54px; height: 34px; }
+  .nitem .ntx { flex: 1 1 calc(100% - 70px); }
+  .nitem .play { margin-left: 66px; }
+}
 .syncbtn { height: 40px; border: 0; background: #fff; color: #0a0a0a; padding: 0 16px; border-radius: 10px; font: 800 14px inherit; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .syncbtn:hover { background: #d9d9d9; }
 /* ---------- pagina ---------- */
@@ -282,6 +318,7 @@ footer { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line);
     <a class="logo" href="./"><span class="mk"><svg viewBox="0 0 24 24" fill="#0a0a0a"><path d="M7 6h10a5 5 0 0 1 4.9 6l-.8 4.2a2.6 2.6 0 0 1-4.5 1.2L14.4 15H9.6l-2.2 2.4a2.6 2.6 0 0 1-4.5-1.2L2.1 12A5 5 0 0 1 7 6zm0 3v1.5H5.5v1.5H7v1.5h1.5V12H10v-1.5H8.5V9H7zm9.3.2a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2zm2.2 2.2a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2z"/></svg></span><b>Game<i>/</i>Arcade</b></a>
     <div class="links"><a href="#games">Games</a><a href="#board">Ranglijst</a><a href="#sug">Suggesties</a></div>
     <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Zoek een game…" autocomplete="off"><kbd>/</kbd></label>
+    <button class="newsbtn" id="newsBtn" type="button" aria-label="Wat is er nieuw?" title="Wat is er nieuw?">🎁<span class="lbl">Nieuw</span><span class="dot" id="newsDot" hidden></span></button>
     <div class="acct">
       <button class="syncbtn" id="acctBtn">🔑 Inloggen</button>
           <div id="acctMenu">
@@ -300,6 +337,7 @@ footer { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line);
           </div>
     </div>
   </div></nav>
+ <div id="newsModal" role="dialog" aria-modal="true" aria-labelledby="newsH"><div class="nbox"><button id="newsClose" aria-label="Sluiten">✕</button><div class="nhead"><h2 id="newsH">Wat is er <span>nieuw?</span></h2><p>Alle updates van Game Arcade, de nieuwste bovenaan.</p></div><div id="newsList"></div></div></div>
   <div class="page">
     <div id="annBar" class="ann" hidden><span class="annIc">📢</span><span id="annText"></span><a id="annLink" target="_blank" rel="noopener" hidden>Bekijk →</a><button id="annClose" aria-label="Sluiten">✕</button></div>
     <div id="profModal"><div class="pbox"><button id="profClose" aria-label="Sluiten">✕</button><div id="profBody"></div></div></div>
@@ -854,6 +892,35 @@ ArcadeCore.music.play('menu');
     // aantal records ook in de balk
     new MutationObserver(() => { document.getElementById('nRec2').textContent = document.getElementById('nRec').textContent; }).observe(document.getElementById('nRec'), { childList: true });
     document.getElementById('nRec2').textContent = document.getElementById('nRec').textContent;
+    // ---------- 🎁 Nieuw: alle updates uit version.json, de nieuwste bovenaan ----------
+    (() => {
+      const btn = document.getElementById('newsBtn'), dot = document.getElementById('newsDot'), modal = document.getElementById('newsModal'), list = document.getElementById('newsList');
+      const KEY = 'arcade_news_seen', esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const MAAND = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+      const dag = (d) => { const [y, m, dd] = d.split('-').map(Number), t = new Date(y, m - 1, dd), now = new Date(); const diff = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - t) / 864e5); return diff === 0 ? 'Vandaag' : diff === 1 ? 'Gisteren' : dd + ' ' + MAAND[m - 1] + (y !== now.getFullYear() ? ' ' + y : ''); };
+      let log = [];
+      const total = () => log.reduce((n, x) => n + x.items.length, 0);
+      // nog nooit gekeken? dan telt alleen de nieuwste dag als nieuw
+      const seen = () => { const v = load(KEY); return v == null ? total() - (log[0] ? log[0].items.length : 0) : Math.min(+v || 0, total()); };
+      const badge = () => { const n = total() - seen(); dot.hidden = n <= 0; dot.textContent = n > 9 ? '9+' : n; };
+      function render() {
+        let left = total() - seen();   // de bovenste 'left' updates heb je nog niet gezien
+        list.innerHTML = log.map((day) => `<div class="nday"><h3>${esc(dag(day.d))}</h3>${day.items.map((it) => {
+          const un = left-- > 0, g = it.g && INFO[it.g];
+          const tags = (un ? '<span class="ntag r">NIEUW</span>' : '') + (it.new ? '<span class="ntag y">NIEUWE GAME</span>' : '');
+          return `<div class="nitem${un ? ' unseen' : ''}">${g ? `<img src="${esc(g[1])}" alt="" loading="lazy">` : ''}<div class="ntx">${tags ? `<div class="tags">${tags}</div>` : ''}${esc(it.t)}</div>${g ? `<a class="play" href="${esc(it.g)}/">Spelen →</a>` : ''}</div>`;
+        }).join('')}</div>`).join('') || '<p style="color:var(--mut)">Nog geen updates.</p>';
+      }
+      const open = () => { render(); modal.classList.add('show'); document.body.style.overflow = 'hidden'; list.scrollTop = 0; try { localStorage.setItem(KEY, JSON.stringify(total())); } catch (e) { /* vol */ } badge(); };
+      const close = () => { modal.classList.remove('show'); document.body.style.overflow = ''; };
+      btn.addEventListener('click', open);
+      document.getElementById('newsClose').addEventListener('click', close);
+      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+      addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('show')) close(); });
+      addEventListener('storage', (e) => { if (e.key === KEY) badge(); });
+      const rr = window.renderRecords; window.renderRecords = () => { rr(); badge(); };   // na ophalen uit je account: bolletje opnieuw
+      fetch('version.json?n=' + Date.now(), { cache: 'no-store' }).then((r) => r.json()).then((v) => { log = Array.isArray(v.log) ? v.log : []; badge(); }).catch(() => { /* offline: geen bolletje */ });
+    })();
   </script>
   <script>// ================= Records overzetten met een code (geen account nodig) =================
 (() => {
@@ -909,6 +976,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=ffedd90e0c"></script>
+  <script type="module" src="auth.js?v=61e21c22dd"></script>
 </body>
 </html>

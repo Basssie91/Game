@@ -1,1 +1,113 @@
-{"build": "ffedd90e0c", "note": "Zet je lievelingsgames bovenaan met de ★ favorieten-knop!"}
+{
+ "build": "61e21c22dd",
+ "note": "Druk op 🎁 Nieuw om alle updates te zien!",
+ "log": [
+  {
+   "d": "2026-11-25",
+   "items": [
+    {
+     "t": "🎁 Nieuw-knop: zie hier alle updates van Game Arcade"
+    },
+    {
+     "t": "★ Favorieten: zet je lievelingsgames bovenaan het startscherm"
+    },
+    {
+     "t": "Suggestiebord: lees ideeën van anderen en stuur als je bent ingelogd je eigen idee in"
+    },
+    {
+     "t": "Robo Defense: nieuwe torens Tesla, Raketten en Plasma",
+     "g": "td"
+    },
+    {
+     "t": "Opslaan: op elk apparaat krijg je nu altijd je nieuwste stand terug"
+    }
+   ]
+  },
+  {
+   "d": "2026-11-24",
+   "items": [
+    {
+     "t": "Robo Defense: 6 nieuwe kaarten met sprinters, schildrobots en splitsers",
+     "g": "td"
+    },
+    {
+     "t": "Robo Defense en PC Tycoon spelen door als je even naar een ander tabblad gaat"
+    },
+    {
+     "t": "Basket Koning: tijdrace, toernooi en 1 tegen 1 met dunks, blocks en afpakken",
+     "g": "basket",
+     "new": true
+    },
+    {
+     "t": "Penalty Koning: schiet met het zigzag-mikpunt, keep zelf en win het toernooi",
+     "g": "penalty",
+     "new": true
+    },
+    {
+     "t": "Nachtdief: sluip door 12 gebouwen langs bewakers, camera's en lasers",
+     "g": "dief",
+     "new": true
+    },
+    {
+     "t": "Nieuw startscherm met menubalk, spotlight en zoeken"
+    },
+    {
+     "t": "De site werkt zichzelf bij als er een update is"
+    }
+   ]
+  },
+  {
+   "d": "2026-11-23",
+   "items": [
+    {
+     "t": "Pool: 8-ball met powerups tegen de bot of een vriend",
+     "g": "pool",
+     "new": true
+    },
+    {
+     "t": "Puck Voetbal: toernooi tegen de bot of een vriend, met powerups",
+     "g": "voetbal",
+     "new": true
+    },
+    {
+     "t": "Escape Room: 10 moeilijke 3D-kamers, je tijd komt op de ranglijst",
+     "g": "escape",
+     "new": true
+    },
+    {
+     "t": "Moto Stunt: 3D-stuntrace met loopings, salto's en sterren",
+     "g": "moto",
+     "new": true
+    },
+    {
+     "t": "Admin: accounts verwijderen en herstellen"
+    }
+   ]
+  },
+  {
+   "d": "2026-11-22",
+   "items": [
+    {
+     "t": "Ranglijst op het startscherm, ook te zien in de Discord-bot"
+    },
+    {
+     "t": "Kies een spelersnaam en klik op een naam om iemands profiel te zien"
+    },
+    {
+     "t": "Mededelingen op het startscherm"
+    }
+   ]
+  },
+  {
+   "d": "2026-11-21",
+   "items": [
+    {
+     "t": "Inloggen: je records en je PC Tycoon-winkel worden in je account bewaard"
+    },
+    {
+     "t": "Verder spelen: je laatst gespeelde games staan bovenaan"
+    }
+   ]
+  }
+ ]
+}
