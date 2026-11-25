@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="f3a5f92839">
+<meta name="site-build" content="ffedd90e0c">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Game Arcade · gratis browsergames</title>
@@ -93,7 +93,16 @@ a { color: inherit; }
 .shead span { font: 700 12px ui-monospace, Consolas, monospace; color: var(--mut); }
 .shead::after { content: ""; flex: 1; height: 1px; background: var(--line); align-self: center; }
 .recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 34px; }
-.recent:empty, .recent.hide, #recentTitle.hide { display: none; }
+.recent:empty, .recent.hide, #recentTitle.hide, #favTitle.hide { display: none; }
+.shead h2 .st { color: #ffd23f; }
+/* favorieten-ster op de kaarten */
+.fav { position: absolute; top: 8px; right: 8px; z-index: 3; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(10,10,10,.6); color: #fff; font-size: 17px; line-height: 1; display: grid; place-items: center; cursor: pointer; padding: 0; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); transition: transform .15s, background .15s, color .15s, border-color .15s; }
+.fav:hover { transform: scale(1.12); border-color: #ffd23f; }
+.fav.on { color: #ffd23f; border-color: rgba(255,210,63,.6); }
+.fav.pop { animation: favPop .35s ease; }
+@keyframes favPop { 50% { transform: scale(1.35); } }
+a.card .new { right: 50px; }
+.rc .fs { color: #ffd23f; font-size: 13px; margin-left: 4px; }
 .rc { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; text-decoration: none; color: #fff; background: var(--panel); border: 1px solid var(--line); transition: border-color .15s, transform .15s; animation: rise .4s ease both; }
 .rc:hover { border-color: #fff; transform: translateY(-2px); }
 .rc img { width: 72px; height: 46px; object-fit: cover; border-radius: 9px; flex: none; filter: grayscale(.4); transition: filter .3s; }
@@ -339,6 +348,8 @@ footer { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line);
     </section>
     <div class="main">
       <div>
+        <div class="shead hide" id="favTitle"><h2><span class="st">★</span> Favorieten</h2></div>
+        <div class="recent" id="favs"></div>
         <div class="shead hide" id="recentTitle"><h2>Verder spelen</h2></div>
         <div class="recent" id="recent"></div>
         <div class="shead" id="games"><h2>Alle games</h2><span id="gCount">16</span></div>
@@ -792,7 +803,31 @@ ArcadeCore.music.play('menu');
       box.innerHTML = r.map((x, i) => `<a class="rc" href="${x.id}/" style="animation-delay:${i * 0.04}s"><img src="${INFO[x.id][1]}" alt=""><div><b>${INFO[x.id][0]}</b><small>${ago(x.t)}</small></div><span class="go">→</span></a>`).join('');
       const filtering = !!((document.querySelector('.chip.on') || {}).dataset || {}).f || !!document.getElementById('q').value.trim();
       document.getElementById('recentTitle').classList.toggle('hide', !r.length || filtering); box.classList.toggle('hide', filtering);
+      renderFavs(filtering);
     }
+    // ---------- Favorieten: ster op elke kaart, lijstje bovenaan (gaat mee naar je account) ----------
+    const favList = () => { const f = load('arcade_favs'); return Array.isArray(f) ? f.filter((id) => INFO[id]) : []; };
+    function renderFavs(filtering) {
+      const f = favList(), box = document.getElementById('favs');
+      box.innerHTML = f.map((id, i) => `<a class="rc" href="${id}/" style="animation-delay:${i * 0.04}s"><img src="${INFO[id][1]}" alt=""><div><b>${INFO[id][0]}<span class="fs">★</span></b><small>Favoriet</small></div><span class="go">→</span></a>`).join('');
+      document.getElementById('favTitle').classList.toggle('hide', !f.length || filtering); box.classList.toggle('hide', filtering);
+      document.querySelectorAll('a.card .fav').forEach((b) => { const on = f.includes(b.dataset.id); b.classList.toggle('on', on); b.textContent = on ? '★' : '☆'; b.title = on ? 'Uit favorieten halen' : 'Toevoegen aan favorieten'; b.setAttribute('aria-pressed', on); });
+    }
+    document.querySelectorAll('a.card').forEach((cd) => {
+      const id = cd.getAttribute('href').replace(/\/$/, '');
+      if (!INFO[id]) return;
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'fav'; b.dataset.id = id; b.setAttribute('aria-label', 'Favoriet: ' + INFO[id][0]);
+      b.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        let f = favList();
+        f = f.includes(id) ? f.filter((x) => x !== id) : [id].concat(f);
+        try { localStorage.setItem('arcade_favs', JSON.stringify(f)); } catch (err) { /* vol */ }
+        b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+        renderRecent();
+      });
+      cd.appendChild(b);
+    });
 
     renderRecords();
     // filters + zoeken
@@ -874,6 +909,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=f3a5f92839"></script>
+  <script type="module" src="auth.js?v=ffedd90e0c"></script>
 </body>
 </html>
