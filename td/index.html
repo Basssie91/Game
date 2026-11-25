@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="9f1f69f79c">
+<meta name="site-build" content="c7e661a36a">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Robo Defense · Game Arcade</title>
@@ -610,6 +610,10 @@ const TOWERS = {
   kanon: { naam: 'Kanon', cost: 100, range: 130, dmg: 34, rate: 1.3, splash: 48, col: '#7b828c', info: 'Ontploffing raakt groepen' },
   vries: { naam: 'Vriezer', cost: 80, range: 100, dmg: 4, rate: 0.7, slow: 0.5, col: '#5ab8ff', info: 'Maakt robots langzamer' },
   laser: { naam: 'Laser', cost: 160, range: 175, dmg: 48, rate: 0, col: '#e8282f', info: 'Straal op de sterkste robot' },
+  // nieuwe, sterke torens
+  tesla: { naam: 'Tesla', cost: 240, range: 150, dmg: 34, rate: 0.55, chain: 5, col: '#b88aff', info: 'Bliksem springt over naar 5 robots en gaat door elk pantser' },
+  raket: { naam: 'Raketten', cost: 340, range: 270, dmg: 130, rate: 1.25, splash: 72, col: '#ffb347', info: 'Zoekende raketten met een grote ontploffing, heel ver bereik' },
+  plasma: { naam: 'Plasma', cost: 520, range: 240, dmg: 280, rate: 1.5, col: '#3dffb0', info: 'Superstraal dwars door alle robots in een lijn' },
 };
 const ENEMIES = {
   scout: { hp: 22, sp: 85, reward: 4, r: 9, col: '#b8bdc5' },
@@ -623,6 +627,7 @@ const ENEMIES = {
 };
 
 let state = 'menu'; // menu | play | over | win
+let bolts = [];
 let mi = 0, MAP, pathTiles, pathPts, pathLen, towers, enemies, shots, booms, parts;
 let money, lives, wave, waveOn, spawnList, spawnT, speed, selected, placing, hover, score, msg, kills, overT;
 let bests = Arcade.load('td_bests', {});
@@ -679,7 +684,7 @@ function posAt(d) {
 }
 function start(i) {
   setupMap(i);
-  towers = []; enemies = []; shots = []; booms = []; parts = [];
+  towers = []; enemies = []; shots = []; bolts = []; booms = []; parts = [];
   WAVES = MAP.waves || 20; money = MAP.money; lives = 20; wave = 0; waveOn = false; spawnList = []; spawnT = 0; speed = 1; selected = null; placing = null; score = 0; kills = 0; msg = null;
   state = 'play';
 }
@@ -762,7 +767,7 @@ c.addEventListener('pointermove', (e) => { const q = view.toGame(e); hover = { t
 addEventListener('keydown', (e) => {
   if (state === 'menu' && /^Digit[1-9]$/.test(e.code)) { const i = +e.code.slice(5) - 1; if (tdOpen(i)) start(i); return; }
   if (state !== 'play') { if (e.code === 'Enter' && (state === 'over' || state === 'win')) state = 'menu'; return; }
-  const k = { Digit1: 'blaster', Digit2: 'kanon', Digit3: 'vries', Digit4: 'laser' }[e.code];
+  const k = { Digit1: 'blaster', Digit2: 'kanon', Digit3: 'vries', Digit4: 'laser', Digit5: 'tesla', Digit6: 'raket', Digit7: 'plasma' }[e.code];
   if (k) { placing = placing === k ? null : k; selected = null; }
   if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); startWave(); }
   if (e.code === 'Escape') { placing = null; selected = null; }
@@ -824,9 +829,53 @@ function step(dt) {
       booms.push({ x: t.x, y: t.y, r: s.range, life: 0.3, max: 0.3, col: '90,184,255' });
       Arcade.beep(1200, 0.06, 'sine', 0.015, -600);
     }
+    if (t.type === 'tesla') {
+      // bliksem: van robot naar robot, schade gaat door pantser heen
+      const hit = [target]; let cur = target;
+      while (hit.length < TOWERS.tesla.chain + (t.lvl - 1)) {
+        const nx = enemies.filter((e) => !hit.includes(e) && !e.done && e.hp > 0 && Math.hypot(e.x - cur.x, e.y - cur.y) < 95).sort((a, b) => Math.hypot(a.x - cur.x, a.y - cur.y) - Math.hypot(b.x - cur.x, b.y - cur.y))[0];
+        if (!nx) break; hit.push(nx); cur = nx;
+      }
+      const pts = [[t.x, t.y], ...hit.map((e) => [e.x, e.y])];
+      hit.forEach((e, k) => damage(e, s.dmg * Math.pow(0.85, k), true));
+      bolts.push({ pts, life: 0.16, max: 0.16, col: '190,150,255', w: 2 + t.lvl });
+      Arcade.noise(0.08, 0.03, 4000, 1500);
+    }
+    if (t.type === 'raket') {
+      for (let k = 0; k < (t.lvl >= 3 ? 2 : 1); k++) shots.push({ x: t.x, y: t.y, target, tx: target.x, ty: target.y, sp: 140, acc: 900, dmg: s.dmg, splash: s.splash, kind: 'raket', a: t.aim + (k ? 0.5 : -0.5) * (t.lvl >= 3 ? 1 : 0) });
+      Arcade.noise(0.25, 0.04, 900, 200);
+    }
+    if (t.type === 'plasma') {
+      // straal tot de rand van het bereik: raakt alles in de lijn
+      const ex = t.x + Math.cos(t.aim) * s.range, ey = t.y + Math.sin(t.aim) * s.range;
+      for (const e of enemies) {
+        if (e.done || e.hp <= 0) continue;
+        const L = s.range, k = Math.max(0, Math.min(1, ((e.x - t.x) * (ex - t.x) + (e.y - t.y) * (ey - t.y)) / (L * L)));
+        if (Math.hypot(e.x - (t.x + (ex - t.x) * k), e.y - (t.y + (ey - t.y) * k)) < e.r + 10) damage(e, s.dmg);
+      }
+      bolts.push({ pts: [[t.x, t.y], [ex, ey]], life: 0.3, max: 0.3, col: '61,255,176', w: 10 + t.lvl * 3, beam: true });
+      Arcade.beep(180, 0.35, 'sawtooth', 0.05, 600); Arcade.noise(0.2, 0.05, 3000, 600);
+    }
   }
   // Schoten
   for (const sh of shots) {
+    if (sh.kind === 'raket') {
+      if (sh.target.done || sh.target.hp <= 0) { const nt = enemies.filter((e) => !e.done && e.hp > 0).sort((a, b) => Math.hypot(a.x - sh.x, a.y - sh.y) - Math.hypot(b.x - sh.x, b.y - sh.y))[0]; if (nt) sh.target = nt; }
+      if (!sh.target.done && sh.target.hp > 0) { sh.tx = sh.target.x; sh.ty = sh.target.y; }
+      sh.sp = Math.min(720, sh.sp + sh.acc * dt);
+      const want = Math.atan2(sh.ty - sh.y, sh.tx - sh.x); let da = want - sh.a; while (da > Math.PI) da -= TAU; while (da < -Math.PI) da += TAU;
+      sh.a += Math.max(-7 * dt, Math.min(7 * dt, da));
+      sh.x += Math.cos(sh.a) * sh.sp * dt; sh.y += Math.sin(sh.a) * sh.sp * dt;
+      if (Math.random() < 0.6) parts.push({ x: sh.x, y: sh.y, vx: rand(-20, 20), vy: rand(-20, 20), life: 0.3, col: Math.random() < 0.5 ? '#9aa1ab' : '#ffb347' });
+      if (Math.hypot(sh.tx - sh.x, sh.ty - sh.y) < 12) {
+        sh.done = true;
+        booms.push({ x: sh.x, y: sh.y, r: sh.splash, life: 0.45, max: 0.45, col: '255,150,60' });
+        for (const e of enemies) if (Math.hypot(e.x - sh.x, e.y - sh.y) <= sh.splash) damage(e, sh.dmg);
+        Arcade.beep(70, 0.3, 'sawtooth', 0.05, -30); Arcade.noise(0.4, 0.09, 1200, 80);
+        for (let k = 0; k < 16; k++) parts.push({ x: sh.x, y: sh.y, vx: rand(-180, 180), vy: rand(-180, 180), life: 0.45, col: k % 2 ? '#ffb347' : '#ffe0a0' });
+      }
+      continue;
+    }
     const tx = sh.kind === 'bom' ? sh.tx : sh.target.x, ty = sh.kind === 'bom' ? sh.ty : sh.target.y;
     const dx = tx - sh.x, dy = ty - sh.y, d = Math.hypot(dx, dy);
     if (sh.kind === 'bom' && !sh.target.done && sh.target.hp > 0) { sh.tx = sh.target.x; sh.ty = sh.target.y; }
@@ -840,7 +889,9 @@ function step(dt) {
       } else if (sh.target.hp > 0) damage(sh.target, sh.dmg);
     } else { sh.x += (dx / d) * sh.sp * dt; sh.y += (dy / d) * sh.sp * dt; }
   }
-  shots = shots.filter((s) => !s.done && (s.kind === 'bom' || (!s.target.done && s.target.hp > 0)));
+  shots = shots.filter((s) => !s.done && (s.kind === 'bom' || s.kind === 'raket' || (!s.target.done && s.target.hp > 0)));
+  for (const b of bolts) b.life -= dt;
+  bolts = bolts.filter((b) => b.life > 0);
   for (const b of booms) b.life -= dt;
   booms = booms.filter((b) => b.life > 0);
   enemies = enemies.filter((e) => !e.done && e.hp > 0);
@@ -903,6 +954,9 @@ function drawTower(t, x, y, alpha = 1) {
   if (t.type === 'kanon') { ctx.fillRect(0, -5, 16, 10); ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill(); ctx.fillStyle = '#1b1d22'; ctx.beginPath(); ctx.arc(16, 0, 3.5, 0, TAU); ctx.fill(); }
   if (t.type === 'vries') { for (let k = 0; k < 6; k++) { ctx.rotate(TAU / 6); ctx.fillRect(0, -1.5, 11, 3); } ctx.beginPath(); ctx.arc(0, 0, 5, 0, TAU); ctx.fill(); }
   if (t.type === 'laser') { ctx.fillRect(0, -2, 15, 4); ctx.beginPath(); ctx.moveTo(-9, -9); ctx.lineTo(9, 0); ctx.lineTo(-9, 9); ctx.closePath(); ctx.fill(); }
+  if (t.type === 'tesla') { ctx.beginPath(); ctx.arc(0, 0, 9, 0, TAU); ctx.fill(); ctx.strokeStyle = '#e6d6ff'; ctx.lineWidth = 2; for (const r of [4, 7]) { ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke(); } ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, 2.5 + Math.sin(performance.now() / 90) * 0.8, 0, TAU); ctx.fill(); }
+  if (t.type === 'raket') { ctx.fillRect(-6, -9, 18, 6); ctx.fillRect(-6, 3, 18, 6); ctx.fillStyle = '#e8282f'; ctx.fillRect(12, -9, 3, 6); ctx.fillRect(12, 3, 3, 6); ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(-2, 0, 5, 0, TAU); ctx.fill(); }
+  if (t.type === 'plasma') { ctx.fillRect(-4, -5, 22, 10); ctx.beginPath(); ctx.arc(0, 0, 11, 0, TAU); ctx.fill(); ctx.save(); ctx.shadowColor = '#3dffb0'; ctx.shadowBlur = 12; ctx.fillStyle = '#d8fff0'; ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, TAU); ctx.fill(); ctx.fillRect(16, -2, 4, 4); ctx.restore(); }
   ctx.restore();
   // Niveau-streepjes
   for (let k = 0; k < (t.lvl || 1); k++) { ctx.fillStyle = '#ffd23f'; ctx.fillRect(x - 12 + k * 9, y + 12, 6, 3); }
@@ -972,7 +1026,30 @@ function draw() {
     }
   }
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const b of bolts) {
+    const k = b.life / b.max;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const [w, a] of [[b.w * 2.5, 0.25], [b.w, 0.9]]) {
+      ctx.strokeStyle = `rgba(${b.col},${a * k})`; ctx.lineWidth = w * (b.beam ? k : 1);
+      ctx.beginPath();
+      b.pts.forEach(([x, y], i) => {
+        if (!i) return ctx.moveTo(x, y);
+        if (b.beam) return ctx.lineTo(x, y);
+        const [px, py] = b.pts[i - 1];
+        for (let q = 1; q <= 4; q++) ctx.lineTo(px + (x - px) * q / 4 + (q < 4 ? rand(-7, 7) : 0), py + (y - py) * q / 4 + (q < 4 ? rand(-7, 7) : 0));
+      });
+      ctx.stroke();
+    }
+  }
   for (const s of shots) {
+    if (s.kind === 'raket') {
+      ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.a); ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#d9dde3'; ctx.fillRect(-7, -2.5, 12, 5); ctx.fillStyle = '#e8282f'; ctx.beginPath(); ctx.moveTo(5, -2.5); ctx.lineTo(9, 0); ctx.lineTo(5, 2.5); ctx.fill();
+      ctx.restore();
+      const fg = ctx.createRadialGradient(s.x - Math.cos(s.a) * 9, s.y - Math.sin(s.a) * 9, 0, s.x - Math.cos(s.a) * 9, s.y - Math.sin(s.a) * 9, 8); fg.addColorStop(0, 'rgba(255,220,150,0.9)'); fg.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = fg; ctx.fillRect(s.x - Math.cos(s.a) * 9 - 8, s.y - Math.sin(s.a) * 9 - 8, 16, 16);
+      continue;
+    }
     const r = s.kind === 'bom' ? 9 : 6, sg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
     sg.addColorStop(0, '#ffffff'); sg.addColorStop(0.4, s.kind === 'bom' ? '#ffb347' : '#fff6c4'); sg.addColorStop(1, 'rgba(255,180,80,0)');
     ctx.fillStyle = sg; ctx.fillRect(s.x - r, s.y - r, r * 2, r * 2);
@@ -1003,14 +1080,15 @@ function draw() {
   ctx.fillStyle = '#121317'; ctx.fillRect(PANEL, OY, W - PANEL, H - OY);
   const keysT = Object.keys(TOWERS);
   keysT.forEach((k, i) => {
-    const x = PANEL + 8, y = OY + 8 + i * 88, w = W - PANEL - 16, h = 80;
+    const x = PANEL + 8, y = OY + 6 + i * 76, w = W - PANEL - 16, h = 70;
     const can = money >= TOWERS[k].cost;
     ctx.fillStyle = placing === k ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.06)';
     Arcade.rr(ctx, x, y, w, h, 10); ctx.fill();
     if (placing === k) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke(); }
-    drawTower({ type: k, lvl: 1, aim: -Math.PI / 4 }, x + w / 2, y + 26, can ? 1 : 0.35);
-    Arcade.text(ctx, TOWERS[k].naam, x + w / 2, y + 54, 11, can ? '#ffffff' : '#5b616b', 'center', '800');
-    Arcade.text(ctx, `€${TOWERS[k].cost}`, x + w / 2, y + 69, 11, can ? '#ffd23f' : '#5b616b', 'center', '800', true);
+    drawTower({ type: k, lvl: 1, aim: -Math.PI / 4 }, x + w / 2, y + 22, can ? 1 : 0.35); ctx.globalAlpha = 1;
+    Arcade.text(ctx, TOWERS[k].naam, x + w / 2, y + 48, 10, can ? '#ffffff' : '#5b616b', 'center', '800');
+    Arcade.text(ctx, `€${TOWERS[k].cost}`, x + w / 2, y + 61, 10, can ? '#ffd23f' : '#5b616b', 'center', '800', true);
+    if (i >= 4) { ctx.fillStyle = '#c06bff'; Arcade.rr(ctx, x + w - 22, y + 4, 18, 11, 4); ctx.fill(); Arcade.text(ctx, 'PRO', x + w - 13, y + 10, 6, '#fff', 'center', '900'); }
     buttons.push({ x, y, w, h, fn: () => { placing = placing === k ? null : k; selected = null; } });
   });
   // Geselecteerde toren
@@ -1062,7 +1140,7 @@ function drawMenu() {
     if (won) Arcade.text(ctx, `🏆 ${bests[i]}`, tx, y + 102, 13, '#ffd23f', 'left', '800', true);
     if (open) buttons.push({ x, y, w, h, fn: () => start(i) });
   });
-  Arcade.text(ctx, Arcade.touch ? 'Tik op een kaart om te beginnen' : '1-4 = toren kiezen · Spatie = golf starten · U = upgrade · S = verkopen · F = sneller', W / 2, H - 14, 12, '#6f7680', 'center', '600');
+  Arcade.text(ctx, Arcade.touch ? 'Tik op een kaart om te beginnen' : '1-7 = toren kiezen · Spatie = golf starten · U = upgrade · S = verkopen · F = sneller', W / 2, H - 14, 12, '#6f7680', 'center', '600');
 }
 
 let last = performance.now();
@@ -1090,6 +1168,6 @@ ArcadeCore.cheat('⬆️ Alle torens naar max level', () => { if (towers) towers
 ArcadeCore.cheat('🔓 Alle maps ontgrendelen', () => Arcade.save('td_unlockall', true));
 
   </script>
-  <script type="module" src="../auth.js?v=9f1f69f79c"></script>
+  <script type="module" src="../auth.js?v=c7e661a36a"></script>
 </body>
 </html>
