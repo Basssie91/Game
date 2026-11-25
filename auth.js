@@ -28,8 +28,8 @@ if (!IS_HUB) {
 const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
 const KEEP = /^(arcade_|tt2_)/;
 const SKIP = /^tt2_ghost|^arcade_settings$/;          // spookritten zijn te groot; instellingen horen bij het apparaat
-const LOWER = ['arcade_mijnen_bests', 'arcade_sudoku_bests', 'arcade_memory_bests'];
-const HIGHER = ['arcade_overval_bests', 'arcade_td_bests'];
+const LOWER = ['arcade_mijnen_bests', 'arcade_sudoku_bests', 'arcade_memory_bests', 'arcade_moto_bests', 'arcade_escape_bests', 'arcade_dief_bests'];
+const HIGHER = ['arcade_overval_bests', 'arcade_td_bests', 'arcade_dief_stars'];
 const pickObj = (a, b, better) => { const o = Object.assign({}, a); for (const k in b) if (o[k] == null || better(b[k], o[k])) o[k] = b[k]; return o; };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -42,9 +42,11 @@ function collect() {
   return o;
 }
 // cur = wat er al is, v = wat binnenkomt. Geeft de beste waarde terug.
-function mergeVal(k, cur, v, ghosts) {
+// cur = wat op dit apparaat staat, v = wat in de cloud staat; lt/rt = hun wijzigtijden
+function mergeVal(k, cur, v, ghosts, lt, rt) {
   if (cur == null) return v;
   if (v == null) return cur;
+  if (k === 'arcade_mtimes') { const a = J(cur) || {}, b = J(v) || {}; const o = Object.assign({}, a); for (const x in b) if (!(o[x] >= b[x])) o[x] = b[x]; return JSON.stringify(o); }
   const a = J(cur), b = J(v);
   if (k.startsWith('tt2_bests') && a && b) {
     const o = Object.assign({}, a);
@@ -67,11 +69,15 @@ function mergeVal(k, cur, v, ghosts) {
     return pb > pa ? v : cur;
   }
   if (k.startsWith('arcade_best_') && typeof a === 'number' && typeof b === 'number') return JSON.stringify(Math.max(a, b));
+  if (/best$/.test(k) && typeof a === 'number' && typeof b === 'number') return JSON.stringify(Math.max(a, b));
+  // al het andere (voortgang, toernooien, opgeslagen spellen): de nieuwste stand wint
+  if ((rt || 0) > (lt || 0)) return v;
   return cur;   // overige dingen (spel dat nog bezig is, voorkeuren): wat er al staat blijft
 }
+const mtOf = (o) => J(o && o.arcade_mtimes) || {};
 function mergeObjs(base, inc) {
-  const o = Object.assign({}, base);
-  for (const k in inc) if (KEEP.test(k) && !SKIP.test(k)) o[k] = mergeVal(k, o[k], inc[k]);
+  const o = Object.assign({}, base), lt = mtOf(base), rt = mtOf(inc);
+  for (const k in inc) if (KEEP.test(k) && !SKIP.test(k)) o[k] = mergeVal(k, o[k], inc[k], null, lt[k], rt[k]);
   return o;
 }
 function refreshTexts() {   // tekst-records op de startpagina opnieuw uitrekenen
@@ -89,12 +95,18 @@ function refreshTexts() {   // tekst-records op de startpagina opnieuw uitrekene
 // Binnenkomende gegevens in deze browser zetten. Geeft het aantal wijzigingen terug.
 function applyIn(imp) {
   let changed = 0;
+  const T = window.ArcadeTimes, lt = T ? T.all() : mtOf(collect()), rt = mtOf(imp);
   for (const k in imp) {
-    if (!KEEP.test(k) || SKIP.test(k)) continue;
+    if (!KEEP.test(k) || SKIP.test(k) || k === 'arcade_mtimes') continue;
     const cur = localStorage.getItem(k), ghosts = [];
-    const out = mergeVal(k, cur, imp[k], ghosts);
-    if (out !== cur) { try { localStorage.setItem(k, out); changed++; } catch (e) { /* vol */ } ghosts.forEach((g) => localStorage.removeItem(g)); }
+    const out = mergeVal(k, cur, imp[k], ghosts, lt[k], rt[k]);
+    if (out !== cur) {
+      try { localStorage.setItem(k, out); if (k !== 'arcade_recent') changed++; } catch (e) { /* vol */ }
+      if (T && out === imp[k] && rt[k]) T.set(k, rt[k]); // overgenomen uit de cloud: tijd van de cloud houden
+      ghosts.forEach((g) => localStorage.removeItem(g));
+    }
   }
+  if (T) T.merge(rt);
   refreshTexts();
   return changed;
 }
@@ -487,9 +499,12 @@ function adminTools() {
     if (IS_HUB) { gate(false); setStatus('busy'); }
     try {
       await pull();
-      if (IS_HUB) {
-        const n = applyIn(remote);      // beste van account + deze browser samenvoegen
-        if (window.renderRecords) window.renderRecords();
+      const n = applyIn(remote);        // nieuwste/beste van account + deze browser samenvoegen
+      if (IS_HUB) { if (window.renderRecords) window.renderRecords(); }
+      else if (n > 0) {
+        // in een game: de game had de oude stand al geladen -> één keer opnieuw laden met de nieuwe stand
+        let lastR = 0; try { lastR = +sessionStorage.getItem('ga_sync_reload') || 0; } catch (e) { /* ok */ }
+        if (Date.now() - lastR > 60000) { try { sessionStorage.setItem('ga_sync_reload', Date.now()); } catch (e) { /* ok */ } location.reload(); return; }
       }
       ready = true;
       if (pendingName && !myName) { try { await setName(pendingName); } catch (e) { /* later in het menu */ } }

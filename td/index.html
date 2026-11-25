@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="c7e661a36a">
+<meta name="site-build" content="fe2b3657fb">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Robo Defense · Game Arcade</title>
@@ -27,6 +27,26 @@ canvas { display: block; touch-action: none; box-shadow: 0 0 0 1px rgba(255,255,
   <script>
 'use strict';
 // ================= Game Arcade: instellingen + muziek (gedeeld door alle pagina's) =================
+// Wijzigtijden bijhouden, zodat bij het samenvoegen met je account altijd de NIEUWSTE stand wint
+(() => {
+  try {
+    const RAW = Storage.prototype.setItem, RM = Storage.prototype.removeItem, KEY = 'arcade_mtimes';
+    const re = /^(arcade_|tt2_)/, skip = /^tt2_ghost|^arcade_settings$|^arcade_mtimes$|^arcade_recent$/;
+    let mt; try { mt = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { mt = {}; }
+    let tm = 0;
+    const flush = () => { if (tm) clearTimeout(tm); tm = 0; try { RAW.call(localStorage, KEY, JSON.stringify(mt)); } catch (e) { /* vol */ } };
+    const touch = (k, t) => { if (!re.test(k) || skip.test(k)) return; mt[k] = t || Date.now(); if (!tm) tm = setTimeout(flush, 250); };
+    Storage.prototype.setItem = function (k, v) {
+      if (this !== localStorage) return RAW.call(this, k, v);
+      const old = this.getItem(k); RAW.call(this, k, v);
+      if (old !== String(v)) touch(k);
+    };
+    Storage.prototype.removeItem = function (k) { if (this === localStorage && this.getItem(k) != null) touch(k); RM.call(this, k); };
+    addEventListener('pagehide', flush);
+    // voor auth.js: tijden lezen en (na overnemen uit de cloud) de tijd van de cloud zetten
+    window.ArcadeTimes = { all: () => mt, set: (k, t) => { mt[k] = t; flush(); }, merge: (o) => { for (const k in o || {}) if (!(mt[k] >= o[k])) mt[k] = o[k]; flush(); } };
+  } catch (e) { /* oude browser: dan gewoon zonder tijden */ }
+})();
 const ArcadeCore = (() => {
   const KEY = 'arcade_settings';
   const DEF = { music: 0.5, sfx: 0.8, quality: 'normaal', muted: false };
@@ -1168,6 +1188,6 @@ ArcadeCore.cheat('⬆️ Alle torens naar max level', () => { if (towers) towers
 ArcadeCore.cheat('🔓 Alle maps ontgrendelen', () => Arcade.save('td_unlockall', true));
 
   </script>
-  <script type="module" src="../auth.js?v=c7e661a36a"></script>
+  <script type="module" src="../auth.js?v=fe2b3657fb"></script>
 </body>
 </html>
