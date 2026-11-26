@@ -28,7 +28,7 @@ if (!IS_HUB) {
 const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
 const KEEP = /^(arcade_|tt2_)/;
 const SKIP = /^tt2_ghost|^arcade_settings$/;          // spookritten zijn te groot; instellingen horen bij het apparaat
-const LOWER = ['arcade_mijnen_bests', 'arcade_sudoku_bests', 'arcade_memory_bests', 'arcade_moto_bests', 'arcade_escape_bests', 'arcade_dief_bests'];
+const LOWER = ['arcade_mijnen_bests', 'arcade_sudoku_bests', 'arcade_memory_bests', 'arcade_moto_bests', 'arcade_moto2_bests', 'arcade_escape_bests', 'arcade_dief_bests'];
 const HIGHER = ['arcade_overval_bests', 'arcade_td_bests', 'arcade_dief_stars'];
 const pickObj = (a, b, better) => { const o = Object.assign({}, a); for (const k in b) if (o[k] == null || better(b[k], o[k])) o[k] = b[k]; return o; };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -183,13 +183,13 @@ function scoresOf(d) {
   return o;
 }
 // racegames: beste tijd per level (seconden)
-const TIMED = { race: 20, moto: 10, escape: 10, dief: 12 };
+const TIMED = { race: 20, moto: 12, escape: 10, dief: 12 };
 function timesOf(d) {
   const o = {};
   const r = J(d.tt2_bests2);
   if (r && typeof r === 'object') { o.race = {}; for (const k in r) { const t = r[k] && typeof r[k] === 'object' ? r[k].t : r[k]; if (typeof t === 'number' && t > 0) o.race[k] = Math.round(t * 100) / 100; } }
   for (const g of ['moto', 'escape', 'dief']) {
-    const m = J(d['arcade_' + g + '_bests']);
+    const m = J(d['arcade_' + (g === 'moto' ? 'moto2' : g) + '_bests']);   // Moto Stunt 2: nieuwe levels, nieuwe tijden
     if (m && typeof m === 'object') { o[g] = {}; for (const k in m) if (typeof m[k] === 'number' && m[k] > 0) o[g][k] = Math.round(m[k] * 100) / 100; }
   }
   return o;
@@ -318,7 +318,7 @@ function hubUI() {
 }
 
 // ---------- Ranglijst op de startpagina ----------
-const SHOW = { race: (v) => v + '/20', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins', moto: (v) => v + '/30 ★' };
+const SHOW = { race: (v) => v + '/20', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins', moto: (v) => v + '/36 ★' };
 let boardPlayers = null;
 const boardLvl = {};
 // ---------- Ranglijst ook in de games: wie heeft de snelste tijd? ----------

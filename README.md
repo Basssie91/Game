@@ -18,7 +18,7 @@ Gratis browsergames die je meteen kunt spelen, op pc en op je telefoon.
 | 🎱 **Pool** | `pool/` | 8-ball met powerups tegen de bot of een vriend: win het toernooi van 8 rondes |
 | 🥅 **Puck Voetbal** | `voetbal/` | Voetbal van bovenaf: schiet je schijven tegen de bal, kies een powerup en win het toernooi |
 | 🔐 **Escape Room** | `escape/` | 10 moeilijke 3D-kamers vol codes, sloten en puzzels: ontsnap zo snel mogelijk |
-| 🏍️ **Moto Stunt** | `moto/` | 3D-stuntrace over schansen en loopings: elke salto haalt tijd eraf, haal overal 3 sterren |
+| 🏍️ **Moto Stunt** | `moto/` | 3D-stuntgame met 12 levels: open kurkentrekker-loopings, schansen, kuilen en tonnen. Elke salto haalt tijd eraf |
 | 🖥️ **PC Tycoon** | `tycoon/` | Run je eigen pc-winkel: vul de schappen, reken af en bouw steeds grotere winkels |
 | 🗼 **Robo Defense** | `td/` | Tower defense: torens bouwen en upgraden tegen golven robots op 9 kaarten, vanaf kaart 4 met Herstellers, Spookrobots, Storers en Titans. Je potje wordt opgeslagen, dus je kunt later verder |
 | ☄️ **Meteorenregen 2.0** | `meteoren/` | Schiet meteoren en vijanden kapot. Je kanon raakt oververhit en elke minuut komt er een baas |
