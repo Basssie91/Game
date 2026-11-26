@@ -1,10 +1,13 @@
 {
- "build": "39b3a5ee70",
- "note": "Turbo Tijdrit: hekjes bij de loopings, overslaan kan niet meer!",
+ "build": "2755fd7edd",
+ "note": "Je krijgt nu een melding als jouw idee gepland staat of is toegevoegd!",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "🔔 Meldingen: je ziet het meteen als jouw idee (of een idee waar jij op stemde) gepland staat of is toegevoegd"
+    },
     {
      "t": "🏁 Turbo Tijdrit: hekjes bij de loopings, overslaan kan niet meer",
      "g": "race"

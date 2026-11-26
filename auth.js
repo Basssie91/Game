@@ -540,6 +540,7 @@ async function loadSug() {
     sugAll = snap.docs.map((d) => ({ id: d.id, ...d.data() })).map((x) => ({ ...x, t: x.created && x.created.toMillis ? x.created.toMillis() : (+x.created || 0) }));
     sugAll.sort((p, q) => q.t - p.t);
   } catch (e) { sugAll = null; }
+  if (user && ready && sugAll) sugNotify();
   // alleen voor de admin: e-mailadressen opzoeken in de accountlijst (die mag alleen de admin lezen)
   if (isAdmin() && sugAll && !Object.keys(sugMail).length) { try { const us = await fb.getDocs(fb.collection(fb.db, 'users')); us.docs.forEach((d) => { sugMail[d.id] = d.data().email || ''; }); } catch (e) { /* geen toegang */ } }
   renderSug();
@@ -574,13 +575,64 @@ function renderSug() {
   for (const k in cnt) { const el = document.getElementById('sugN_' + k); if (el) el.textContent = cnt[k]; }
   if (!list.length) { ul.innerHTML = `<li class="sempty"><div class="big">${sugTab === 'open' ? '💡' : sugTab === 'toegevoegd' ? '✅' : '📭'}</div>${sugTab === 'open' ? 'Nog geen open suggesties. Wees de eerste!' : 'Nog niets hier.'}</li>`; if (more) more.hidden = true; return; }
   const adm = isAdmin();
-  ul.innerHTML = list.slice(0, sugShow).map((x, i) => { const nm = x.name || 'Speler'; return `<li class="s-${escS(x.status)}" style="animation-delay:${Math.min(i, 12) * 0.03}s">
+  ul.innerHTML = list.slice(0, sugShow).map((x, i) => { const nm = x.name || 'Speler'; return `<li class="s-${escS(x.status)}" data-sid="${escS(x.id)}" style="animation-delay:${Math.min(i, 12) * 0.03}s">
     <div class="sugtop"><span class="sav" style="background:${sugColor(nm)}">${escS(nm.trim().charAt(0).toUpperCase() || '?')}</span><div class="sugwho"><b>${escS(nm)}</b><span>${x.t ? ago(x.t) : ''}</span></div><span class="sbadge ${escS(x.status)}">${SUG_ST[x.status] || escS(x.status)}</span></div>
     <div class="sugtxt">${escS(x.text || '')}</div>
     <div class="sugfoot">${hot.has(x.id) ? '<span class="sughot">🔥 Populair</span>' : ''}${voteBtn(x)}</div>
     ${adm ? `<div class="sugadm" data-id="${x.id}">${x.status !== 'gepland' ? '<button data-st="gepland">🛠️ Gepland</button>' : ''}${x.status !== 'toegevoegd' ? '<button data-st="toegevoegd">✅ Toegevoegd</button>' : ''}${x.status !== 'gesloten' ? '<button data-st="gesloten">✕ Sluiten</button>' : ''}${x.status !== 'open' ? '<button data-st="open">↺ Weer open</button>' : ''}<button class="del" data-del="1">🗑️ Verwijderen</button><small style="color:#8c8c8c;align-self:center">${escS(sugMail[x.uid] || '')}</small></div>` : ''}
   </li>`; }).join('');
   if (more) { const rest = list.length - sugShow; more.hidden = rest <= 0; more.textContent = `Meer laten zien (${rest})`; }
+}
+// ---------- Meldingen: jouw idee (of een idee waar jij op stemde) staat gepland of is toegevoegd ----------
+const NOTE_KEY = 'arcade_sugnotes';
+function sugNotify() {
+  let seen; try { seen = JSON.parse(localStorage.getItem(NOTE_KEY)) || []; } catch (e) { seen = []; }
+  if (!Array.isArray(seen)) seen = [];
+  const fresh = [];
+  for (const x of sugAll) {
+    if (x.status !== 'gepland' && x.status !== 'toegevoegd') continue;
+    const own = x.uid === user.uid, voted = sugVotes(x).includes(user.uid);
+    if (!own && !voted) continue;
+    const key = x.id + ':' + x.status;
+    if (seen.includes(key)) continue;
+    fresh.push({ x, own }); seen.push(key);
+  }
+  if (!fresh.length) return;
+  fresh.sort((p, q) => q.own - p.own);   // je eigen idee eerst
+  try { localStorage.setItem(NOTE_KEY, JSON.stringify(seen.slice(-300))); } catch (e) { /* vol */ }   // gaat mee naar je account: maar één keer
+  showNotes(fresh);
+}
+function showNotes(list) {
+  let box = document.getElementById('sugNotes');
+  if (!box) { box = document.createElement('div'); box.id = 'sugNotes'; document.body.appendChild(box); }
+  const cut = (t) => (t.length > 90 ? t.slice(0, 88).trimEnd() + '…' : t);
+  const card = ({ x, own }, i) => {
+    const pl = x.status === 'gepland';
+    const title = own ? (pl ? '🛠️ Je idee staat gepland!' : '✅ Je idee is toegevoegd!') : (pl ? '🛠️ Een idee waar jij op stemde staat gepland!' : '✅ Een idee waar jij op stemde is toegevoegd!');
+    const sub = pl ? 'Bas gaat ermee aan de slag.' : 'Probeer het meteen uit!';
+    return `<div class="snote ${pl ? 'pl' : 'ok'}" data-sid="${escS(x.id)}" style="animation-delay:${i * 0.12}s"><button class="snx" aria-label="Sluiten">✕</button><b>${title}</b><q>${escS(cut(x.text || ''))}</q><small>${sub}</small><button class="snb">Bekijk</button></div>`;
+  };
+  const max = innerWidth < 620 ? 2 : 3, shown = list.slice(0, max);
+  box.innerHTML += shown.map(card).join('') + (list.length > max ? `<div class="snmore">+${list.length - max} meer: kijk bij Suggesties</div>` : '');
+  if (!box.dataset.on) {
+    box.dataset.on = '1';
+    box.addEventListener('click', (e) => {
+      const n = e.target.closest('.snote'); if (!n) return;
+      if (e.target.closest('.snb')) {
+        const x = sugAll && sugAll.find((s) => s.id === n.dataset.sid);
+        if (x) {
+          sugTab = x.status === 'toegevoegd' ? 'toegevoegd' : 'open'; sugSort = 'new';
+          document.querySelectorAll('.sugtabs button').forEach((b) => b.classList.toggle('on', b.dataset.s === sugTab));
+          document.querySelectorAll('.sugsort button').forEach((b) => b.classList.toggle('on', b.dataset.o === 'new'));
+          const idx = sugAll.filter((s) => (sugTab === 'open' ? s.status === 'open' || s.status === 'gepland' : s.status === sugTab)).findIndex((s) => s.id === x.id);
+          sugShow = Math.max(6, idx + 1); renderSug();
+          const li = document.querySelector(`#sugList li[data-sid="${CSS.escape(x.id)}"]`);
+          if (li) { li.scrollIntoView({ behavior: 'smooth', block: 'center' }); li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash'); }
+        }
+      }
+      n.classList.add('out'); setTimeout(() => { n.remove(); const more = box.querySelector('.snmore'); if (more && !box.querySelector('.snote')) more.remove(); }, 250);
+    });
+  }
 }
 function sugMsg(t, cls) { const m = document.getElementById('sugMsg'); if (m) { m.textContent = t; m.className = cls || ''; } }
 function initSug() {
