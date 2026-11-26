@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="9453b3036d">
+<meta name="site-build" content="30dece6e67">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Robo Defense · Game Arcade</title>
@@ -664,7 +664,15 @@ let bolts = [];
 let mi = 0, MAP, pathTiles, pathPts, pathLen, towers, enemies, shots, booms, parts;
 let money, lives, wave, waveOn, spawnList, spawnT, speed, selected, placing, hover, score, msg, kills, overT;
 let bests = Arcade.load('td_bests', {});
-let intro = null, seenNew = {};   // uitleg bij een nieuwe robot (één keer per potje)
+let intro = null, seenNew = {};
+// AUTO: na elke golf start de volgende vanzelf (na 3 seconden). De golfknop start altijd precies één golf.
+let autoWave = !!Arcade.load('td_auto', false), autoT = 0;
+function toggleAuto() {
+  autoWave = !autoWave; Arcade.save('td_auto', autoWave);
+  autoT = autoWave && state === 'play' && !waveOn && wave > 0 && wave < WAVES ? 3 : 0;
+  msg = { text: autoWave ? '⏩ AUTO aan: golven starten vanzelf' : 'AUTO uit', t: 1.6 };
+  Arcade.beep(autoWave ? 700 : 400, 0.08, 'triangle', 0.04);
+}   // uitleg bij een nieuwe robot (één keer per potje)
 let buttons = [];
 
 // ---------- Pad voorbereiden ----------
@@ -757,6 +765,7 @@ function resumeGame() {
   waveOn = !!g.waveOn; spawnList = g.spawnList || []; spawnT = g.spawnT || 0.5; speed = g.speed || 1;
   selected = null; placing = null;
   msg = { text: `Verder bij golf ${wave}${waveOn ? '' : ' gehaald'}!`, t: 2 };
+  autoT = autoWave && !waveOn && wave > 0 && wave < WAVES ? 3 : 0;
   state = 'play';
 }
 // kaart kiezen terwijl er nog een opgeslagen spel is: eerst vragen
@@ -792,6 +801,7 @@ function makeWave(n) {
 }
 function startWave() {
   if (waveOn || state !== 'play' || wave >= WAVES) return;
+  autoT = 0;
   wave++;
   spawnList = makeWave(wave);
   spawnT = 0.5;
@@ -862,6 +872,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); startWave(); }
   if (e.code === 'Escape') { if (placing || selected) { placing = null; selected = null; } else toMenu(); }
   if (e.code === 'KeyF') speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
+  if (e.code === 'KeyA') toggleAuto();
   if (selected && e.code === 'KeyU') upgrade(selected);
   if (selected && (e.code === 'KeyS' || e.code === 'Delete')) sell(selected);
 });
@@ -877,6 +888,8 @@ function update(dt) {
   for (let s = 0; s < speed; s++) step(dt);
 }
 function step(dt) {
+  // AUTO: aftellen tot de volgende golf
+  if (autoWave && autoT > 0 && !waveOn && state === 'play') { autoT -= dt; if (autoT <= 0) { autoT = 0; startWave(); } }
   // Nieuwe robots
   if (waveOn && spawnList.length) {
     spawnT -= dt;
@@ -1002,6 +1015,7 @@ function step(dt) {
     const bonus = 20 + wave * 5;
     money += bonus;
     msg = { text: `Golf ${wave} gehaald! +€${bonus}`, t: 2 };
+    if (autoWave && wave < WAVES) autoT = 3;
     if (wave >= WAVES) gameOver(true);
   }
 }
@@ -1207,8 +1221,10 @@ function draw() {
   Arcade.text(ctx, `€${money}`, 130, 32, 24, '#ffd23f', 'left', '900', true);
   Arcade.text(ctx, `❤ ${lives}`, 270, 32, 22, '#ff4d55', 'left', '900');
   Arcade.text(ctx, `Golf ${wave}/${WAVES}`, 380, 32, 18, '#ffffff', 'left', '800');
-  Arcade.text(ctx, MAP.naam, 540, 32, 14, '#9aa1ab', 'left', '700');
+  Arcade.text(ctx, MAP.naam, 490, 32, 14, '#9aa1ab', 'left', '700');
+  button('⏩ AUTO', 574, 12, 60, 36, toggleAuto, { on: autoWave, size: 12 });
   button('☰', 640, 12, 40, 36, toMenu);
+  if (autoWave && autoT > 0 && !waveOn) Arcade.text(ctx, `⏩ Volgende golf over ${Math.ceil(autoT)}…`, PANEL / 2, OY + 26, 16, '#ffd23f', 'center', '900');
   button(`${speed}×`, 690, 12, 50, 36, () => { speed = speed === 1 ? 2 : speed === 2 ? 3 : 1; }, { on: speed > 1 });
   if (!waveOn && wave < WAVES) button(wave === 0 ? '▶ Start golf 1' : `▶ Golf ${wave + 1}`, 750, 12, 140, 36, startWave, { primary: true });
   else if (waveOn) Arcade.text(ctx, `nog ${spawnList.length + enemies.length} robots`, 820, 30, 13, '#9aa1ab', 'center', '700');
@@ -1301,7 +1317,7 @@ function drawMenu() {
     const sg = savedGame();
     if (sg && sg.mi === i) { ctx.fillStyle = '#ffd23f'; Arcade.rr(ctx, x + w - 100, y + h - 32, 88, 22, 6); ctx.fill(); Arcade.text(ctx, '💾 OPGESLAGEN', x + w - 56, y + h - 21, 9, '#111214', 'center', '900'); }
   });
-  Arcade.text(ctx, Arcade.touch ? 'Tik op een kaart om te beginnen' : '1-7 = toren · Spatie = golf starten · U = upgrade · S = verkopen · F = sneller · Esc = menu (spel blijft bewaard)', W / 2, H - 14, 12, '#6f7680', 'center', '600');
+  Arcade.text(ctx, Arcade.touch ? 'Tik op een kaart om te beginnen' : '1-7 = toren · Spatie = golf starten · U = upgrade · S = verkopen · F = sneller · A = auto · Esc = menu', W / 2, H - 14, 12, '#6f7680', 'center', '600');
 }
 
 let last = performance.now();
@@ -1329,6 +1345,6 @@ ArcadeCore.cheat('⬆️ Alle torens naar max level', () => { if (towers) towers
 ArcadeCore.cheat('🔓 Alle maps ontgrendelen', () => Arcade.save('td_unlockall', true));
 
   </script>
-  <script type="module" src="../auth.js?v=9453b3036d"></script>
+  <script type="module" src="../auth.js?v=30dece6e67"></script>
 </body>
 </html>

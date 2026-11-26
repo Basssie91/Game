@@ -1,10 +1,14 @@
 {
- "build": "9453b3036d",
- "note": "Toren Klimmer: snellere lava en rustigere besturing!",
+ "build": "30dece6e67",
+ "note": "Robo Defense: nieuwe AUTO-knop, golven starten vanzelf!",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "⏩ Robo Defense: AUTO-knop! Zet hem aan en de volgende golf start vanzelf na 3 seconden",
+     "g": "td"
+    },
     {
      "t": "🧗 Toren Klimmer: de lava stijgt sneller en de besturing is rustiger en preciezer",
      "g": "klimmer"
