@@ -321,6 +321,29 @@ function hubUI() {
 const SHOW = { race: (v) => v + '/20', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins', moto: (v) => v + '/30 ★' };
 let boardPlayers = null;
 const boardLvl = {};
+// ---------- Ranglijst ook in de games: wie heeft de snelste tijd? ----------
+let fbReadyRes; const fbReady = new Promise((r) => { fbReadyRes = r; });
+window.ArcadeBoard = {
+  players: null, at: 0,
+  async load(force) {
+    if (!(await fbReady)) return null;
+    if (!force && this.players && Date.now() - this.at < 30000) return this.players;
+    try {
+      const snap = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
+      this.players = snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => p.name);
+      this.at = Date.now();
+    } catch (e) { console.warn('Ranglijst laden mislukt:', e); }
+    return this.players;
+  },
+  // snelste tijd van een ANDER (jezelf telt niet mee) op een level
+  fastest(game, level) {
+    const me = user && user.uid;
+    return (this.players || []).filter((p) => p.uid !== me && p.times && p.times[game] && typeof p.times[game][level] === 'number')
+      .map((p) => ({ name: p.name, t: p.times[game][level] })).sort((a, b) => a.t - b.t)[0] || null;
+  },
+  loggedIn: () => !!user,
+  hasName: () => !!myName,
+};
 async function loadBoard() {
   if (!fb) return;
   try {
@@ -490,7 +513,7 @@ function adminTools() {
     addEventListener('keydown', (e) => { if (e.key === 'Escape') $('profModal').classList.remove('open'); });
     $('acctProfile').addEventListener('click', () => { $('acctMenu').classList.remove('open'); if (user) openProfile(user.uid); });
   }
-  try { await loadFb(); } catch (e) { console.warn('Firebase niet geladen (offline?)', e); return; }
+  try { await loadFb(); fbReadyRes(true); } catch (e) { fbReadyRes(false); console.warn('Firebase niet geladen (offline?)', e); return; }
   fb.onAuthStateChanged(fb.auth, async (u) => {
     user = u; ready = false; acctUI();
     if (IS_HUB) renderSug();

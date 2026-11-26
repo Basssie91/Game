@@ -1,10 +1,14 @@
 {
- "build": "7a38f8b22e",
- "note": "Robo Defense: 4 nieuwe, sterke robots. Kun jij het zonder levens verlies halen?",
+ "build": "763391ca86",
+ "note": "Turbo Tijdrit: zie bij de finish of jij de snelste van iedereen bent!",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "🏁 Turbo Tijdrit: bij de finish zie je wie de snelste tijd van iedereen heeft, of dat jij het bent!",
+     "g": "race"
+    },
     {
      "t": "🤖 Robo Defense: nieuwe sterke robots vanaf kaart 4: Hersteller, Spookrobot, Storer en de Titan. Echt moeilijk, maar zonder levensverlies te halen!",
      "g": "td"

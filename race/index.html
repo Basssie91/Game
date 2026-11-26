@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="7a38f8b22e">
+<meta name="site-build" content="763391ca86">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Turbo Tijdrit</title>
@@ -1535,6 +1535,7 @@ function restart() {
 
 function startLevel(i) {
   if (!unlocked(i)) return;
+  if (window.ArcadeBoard) ArcadeBoard.load();   // alvast de ranglijst ophalen voor het finishscherm
   loadLevel(i);
 }
 
@@ -1585,7 +1586,19 @@ function finishRace() {
     store.set('bests2', bests);
     store.set('ghost2_' + levelIdx, race.ghost);
   }
-  result = { t, isRecord, prev: prev ? prev.t : null, medal, newMedal: medal >= 0 && (prevMedal < 0 || medal < prevMedal), unlockedNext: wasLocked };
+  result = { t, isRecord, prev: prev ? prev.t : null, medal, newMedal: medal >= 0 && (prevMedal < 0 || medal < prevMedal), unlockedNext: wasLocked, world: null };
+  // snelste tijd van iedereen (uit de ranglijst)
+  const res = result, lv = levelIdx;
+  if (window.ArcadeBoard) {
+    res.world = { loading: true };
+    ArcadeBoard.load(true).then((pl) => {
+      if (result !== res) return;
+      if (!pl) { res.world = null; return; }
+      const other = ArcadeBoard.fastest('race', lv), mine = bests[lv] ? bests[lv].t : t;
+      res.world = { other, mine, top: !other || mine < other.t - 0.0005, logged: ArcadeBoard.loggedIn(), named: ArcadeBoard.hasName() };
+      if (res.world.top && res.isRecord) { beep(880, 0.12, 'triangle', 0.06); beep(1175, 0.25, 'triangle', 0.06, 0, 0.12); }
+    }).catch(() => { if (result === res) res.world = null; });
+  }
   state = 'finish';
   beep(523, 0.15, 'triangle', 0.07);
   beep(659, 0.15, 'triangle', 0.07, 0, 0.15);
@@ -1921,7 +1934,7 @@ function drawFinish() {
   const W = HW_, H = HH_;
   hctx.fillStyle = 'rgba(12, 13, 16, 0.5)';
   hctx.fillRect(0, 0, W, H);
-  const pw = Math.min(400, W - 30), ph = 360;
+  const pw = Math.min(400, W - 30), ph = result.world ? 440 : 360;
   const x = W / 2 - pw / 2, y = H / 2 - ph / 2;
   panel(x, y, pw, ph, 0.88);
   text('FINISH! 🏁', W / 2, y + 36, 30, '#fff', 'center', '900');
@@ -1935,6 +1948,30 @@ function drawFinish() {
   let line = result.isRecord ? (result.prev ? `🏆 Nieuw record! (${(result.t - result.prev).toFixed(3)})` : '🏆 Eerste tijd neergezet!') : `Record: ${fmt(result.prev)}  (+${(result.t - result.prev).toFixed(3)})`;
   text(line, W / 2, y + 180, 15, result.isRecord ? '#ffffff' : '#c9ced6', 'center', '700');
   if (result.unlockedNext) text(`🔓 Level ${levelIdx + 2} is vrijgespeeld!`, W / 2, y + 206, 14, '#6dff9a', 'center', '700');
+  // Snelste tijd van iedereen
+  const wd = result.world;
+  if (wd) {
+    const bx = x + 18, by = y + 224, bw2 = pw - 36, bh = 78;
+    hctx.fillStyle = wd.top ? 'rgba(255, 210, 63, 0.12)' : 'rgba(255, 255, 255, 0.06)';
+    rr(bx, by, bw2, bh, 14); hctx.fill();
+    hctx.strokeStyle = wd.top ? 'rgba(255, 210, 63, 0.8)' : 'rgba(255, 255, 255, 0.18)'; hctx.lineWidth = wd.top ? 2 : 1; hctx.stroke();
+    const cx = W / 2, small2 = pw < 360;
+    if (wd.loading) text('🌍 Snelste tijd van iedereen laden…', cx, by + bh / 2, 14, '#c9ced6', 'center', '600');
+    else {
+      let t1, t2, t3 = '';
+      if (!wd.other) { t1 = '👑 Jij bent de eerste die dit level haalt!'; t2 = `Snelste tijd: ${fmt(wd.mine)}`; }
+      else if (wd.top) {
+        t1 = result.isRecord ? '👑 Jij hebt de snelste tijd van iedereen!' : '👑 Jij hebt nog steeds de snelste tijd!';
+        t2 = `${fmt(wd.mine)} · ${(wd.other.t - wd.mine).toFixed(3)} sneller dan ${wd.other.name} (${fmt(wd.other.t)})`;
+      } else { t1 = `🌍 Snelste tijd: ${wd.other.name} · ${fmt(wd.other.t)}`; t2 = `Jij: +${(result.t - wd.other.t).toFixed(3)} langzamer`; }
+      if (wd.top && !wd.logged) t3 = 'Log in om op de ranglijst te komen!';
+      else if (wd.top && !wd.named) t3 = 'Kies op de startpagina een spelersnaam voor de ranglijst!';
+      const ty0 = t3 ? by + 20 : by + 28;
+      text(t1, cx, ty0, small2 ? 14 : 16, wd.top ? '#ffd23f' : '#ffffff', 'center', '900');
+      text(t2, cx, ty0 + 24, small2 ? 11.5 : 13, '#c9ced6', 'center', '600');
+      if (t3) text(t3, cx, ty0 + 44, small2 ? 11.5 : 12.5, '#6dff9a', 'center', '700');
+    }
+  }
   const bw = (pw - 60) / 2;
   button('↻  Opnieuw', x + 20, y + ph - 110, bw, 44, restart, levelIdx === LEVELS.length - 1);
   if (levelIdx < LEVELS.length - 1) button('Volgende  ▶', x + 40 + bw, y + ph - 110, bw, 44, () => startLevel(levelIdx + 1), true);
@@ -2011,6 +2048,6 @@ ArcadeCore.toggle('🚀 Turbo (veel sneller)', () => turbo, (v) => {
 });
 
   </script>
-  <script type="module" src="../auth.js?v=7a38f8b22e"></script>
+  <script type="module" src="../auth.js?v=763391ca86"></script>
 </body>
 </html>
