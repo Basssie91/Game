@@ -544,25 +544,39 @@ async function loadSug() {
   if (isAdmin() && sugAll && !Object.keys(sugMail).length) { try { const us = await fb.getDocs(fb.collection(fb.db, 'users')); us.docs.forEach((d) => { sugMail[d.id] = d.data().email || ''; }); } catch (e) { /* geen toegang */ } }
   renderSug();
 }
+let sugShow = 6;
+const sugColor = (n) => { let h = 0; for (const ch of String(n)) h = (h * 31 + ch.charCodeAt(0)) % 360; return `hsl(${h} 80% 68%)`; };
 function renderSug() {
   const ul = document.getElementById('sugList'); if (!ul) return;
-  if (sugAll === null) { ul.innerHTML = '<li class="sempty">Suggesties konden niet geladen worden.</li>'; return; }
-  const want = (x) => sugTab === 'open' ? (x.status === 'open' || x.status === 'gepland') : x.status === sugTab;
+  // ingelogd: tekstvak, anders een knop om in te loggen
+  const form = document.getElementById('sugForm'), lg = document.getElementById('sugLogin');
+  if (form && lg) { form.hidden = !user; lg.hidden = !!user; }
+  const more = document.getElementById('sugMore');
+  if (sugAll === null) { ul.innerHTML = '<li class="sempty"><div class="big">📡</div>Suggesties konden niet geladen worden.</li>'; if (more) more.hidden = true; return; }
+  const isOpen = (x) => x.status === 'open' || x.status === 'gepland';
+  const want = (x) => sugTab === 'open' ? isOpen(x) : x.status === sugTab;
   const list = sugAll.filter(want);
-  document.getElementById('sugCount').textContent = sugAll.filter((x) => x.status === 'open' || x.status === 'gepland').length + ' open';
-  if (!list.length) { ul.innerHTML = `<li class="sempty">${sugTab === 'open' ? 'Nog geen open suggesties. Wees de eerste!' : 'Nog niets hier.'}</li>`; return; }
+  const nOpen = sugAll.filter(isOpen).length;
+  document.getElementById('sugCount').textContent = nOpen + ' open';
+  const cnt = { open: nOpen, toegevoegd: sugAll.filter((x) => x.status === 'toegevoegd').length, gesloten: sugAll.filter((x) => x.status === 'gesloten').length };
+  for (const k in cnt) { const el = document.getElementById('sugN_' + k); if (el) el.textContent = cnt[k]; }
+  if (!list.length) { ul.innerHTML = `<li class="sempty"><div class="big">${sugTab === 'open' ? '💡' : sugTab === 'toegevoegd' ? '✅' : '📭'}</div>${sugTab === 'open' ? 'Nog geen open suggesties. Wees de eerste!' : 'Nog niets hier.'}</li>`; if (more) more.hidden = true; return; }
   const adm = isAdmin();
-  ul.innerHTML = list.slice(0, 60).map((x, i) => `<li style="animation-delay:${Math.min(i, 12) * 0.03}s">
-    <div class="sugtop"><b>${escS(x.name || 'Speler')}</b><span>${x.t ? ago(x.t) : ''}</span><span class="sbadge ${x.status}">${SUG_ST[x.status] || x.status}</span></div>
+  ul.innerHTML = list.slice(0, sugShow).map((x, i) => { const nm = x.name || 'Speler'; return `<li class="s-${escS(x.status)}" style="animation-delay:${Math.min(i, 12) * 0.03}s">
+    <div class="sugtop"><span class="sav" style="background:${sugColor(nm)}">${escS(nm.trim().charAt(0).toUpperCase() || '?')}</span><div class="sugwho"><b>${escS(nm)}</b><span>${x.t ? ago(x.t) : ''}</span></div><span class="sbadge ${escS(x.status)}">${SUG_ST[x.status] || escS(x.status)}</span></div>
     <div class="sugtxt">${escS(x.text || '')}</div>
     ${adm ? `<div class="sugadm" data-id="${x.id}">${x.status !== 'gepland' ? '<button data-st="gepland">🛠️ Gepland</button>' : ''}${x.status !== 'toegevoegd' ? '<button data-st="toegevoegd">✅ Toegevoegd</button>' : ''}${x.status !== 'gesloten' ? '<button data-st="gesloten">✕ Sluiten</button>' : ''}${x.status !== 'open' ? '<button data-st="open">↺ Weer open</button>' : ''}<button class="del" data-del="1">🗑️ Verwijderen</button><small style="color:#8c8c8c;align-self:center">${escS(sugMail[x.uid] || '')}</small></div>` : ''}
-  </li>`).join('');
+  </li>`; }).join('');
+  if (more) { const rest = list.length - sugShow; more.hidden = rest <= 0; more.textContent = `Meer laten zien (${rest})`; }
 }
 function sugMsg(t, cls) { const m = document.getElementById('sugMsg'); if (m) { m.textContent = t; m.className = cls || ''; } }
 function initSug() {
   const form = document.getElementById('sugForm'); if (!form) return;
   const ta = document.getElementById('sugText');
-  ta.addEventListener('input', () => { document.getElementById('sugLeft').textContent = `${ta.value.length}/300`; });
+  const upd = () => { const n = ta.value.length, l = document.getElementById('sugLeft'); l.textContent = `${n}/300`; l.className = n >= 300 ? 'full' : n >= 260 ? 'warn' : ''; document.getElementById('sugBtn').classList.toggle('ready', ta.value.trim().length >= 5); };
+  ta.addEventListener('input', upd);
+  const lg = document.getElementById('sugLogin'); if (lg) lg.addEventListener('click', () => gate(true));
+  const more = document.getElementById('sugMore'); if (more) more.addEventListener('click', () => { sugShow += 6; renderSug(); });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = ta.value.trim();
@@ -575,7 +589,7 @@ function initSug() {
       const id = user.uid + '_' + Date.now();
       await fb.setDoc(fb.doc(fb.db, 'suggestions', id), { text, name: myName || 'Speler', uid: user.uid, status: 'open', created: fb.serverTimestamp() });
       localStorage.setItem('ga_sug_last', Date.now());
-      ta.value = ''; document.getElementById('sugLeft').textContent = '0/300';
+      ta.value = ''; upd();
       sugMsg('Bedankt! Je suggestie staat erbij.', 'ok'); sugTab = 'open';
       document.querySelectorAll('.sugtabs button').forEach((b) => b.classList.toggle('on', b.dataset.s === 'open'));
       await loadSug();
@@ -583,7 +597,7 @@ function initSug() {
     btn.disabled = false;
   });
   document.querySelectorAll('.sugtabs button').forEach((b) => b.addEventListener('click', () => {
-    sugTab = b.dataset.s; document.querySelectorAll('.sugtabs button').forEach((x) => x.classList.toggle('on', x === b)); renderSug();
+    sugTab = b.dataset.s; sugShow = 6; document.querySelectorAll('.sugtabs button').forEach((x) => x.classList.toggle('on', x === b)); renderSug();
   }));
   document.getElementById('sugList').addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b || !isAdmin()) return;

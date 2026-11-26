@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="61e21c22dd">
+<meta name="site-build" content="7a533cad3a">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Game Arcade · gratis browsergames</title>
@@ -179,29 +179,59 @@ a.card:hover .meta .arr { background: #fff; color: #0a0a0a; border-color: #fff; 
 .bhead h2 { font-style: normal !important; font-size: 13px !important; letter-spacing: 2.5px; text-transform: uppercase; }
 #bGame { background-color: #0a0a0a !important; } #bGame:focus { border-color: #fff !important; }
 #sug { margin-top: 44px; scroll-margin-top: 90px; }
-#sugForm { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
-#sugText { width: 100%; resize: vertical; min-height: 74px; border: 1px solid var(--line2); border-radius: 12px; background: #0a0a0a; color: #fff; padding: 12px 14px; font: 500 15px inherit; font-family: inherit; outline: none; -webkit-user-select: text; user-select: text; }
-#sugText:focus { border-color: #fff; }
-.sugrow { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
-.sugrow small { color: var(--mut); font: 700 12px ui-monospace, Consolas, monospace; }
-#sugMsg { flex: 1; font-size: 13px; color: var(--soft); }
+/* bovenblok: heb jij een idee? */
+.sugcta { position: relative; overflow: hidden; border-radius: 20px; padding: 22px; background: radial-gradient(120% 140% at 0% 0%, rgba(255,210,63,.16), rgba(255,210,63,0) 55%), var(--panel); border: 1px solid rgba(255,210,63,.28); }
+.sugcta::after { content: ""; position: absolute; right: -60px; top: -60px; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(255,210,63,.12), transparent 70%); pointer-events: none; }
+.sugintro { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.sugbulb { flex: none; width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; font-size: 28px; background: rgba(255,210,63,.14); border: 1px solid rgba(255,210,63,.35); box-shadow: 0 0 30px rgba(255,210,63,.25); }
+.sugintro h3 { margin: 0 0 3px; font-size: 22px; font-weight: 900; letter-spacing: -.4px; }
+.sugintro p { margin: 0; color: var(--soft); font-size: 14px; line-height: 1.4; }
+#sugForm[hidden], .suglogin[hidden], #sugMore[hidden] { display: none; }
+#sugText { position: relative; z-index: 1; width: 100%; resize: vertical; min-height: 84px; border: 1px solid var(--line2); border-radius: 14px; background: rgba(0,0,0,.55); color: #fff; padding: 13px 15px; font: 500 15px inherit; font-family: inherit; outline: none; transition: border-color .15s, box-shadow .15s; -webkit-user-select: text; user-select: text; }
+#sugText:focus { border-color: #ffd23f; box-shadow: 0 0 0 3px rgba(255,210,63,.15); }
+.sugrow { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.sugrow small { color: var(--mut); font: 700 12px ui-monospace, Consolas, monospace; transition: color .15s; }
+.sugrow small.warn { color: #ffd23f; } .sugrow small.full { color: #ff6b6b; }
+#sugMsg { flex: 1; min-width: 140px; font-size: 13px; color: var(--soft); }
 #sugMsg.err { color: #ff8a8a; } #sugMsg.ok { color: #7bd88f; }
-#sugBtn { height: 40px; border: 0; border-radius: 10px; background: #fff; color: #0a0a0a; padding: 0 18px; font: 800 14px inherit; font-family: inherit; cursor: pointer; }
+#sugBtn { height: 42px; border: 1px solid var(--line2); border-radius: 12px; background: rgba(255,255,255,.06); color: var(--mut); padding: 0 20px; font: 800 14px inherit; font-family: inherit; cursor: pointer; transition: background .2s, color .2s, transform .15s; }
+#sugBtn.ready { background: #fff; color: #0a0a0a; border-color: #fff; }
+#sugBtn.ready:hover { background: #ffd23f; border-color: #ffd23f; transform: translateY(-1px); }
 #sugBtn:disabled { opacity: .5; cursor: default; }
-.sugtabs { display: flex; gap: 6px; margin: 16px 0 10px; }
-.sugtabs button { border: 1px solid var(--line2); background: none; color: var(--mut); border-radius: 99px; padding: 7px 14px; font: 700 13px inherit; font-family: inherit; cursor: pointer; }
+.suglogin { position: relative; z-index: 1; width: 100%; height: 52px; border: 0; border-radius: 14px; background: #fff; color: #0a0a0a; font: 800 15px inherit; font-family: inherit; cursor: pointer; transition: background .15s; }
+.suglogin:hover { background: #ffd23f; }
+/* tabbladen */
+.sugtabs { display: flex; gap: 6px; margin: 20px 0 12px; flex-wrap: wrap; }
+.sugtabs button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line2); background: none; color: var(--soft); border-radius: 99px; padding: 7px 8px 7px 14px; font: 700 13px inherit; font-family: inherit; cursor: pointer; transition: border-color .15s; }
+.sugtabs button:hover { border-color: #fff; }
+.sugtabs button i { font: 800 11px ui-monospace, Consolas, monospace; font-style: normal; min-width: 22px; padding: 2px 6px; border-radius: 99px; background: rgba(255,255,255,.1); color: #fff; text-align: center; }
 .sugtabs button.on { background: #fff; color: #0a0a0a; border-color: #fff; }
-#sugList { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-#sugList li { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; animation: rise .35s ease both; }
-#sugList li.sempty { color: var(--mut); text-align: center; padding: 26px; }
-.sugtop { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; color: var(--mut); }
-.sugtop b { color: #fff; font-size: 13px; }
-.sbadge { margin-left: auto; font: 800 10.5px ui-monospace, Consolas, monospace; letter-spacing: 1px; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,.08); color: var(--soft); text-transform: uppercase; }
+.sugtabs button.on i { background: #0a0a0a; color: #fff; }
+/* kaarten */
+#sugList { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { #sugList { grid-template-columns: minmax(0, 1fr); } }
+#sugList li { position: relative; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px 16px 16px 20px; overflow: hidden; animation: rise .35s ease both; transition: border-color .15s, transform .15s; }
+#sugList li:hover { border-color: var(--line2); transform: translateY(-2px); }
+#sugList li::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: rgba(255,255,255,.18); }
+#sugList li.s-gepland::before { background: #ffd23f; } #sugList li.s-toegevoegd::before { background: #7bd88f; } #sugList li.s-gesloten::before { background: #555; }
+#sugList li.s-gesloten .sugtxt { color: #9a9a9a; }
+#sugList li.sempty { grid-column: 1 / -1; align-items: center; text-align: center; color: var(--mut); padding: 34px 20px; border-style: dashed; }
+#sugList li.sempty::before { display: none; } #sugList li.sempty:hover { transform: none; }
+#sugList li.sempty .big { font-size: 34px; margin-bottom: 6px; }
+.sugtop { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; min-width: 0; }
+.sav { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 16px; color: #0a0a0a; }
+.sugwho { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.sugwho b { color: #fff; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sugwho span { color: var(--mut); font-size: 12px; }
+.sbadge { margin-left: auto; flex: none; font: 800 10.5px ui-monospace, Consolas, monospace; letter-spacing: 1px; padding: 4px 9px; border-radius: 99px; background: rgba(255,255,255,.08); color: var(--soft); text-transform: uppercase; }
 .sbadge.gepland { background: rgba(255,210,63,.14); color: #ffd23f; } .sbadge.toegevoegd { background: rgba(123,216,143,.15); color: #7bd88f; } .sbadge.gesloten { color: #8c8c8c; }
-.sugtxt { color: #e6e6e6; font-size: 15px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-.sugadm { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line2); }
-.sugadm button { border: 1px solid var(--line2); background: none; color: #fff; border-radius: 8px; padding: 5px 10px; font: 700 12px inherit; font-family: inherit; cursor: pointer; }
-.sugadm button:hover { border-color: #fff; } .sugadm button.del { color: #ff8a8a; }
+.sugtxt { color: #e6e6e6; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.sugadm { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line2); }
+.sugadm button { border: 1px solid var(--line2); background: rgba(255,255,255,.03); color: #fff; border-radius: 99px; padding: 5px 11px; font: 700 12px inherit; font-family: inherit; cursor: pointer; transition: border-color .15s, background .15s; }
+.sugadm button:hover { border-color: #fff; background: rgba(255,255,255,.08); } .sugadm button.del { color: #ff8a8a; } .sugadm button.del:hover { border-color: #ff8a8a; } .sugadm button.sure { background: #ff3b3b; color: #fff; border-color: #ff3b3b; }
+#sugMore { display: block; margin: 14px auto 0; height: 42px; padding: 0 22px; border: 1px solid var(--line2); border-radius: 99px; background: none; color: #fff; font: 700 14px inherit; font-family: inherit; cursor: pointer; }
+#sugMore:hover { border-color: #fff; background: rgba(255,255,255,.06); }
+@media (max-width: 620px) { .sugcta { padding: 18px 16px; } .sugbulb { width: 44px; height: 44px; font-size: 23px; border-radius: 13px; } .sugintro h3 { font-size: 19px; } #sugBtn { flex: 1 1 100%; order: 3; } .sugtabs { gap: 5px; } .sugtabs button { font-size: 12px; padding: 6px 6px 6px 10px; gap: 5px; } }
 footer { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: #6f6f6f; font-size: 13px; }
 @media (max-width: 900px) {
   .hero { grid-template-columns: minmax(0, 1fr); padding-top: 34px; gap: 30px; }
@@ -446,12 +476,17 @@ footer { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line);
         </div>
         <section id="sug">
           <div class="shead"><h2>💡 Suggesties</h2><span id="sugCount"></span></div>
-          <form id="sugForm" autocomplete="off">
-            <textarea id="sugText" maxlength="300" rows="3" placeholder="Welke game of verbetering wil jij zien? Iedereen kan je idee lezen."></textarea>
-            <div class="sugrow"><small id="sugLeft">0/300</small><span id="sugMsg"></span><button type="submit" id="sugBtn">Insturen</button></div>
-          </form>
-          <div class="sugtabs"><button data-s="open" class="on">Open</button><button data-s="toegevoegd">✅ Toegevoegd</button><button data-s="gesloten">Gesloten</button></div>
+          <div class="sugcta">
+            <div class="sugintro"><span class="sugbulb">💡</span><div><h3>Heb jij een idee?</h3><p>Welke game of verbetering wil jij zien? Bas leest alles!</p></div></div>
+            <form id="sugForm" autocomplete="off" hidden>
+              <textarea id="sugText" maxlength="300" rows="3" placeholder="Bijvoorbeeld: een nieuwe game, een extra level of iets wat beter kan…"></textarea>
+              <div class="sugrow"><small id="sugLeft">0/300</small><span id="sugMsg"></span><button type="submit" id="sugBtn">Insturen ➜</button></div>
+            </form>
+            <button type="button" class="suglogin" id="sugLogin">🔑 Log in om je idee in te sturen</button>
+          </div>
+          <div class="sugtabs"><button data-s="open" class="on">💡 Open<i id="sugN_open">0</i></button><button data-s="toegevoegd">✅ Toegevoegd<i id="sugN_toegevoegd">0</i></button><button data-s="gesloten">Gesloten<i id="sugN_gesloten">0</i></button></div>
           <ul id="sugList"><li class="sempty">Laden…</li></ul>
+          <button type="button" id="sugMore" hidden>Meer laten zien</button>
         </section>
       </div>
       <aside id="board">
@@ -976,6 +1011,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=61e21c22dd"></script>
+  <script type="module" src="auth.js?v=7a533cad3a"></script>
 </body>
 </html>
