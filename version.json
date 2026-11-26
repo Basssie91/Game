@@ -1,10 +1,14 @@
 {
- "build": "12dd1d31a3",
- "note": "Stem met 👍 op de suggesties die jij ook wilt!",
+ "build": "0155f9a08a",
+ "note": "Robo Defense slaat je potje op: stop wanneer je wilt en speel later verder!",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "💾 Robo Defense slaat je potje op: stop wanneer je wilt en speel later verder, ook op een ander apparaat",
+     "g": "td"
+    },
     {
      "t": "👍 Stemmen op suggesties, en sorteren op Nieuwste of Populairste"
     },
