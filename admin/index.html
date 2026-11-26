@@ -141,7 +141,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
       <h3>Beste per game</h3>
       <div class="box scroll" style="padding:6px 10px">
         <table>
-          <thead><tr><th>Game</th><th>Record</th><th>Van</th></tr></thead>
+          <thead><tr><th>Game</th><th>Record</th><th>Van</th><th></th></tr></thead>
           <tbody id="bests"></tbody>
         </table>
       </div>
@@ -168,6 +168,16 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
     <input id="allIn" autocomplete="off" placeholder="RESET">
     <div class="mbtns"><button class="red" id="allGo" disabled>Alles van iedereen wissen</button><button class="ghost" id="allClose">Annuleren</button></div>
     <div class="msg" id="allMsg"></div>
+  </div></div>
+
+  <div id="gameModal" class="cmodal"><div class="box">
+    <h2 id="gmTitle">⚠️ Game wissen voor iedereen?</h2>
+    <p id="gmInfo"></p>
+    <p>Alle records, tijden en sterren van deze game worden bij <b>iedereen</b> gewist, en de game gaat van de ranglijst (ook in de Discord-bot). Andere games blijven staan.</p>
+    <p><b>Dit kun je niet ongedaan maken.</b> Typ <code>WISSEN</code> om te bevestigen.</p>
+    <input id="gmIn" autocomplete="off" placeholder="WISSEN">
+    <div class="mbtns"><button class="red" id="gmGo" disabled>Wissen voor iedereen</button><button class="ghost" id="gmClose">Annuleren</button></div>
+    <div class="msg" id="gmMsg"></div>
   </div></div>
 
   <script type="module">
@@ -265,7 +275,7 @@ function render() {
       if (typeof v === 'number' && v > 0 && (!best || v > best.v)) best = { v, email: u.email, name: u.raw.name };
     }
     const show = best ? (id === 'race' ? best.v + '/12 levels' : id === 'tycoon' ? 'Level ' + best.v : id === 'moto' ? best.v + '/30 ★' : best.v.toLocaleString('nl-NL')) : '–';
-    return `<tr><td>${esc(naam)}</td><td class="num">${show}</td><td>${best ? (best.name ? '<b>' + esc(best.name) + '</b> · ' : '') + '<span class="dim" style="font-style:normal">' + esc(best.email) + '</span>' : '–'}</td></tr>`;
+    return `<tr><td>${esc(naam)}</td><td class="num">${show}</td><td>${best ? (best.name ? '<b>' + esc(best.name) + '</b> · ' : '') + '<span class="dim" style="font-style:normal">' + esc(best.email) + '</span>' : '–'}</td><td><div class="acts"><button class="red" data-wg="${id}" title="Records van deze game bij alle spelers wissen">🗑️ Wis voor iedereen</button></div></td></tr>`;
   }).join('');
 }
 $('search').addEventListener('input', render);
@@ -304,12 +314,61 @@ $('mRows').addEventListener('click', async (e) => {
     // ook van de openbare ranglijst halen
     const lb = fb.doc(fb.db, 'leaderboard', open.uid);
     const ls = await fb.getDoc(lb).catch(() => null);
-    if (ls && ls.exists()) { const x = ls.data(); const sc = Object.assign({}, x.scores || {}), ex = Object.assign({}, x.extra || {}); delete sc[id]; delete ex[id]; await fb.setDoc(lb, Object.assign({}, x, { scores: sc, extra: ex })); }
+    if (ls && ls.exists()) { const x = ls.data(); const sc = Object.assign({}, x.scores || {}), ex = Object.assign({}, x.extra || {}), tm = Object.assign({}, x.times || {}); delete sc[id]; delete ex[id]; delete tm[id]; await fb.setDoc(lb, Object.assign({}, x, { scores: sc, extra: ex, times: tm })); }
     open.data = data; open.raw = Object.assign({}, raw, { data, resets });
     $('mMsg').className = 'msg ok'; $('mMsg').textContent = `${naam} is gereset. Ook op hun apparaten verdwijnt dit record zodra ze de site openen.`;
     showRows(); render();
   } catch (err) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (err.code || err.message); b.disabled = false; }
 });
+// ---------- Eén game wissen voor iedereen ----------
+const gmM = $('gameModal');
+let gmId = null;
+$('bests').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-wg]'); if (!b) return;
+  gmId = b.dataset.wg;
+  const naam = (GAMES.find((g) => g[0] === gmId) || [, gmId])[1];
+  const n = users.filter((u) => gameKeys(gmId, u.data).length).length;
+  $('gmTitle').textContent = `⚠️ ${naam} wissen voor iedereen?`;
+  $('gmInfo').innerHTML = n ? `<b>${n} ${n === 1 ? 'speler heeft' : 'spelers hebben'}</b> records of voortgang in ${esc(naam)}.` : `Nog niemand heeft records in ${esc(naam)} in zijn account. Records die alleen nog op apparaten staan worden ook gewist.`;
+  $('gmIn').value = ''; $('gmGo').disabled = true; $('gmGo').textContent = 'Wissen voor iedereen'; $('gmClose').disabled = false; $('gmClose').textContent = 'Annuleren'; $('gmMsg').textContent = ''; $('gmMsg').className = 'msg';
+  gmM.classList.add('open'); setTimeout(() => $('gmIn').focus(), 50);
+});
+$('gmClose').addEventListener('click', () => gmM.classList.remove('open'));
+gmM.addEventListener('click', (e) => { if (e.target === gmM && !$('gmClose').disabled) gmM.classList.remove('open'); });
+$('gmIn').addEventListener('input', () => { $('gmGo').disabled = $('gmIn').value.trim().toUpperCase() !== 'WISSEN'; });
+$('gmGo').addEventListener('click', async () => {
+  const id = gmId, b = $('gmGo'), m = $('gmMsg'), naam = (GAMES.find((g) => g[0] === id) || [, id])[1];
+  if (!id) return;
+  b.disabled = true; $('gmIn').disabled = true; $('gmClose').disabled = true;
+  m.className = 'msg'; m.textContent = 'Bezig…';
+  let n = 0, total = 0;
+  try {
+    // accounts: gegevens van deze game weg + markering, zodat het ook op hun apparaten verdwijnt
+    const us = await fb.getDocs(fb.collection(fb.db, 'users'));
+    const docs = us.docs.filter((d) => !d.data().deleted); total = docs.length;
+    for (const d of docs) {
+      const raw = d.data(), data = Object.assign({}, raw.data || {});
+      gameKeys(id, data).forEach((k) => delete data[k]);
+      const resets = Object.assign({}, raw.resets || {}, { [id]: fb.serverTimestamp() });
+      await fb.setDoc(d.ref || fb.doc(fb.db, 'users', d.id), Object.assign({}, raw, { data, resets, updated: fb.serverTimestamp() }));
+      n++; m.textContent = `Bezig… ${n}/${total} accounts`;
+    }
+    // ranglijst: deze game eruit (score, extra en tijden)
+    m.textContent = 'Ranglijst bijwerken…';
+    const lb = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
+    for (const d of lb.docs) {
+      const x = d.data(), sc = Object.assign({}, x.scores || {}), ex = Object.assign({}, x.extra || {}), tm = Object.assign({}, x.times || {});
+      if (!(id in sc) && !(id in ex) && !(id in tm)) continue;
+      delete sc[id]; delete ex[id]; delete tm[id];
+      await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, x, { scores: sc, extra: ex, times: tm }));
+    }
+    m.className = 'msg ok'; m.textContent = `Klaar! ${naam} is gewist bij ${n} accounts. Op ieders apparaat verdwijnt het zodra ze de site openen.`;
+    b.textContent = '✔ Gewist';
+    load();
+  } catch (e) { m.className = 'msg err'; m.textContent = `Gestopt na ${n}/${total} accounts: ` + (e.code || e.message); b.disabled = false; }
+  $('gmIn').disabled = false; $('gmClose').disabled = false; $('gmClose').textContent = 'Sluiten';
+});
+
 // ---------- Mededeling ----------
 function annPreview() {
   $('annPrevText').textContent = $('annIn').value.trim() || 'Typ hieronder je mededeling…';
