@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b4b2d030a3">
+<meta name="site-build" content="9453b3036d">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Toren Klimmer · Game Arcade</title>
@@ -613,7 +613,7 @@ const { c, ctx, view } = Arcade.canvas('c', W, H);
 const GAME = 'klimmer';
 const WALL = 22;                         // dikte van de torenmuren
 const PX_M = 10;                         // pixels per meter
-const PH = { g: 2300, run: 330, acc: 2600, air: 1700, fric: 2400, jump: 830, cut: 0.45, dbl: 720, slide: 150, wjx: 380, wjy: 780, spring: 1300, coyote: 0.1, buffer: 0.13 };
+const PH = { g: 2300, run: 330, acc: 1750, air: 1150, fric: 1900, jump: 830, cut: 0.45, dbl: 720, slide: 150, wjx: 380, wjy: 780, spring: 1300, coyote: 0.1, buffer: 0.13 };
 const PW = 24, PHT = 34;                 // speler: breedte, hoogte
 const MEDAL = ['#ffd23f', '#d5dae0', '#d08a4a'];
 
@@ -852,9 +852,9 @@ function step(dt) {
   if (Math.floor(m / 100) > lastFlag) { lastFlag = Math.floor(m / 100); pop(`🚩 ${lastFlag * 100} m!`, W / 2, P.y - 40, '#ffd23f'); Arcade.beep(660, 0.1, 'triangle', 0.05); Arcade.beep(990, 0.18, 'triangle', 0.05, 0, 0.1); if (lastFlag * 100 > flagBest) { flagBest = lastFlag * 100; Arcade.save('klimmer_flag', flagBest); } }
   score = m + coinsGot * 5;
   // lava: stijgt steeds sneller, en blijft nooit te ver achter
-  lavaV = Math.min(175, 24 + m * 0.22);
+  lavaV = Math.min(220, 40 + m * 0.35);          // 4 m/s, +3,5 m/s per 100 m, max 22 m/s
   lavaY -= lavaV * dt;
-  if (lavaY > P.y + 980) lavaY = P.y + 980;
+  if (lavaY > P.y + PHT + 650) lavaY = P.y + PHT + 650;   // nooit meer dan 65 m onder je
   if (P.y + PHT > lavaY + 6) return die('lava');
   // meer toren bouwen
   generate(P.y - H * 2);
@@ -1151,6 +1151,6 @@ window.__klim = { get t() { return t; }, get P() { return P; }, get deadWhy() { 
 ArcadeCore.cheat('🧯 Lava 100 m terug', () => { if (state === 'play') lavaY += 1000; });
 ArcadeCore.cheat('🚀 50 m omhoog', () => { if (state === 'play') { P.y -= 500; P.vy = -400; } });
   </script>
-  <script type="module" src="../auth.js?v=b4b2d030a3"></script>
+  <script type="module" src="../auth.js?v=9453b3036d"></script>
 </body>
 </html>

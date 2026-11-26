@@ -1,10 +1,14 @@
 {
- "build": "b4b2d030a3",
- "note": "Toren Klimmer heeft nu een dagranglijst: wie klimt vandaag het hoogst?",
+ "build": "9453b3036d",
+ "note": "Toren Klimmer: snellere lava en rustigere besturing!",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "🧗 Toren Klimmer: de lava stijgt sneller en de besturing is rustiger en preciezer",
+     "g": "klimmer"
+    },
     {
      "t": "📅 Toren Klimmer: dagranglijst! Elke dag begint hij leeg: wie klimt vandaag het hoogst op de dagtoren?",
      "g": "klimmer"
