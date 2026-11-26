@@ -183,7 +183,7 @@ function scoresOf(d) {
   return o;
 }
 // racegames: beste tijd per level (seconden)
-const TIMED = { race: 12, moto: 10, escape: 10, dief: 12 };
+const TIMED = { race: 20, moto: 10, escape: 10, dief: 12 };
 function timesOf(d) {
   const o = {};
   const r = J(d.tt2_bests2);
@@ -318,7 +318,7 @@ function hubUI() {
 }
 
 // ---------- Ranglijst op de startpagina ----------
-const SHOW = { race: (v) => v + '/12', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins', moto: (v) => v + '/30 ★' };
+const SHOW = { race: (v) => v + '/20', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins', moto: (v) => v + '/30 ★' };
 let boardPlayers = null;
 const boardLvl = {};
 async function loadBoard() {

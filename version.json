@@ -1,10 +1,14 @@
 {
- "build": "2755fd7edd",
- "note": "Je krijgt nu een melding als jouw idee gepland staat of is toegevoegd!",
+ "build": "10d8d7440c",
+ "note": "Turbo Tijdrit: 8 nieuwe, moeilijkere levels!",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "🏁 Turbo Tijdrit: 8 nieuwe, moeilijkere levels met haarspeldbochten, extra smalle stukken en een megaschans. Afsnijden kan nergens meer",
+     "g": "race"
+    },
     {
      "t": "🔔 Meldingen: je ziet het meteen als jouw idee (of een idee waar jij op stemde) gepland staat of is toegevoegd"
     },
