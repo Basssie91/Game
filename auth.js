@@ -544,8 +544,17 @@ async function loadSug() {
   if (isAdmin() && sugAll && !Object.keys(sugMail).length) { try { const us = await fb.getDocs(fb.collection(fb.db, 'users')); us.docs.forEach((d) => { sugMail[d.id] = d.data().email || ''; }); } catch (e) { /* geen toegang */ } }
   renderSug();
 }
-let sugShow = 6;
+let sugShow = 6, sugSort = 'new';
+const sugVotes = (x) => (Array.isArray(x.votes) ? x.votes : []);
+const canVote = (x) => x.status === 'open' || x.status === 'gepland';
 const sugColor = (n) => { let h = 0; for (const ch of String(n)) h = (h * 31 + ch.charCodeAt(0)) % 360; return `hsl(${h} 80% 68%)`; };
+function voteBtn(x) {
+  const v = sugVotes(x), mine = !!user && v.includes(user.uid), own = !!user && x.uid === user.uid, open = canVote(x);
+  const tip = !open ? 'Stemmen is gesloten' : own ? 'Dit is je eigen idee' : mine ? 'Stem weghalen' : 'Stem op dit idee';
+  return `<button type="button" class="vote${mine ? ' on' : ''}" data-vote="${escS(x.id)}" title="${tip}" aria-label="${tip} (${v.length} stemmen)" aria-pressed="${mine}"${!open || own ? ' disabled' : ''}><span class="th">👍</span><b>${v.length}</b></button>`;
+}
+let toastT = 0;
+function sugToast(t) { const el = document.getElementById('sugToast'); if (!el) return; el.textContent = t; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 3200); }
 function renderSug() {
   const ul = document.getElementById('sugList'); if (!ul) return;
   // ingelogd: tekstvak, anders een knop om in te loggen
@@ -556,6 +565,9 @@ function renderSug() {
   const isOpen = (x) => x.status === 'open' || x.status === 'gepland';
   const want = (x) => sugTab === 'open' ? isOpen(x) : x.status === sugTab;
   const list = sugAll.filter(want);
+  if (sugSort === 'top') list.sort((p, q) => sugVotes(q).length - sugVotes(p).length || q.t - p.t);
+  // 🔥 bij de 3 open suggesties met de meeste stemmen (minstens 3)
+  const hot = new Set(sugAll.filter((x) => canVote(x) && sugVotes(x).length >= 3).sort((p, q) => sugVotes(q).length - sugVotes(p).length).slice(0, 3).map((x) => x.id));
   const nOpen = sugAll.filter(isOpen).length;
   document.getElementById('sugCount').textContent = nOpen + ' open';
   const cnt = { open: nOpen, toegevoegd: sugAll.filter((x) => x.status === 'toegevoegd').length, gesloten: sugAll.filter((x) => x.status === 'gesloten').length };
@@ -565,6 +577,7 @@ function renderSug() {
   ul.innerHTML = list.slice(0, sugShow).map((x, i) => { const nm = x.name || 'Speler'; return `<li class="s-${escS(x.status)}" style="animation-delay:${Math.min(i, 12) * 0.03}s">
     <div class="sugtop"><span class="sav" style="background:${sugColor(nm)}">${escS(nm.trim().charAt(0).toUpperCase() || '?')}</span><div class="sugwho"><b>${escS(nm)}</b><span>${x.t ? ago(x.t) : ''}</span></div><span class="sbadge ${escS(x.status)}">${SUG_ST[x.status] || escS(x.status)}</span></div>
     <div class="sugtxt">${escS(x.text || '')}</div>
+    <div class="sugfoot">${hot.has(x.id) ? '<span class="sughot">🔥 Populair</span>' : ''}${voteBtn(x)}</div>
     ${adm ? `<div class="sugadm" data-id="${x.id}">${x.status !== 'gepland' ? '<button data-st="gepland">🛠️ Gepland</button>' : ''}${x.status !== 'toegevoegd' ? '<button data-st="toegevoegd">✅ Toegevoegd</button>' : ''}${x.status !== 'gesloten' ? '<button data-st="gesloten">✕ Sluiten</button>' : ''}${x.status !== 'open' ? '<button data-st="open">↺ Weer open</button>' : ''}<button class="del" data-del="1">🗑️ Verwijderen</button><small style="color:#8c8c8c;align-self:center">${escS(sugMail[x.uid] || '')}</small></div>` : ''}
   </li>`; }).join('');
   if (more) { const rest = list.length - sugShow; more.hidden = rest <= 0; more.textContent = `Meer laten zien (${rest})`; }
@@ -599,7 +612,22 @@ function initSug() {
   document.querySelectorAll('.sugtabs button').forEach((b) => b.addEventListener('click', () => {
     sugTab = b.dataset.s; sugShow = 6; document.querySelectorAll('.sugtabs button').forEach((x) => x.classList.toggle('on', x === b)); renderSug();
   }));
+  document.querySelectorAll('.sugsort button').forEach((b) => b.addEventListener('click', () => {
+    sugSort = b.dataset.o; sugShow = 6; document.querySelectorAll('.sugsort button').forEach((x) => x.classList.toggle('on', x === b)); renderSug();
+  }));
   document.getElementById('sugList').addEventListener('click', async (e) => {
+    const vb = e.target.closest('[data-vote]');
+    if (vb) {   // 👍 stemmen: meteen tonen, daarna opslaan (bij een fout terugdraaien)
+      if (!user) { gate(true); return; }
+      const x = sugAll && sugAll.find((s) => s.id === vb.dataset.vote); if (!x || !canVote(x) || x.uid === user.uid) return;
+      const had = sugVotes(x).includes(user.uid), before = sugVotes(x);
+      x.votes = had ? before.filter((u) => u !== user.uid) : before.concat(user.uid);
+      renderSug();
+      if (!had) { const nb = document.querySelector(`[data-vote="${CSS.escape(x.id)}"]`); if (nb) nb.classList.add('pop'); }
+      try { await fb.updateDoc(fb.doc(fb.db, 'suggestions', x.id), { votes: had ? fb.arrayRemove(user.uid) : fb.arrayUnion(user.uid) }); }
+      catch (err) { x.votes = before; renderSug(); sugToast(err && err.code === 'permission-denied' ? 'Stemmen lukt nog niet: de Firebase-regels moeten nog worden bijgewerkt.' : 'Stemmen lukte niet. Probeer het zo nog eens.'); }
+      return;
+    }
     const b = e.target.closest('button'); if (!b || !isAdmin()) return;
     const id = b.closest('.sugadm').dataset.id;
     try {

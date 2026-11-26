@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="7a533cad3a">
+<meta name="site-build" content="12dd1d31a3">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Game Arcade · gratis browsergames</title>
@@ -201,7 +201,29 @@ a.card:hover .meta .arr { background: #fff; color: #0a0a0a; border-color: #fff; 
 .suglogin { position: relative; z-index: 1; width: 100%; height: 52px; border: 0; border-radius: 14px; background: #fff; color: #0a0a0a; font: 800 15px inherit; font-family: inherit; cursor: pointer; transition: background .15s; }
 .suglogin:hover { background: #ffd23f; }
 /* tabbladen */
-.sugtabs { display: flex; gap: 6px; margin: 20px 0 12px; flex-wrap: wrap; }
+.sugbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 20px 0 12px; }
+.sugtabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.sugsort { display: inline-flex; padding: 3px; border-radius: 99px; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
+.sugsort button { border: 0; background: none; color: var(--mut); border-radius: 99px; padding: 5px 12px; font: 700 12.5px inherit; font-family: inherit; cursor: pointer; transition: background .15s, color .15s; }
+.sugsort button:hover { color: #fff; }
+.sugsort button.on { background: rgba(255,255,255,.12); color: #fff; }
+/* stemmen */
+.sugfoot { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.sughot { font: 800 10.5px ui-monospace, Consolas, monospace; letter-spacing: 1px; padding: 4px 8px; border-radius: 99px; background: rgba(255,120,60,.15); color: #ff9a5c; text-transform: uppercase; }
+.vote { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line2); background: rgba(255,255,255,.04); color: #fff; font: 800 14px inherit; font-family: inherit; cursor: pointer; transition: border-color .15s, background .15s, color .15s, transform .12s; }
+.vote .th { font-size: 16px; line-height: 1; filter: grayscale(1) brightness(1.6); transition: filter .15s, transform .2s; }
+.vote b { font: 800 13px ui-monospace, Consolas, monospace; min-width: 10px; text-align: center; }
+.vote:hover:not(:disabled) { border-color: #ffd23f; background: rgba(255,210,63,.08); }
+.vote:hover:not(:disabled) .th { transform: rotate(-12deg) scale(1.1); }
+.vote:active:not(:disabled) { transform: scale(.94); }
+.vote.on { background: #ffd23f; border-color: #ffd23f; color: #0a0a0a; }
+.vote.on .th { filter: none; }
+.vote.on:hover:not(:disabled) { background: #ffdf6b; }
+.vote:disabled { cursor: default; opacity: .7; }
+.vote.pop .th { animation: votePop .45s ease; }
+@keyframes votePop { 30% { transform: scale(1.6) rotate(-18deg); } 60% { transform: scale(.9); } }
+#sugToast { position: fixed; left: 16px; right: 16px; bottom: 22px; z-index: 95; width: fit-content; max-width: 520px; margin: 0 auto; text-align: center; transform: translateY(20px); opacity: 0; pointer-events: none; padding: 12px 18px; border-radius: 12px; background: #1b1b1b; border: 1px solid var(--line2); color: #fff; font-size: 14px; font-weight: 700; box-shadow: 0 14px 40px rgba(0,0,0,.5); transition: opacity .2s, transform .2s; }
+#sugToast.show { opacity: 1; transform: translateY(0); }
 .sugtabs button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line2); background: none; color: var(--soft); border-radius: 99px; padding: 7px 8px 7px 14px; font: 700 13px inherit; font-family: inherit; cursor: pointer; transition: border-color .15s; }
 .sugtabs button:hover { border-color: #fff; }
 .sugtabs button i { font: 800 11px ui-monospace, Consolas, monospace; font-style: normal; min-width: 22px; padding: 2px 6px; border-radius: 99px; background: rgba(255,255,255,.1); color: #fff; text-align: center; }
@@ -225,7 +247,7 @@ a.card:hover .meta .arr { background: #fff; color: #0a0a0a; border-color: #fff; 
 .sugwho span { color: var(--mut); font-size: 12px; }
 .sbadge { margin-left: auto; flex: none; font: 800 10.5px ui-monospace, Consolas, monospace; letter-spacing: 1px; padding: 4px 9px; border-radius: 99px; background: rgba(255,255,255,.08); color: var(--soft); text-transform: uppercase; }
 .sbadge.gepland { background: rgba(255,210,63,.14); color: #ffd23f; } .sbadge.toegevoegd { background: rgba(123,216,143,.15); color: #7bd88f; } .sbadge.gesloten { color: #8c8c8c; }
-.sugtxt { color: #e6e6e6; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.sugtxt { flex: 1; color: #e6e6e6; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 .sugadm { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line2); }
 .sugadm button { border: 1px solid var(--line2); background: rgba(255,255,255,.03); color: #fff; border-radius: 99px; padding: 5px 11px; font: 700 12px inherit; font-family: inherit; cursor: pointer; transition: border-color .15s, background .15s; }
 .sugadm button:hover { border-color: #fff; background: rgba(255,255,255,.08); } .sugadm button.del { color: #ff8a8a; } .sugadm button.del:hover { border-color: #ff8a8a; } .sugadm button.sure { background: #ff3b3b; color: #fff; border-color: #ff3b3b; }
@@ -484,9 +506,13 @@ footer { margin-top: 46px; padding-top: 22px; border-top: 1px solid var(--line);
             </form>
             <button type="button" class="suglogin" id="sugLogin">🔑 Log in om je idee in te sturen</button>
           </div>
-          <div class="sugtabs"><button data-s="open" class="on">💡 Open<i id="sugN_open">0</i></button><button data-s="toegevoegd">✅ Toegevoegd<i id="sugN_toegevoegd">0</i></button><button data-s="gesloten">Gesloten<i id="sugN_gesloten">0</i></button></div>
+          <div class="sugbar">
+            <div class="sugtabs"><button data-s="open" class="on">💡 Open<i id="sugN_open">0</i></button><button data-s="toegevoegd">✅ Toegevoegd<i id="sugN_toegevoegd">0</i></button><button data-s="gesloten">Gesloten<i id="sugN_gesloten">0</i></button></div>
+            <div class="sugsort" role="group" aria-label="Sorteren"><button data-o="new" class="on">🕒 Nieuwste</button><button data-o="top">🔥 Populairste</button></div>
+          </div>
           <ul id="sugList"><li class="sempty">Laden…</li></ul>
           <button type="button" id="sugMore" hidden>Meer laten zien</button>
+          <div id="sugToast" role="status" aria-live="polite"></div>
         </section>
       </div>
       <aside id="board">
@@ -1011,6 +1037,6 @@ ArcadeCore.music.play('menu');
   });
 })();
 </script>
-  <script type="module" src="auth.js?v=7a533cad3a"></script>
+  <script type="module" src="auth.js?v=12dd1d31a3"></script>
 </body>
 </html>

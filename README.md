@@ -33,7 +33,7 @@ Gratis browsergames die je meteen kunt spelen, op pc en op je telefoon.
 - **Ranglijst:** de beste spelers per game. De Discord-bot leest dezelfde ranglijst.
 - **Favorieten:** zet met de ★ je lievelingsgames bovenaan het startscherm.
 - **Verder spelen:** je laatst gespeelde games staan bovenaan.
-- **Suggestiebord:** iedereen kan de ideeën lezen, ingelogde spelers kunnen er zelf een insturen.
+- **Suggestiebord:** iedereen kan de ideeën lezen, ingelogde spelers kunnen er zelf een insturen en met 👍 stemmen op andermans ideeën (sorteren op Nieuwste of Populairste).
 - **🎁 Nieuw-knop:** bovenaan het startscherm, met alle updates (de nieuwste bovenaan). Nieuwe updates zet je bovenaan het `log` in `version.json`.
 - **Updatemelding:** komt er een nieuwe versie online, dan krijg je een melding met wat er nieuw is.
 - **Admin** (`admin/`): mededelingen plaatsen en de ranglijst beheren. Suggesties beheert de admin op het startscherm.

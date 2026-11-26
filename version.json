@@ -1,10 +1,13 @@
 {
- "build": "7a533cad3a",
- "note": "Het suggestiepaneel heeft een nieuw, mooier jasje!",
+ "build": "12dd1d31a3",
+ "note": "Stem met 👍 op de suggesties die jij ook wilt!",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "👍 Stemmen op suggesties, en sorteren op Nieuwste of Populairste"
+    },
     {
      "t": "💡 Suggesties in een nieuw jasje: kaarten met kleur, tellers per tabblad en \"Meer laten zien\""
     }
