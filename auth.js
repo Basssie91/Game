@@ -174,7 +174,7 @@ async function push(force) {
 }
 
 // ---------- Openbare ranglijst (ook gelezen door de Discord-bot) ----------
-const BOARD = ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack', 'tycoon'];
+const BOARD = ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack', 'tycoon', 'basket', 'penalty', 'pool'];
 function scoresOf(d) {
   const o = {};
   for (const g of BOARD) { const v = J(d['arcade_best_' + g]); if (typeof v === 'number' && v > 0) o[g] = Math.round(v); }
@@ -318,7 +318,7 @@ function hubUI() {
 }
 
 // ---------- Ranglijst op de startpagina ----------
-const SHOW = { race: (v) => v + '/20', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins' };
+const SHOW = { race: (v) => v + '/20', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins', basket: (v) => v + ' punten', penalty: (v) => v + ' op rij', pool: (v) => v + '/8 rondes' };
 let boardPlayers = null;
 const boardLvl = {};
 // ---------- Ranglijst ook in de games: wie heeft de snelste tijd? ----------
@@ -343,7 +343,68 @@ window.ArcadeBoard = {
   },
   loggedIn: () => !!user,
   hasName: () => !!myName,
+  // hoogste score van een ANDER
+  topScore(game) {
+    const me = user && user.uid;
+    return (this.players || []).filter((p) => p.uid !== me && p.scores && typeof p.scores[game] === 'number' && p.scores[game] > 0)
+      .map((p) => ({ name: p.name, v: p.scores[game] })).sort((a, b) => b.v - a.v)[0] || null;
+  },
+  // ---------- Recordkaart: na een potje zien of jij het record van iedereen hebt ----------
+  // value = wat je net haalde, opts.best = jouw beste ooit, opts.level = level/kamer (bij tijden), opts.time = lager is beter
+  card(game, value, opts = {}) {
+    const token = (this._tok = (this._tok || 0) + 1);
+    const box = cardEl();
+    const f = opts.fmt || (opts.time ? fmtT : (v) => Math.round(v).toLocaleString('nl-NL'));
+    box.innerHTML = `<button class="abx" aria-label="Sluiten">✕</button><b>🌍 Record van iedereen laden…</b>`;
+    box.className = 'show'; this._shown = performance.now();
+    clearTimeout(this._hideT); this._hideT = setTimeout(() => this.hideCard(), 15000);
+    this.load(true).then((pl) => {
+      if (token !== this._tok) return;
+      if (!pl) { this.hideCard(); return; }
+      const mine = opts.best != null ? opts.best : value;
+      let t1, t2, t3 = '', top;
+      if (opts.time) {
+        const o = this.fastest(game, opts.level);
+        top = !o || mine < o.t - 0.005;
+        if (!o) { t1 = '👑 Jij bent de eerste die dit haalt!'; t2 = `Snelste tijd: ${f(mine)}`; }
+        else if (top) { t1 = value <= mine + 0.005 ? '👑 Jij hebt de snelste tijd van iedereen!' : '👑 Jij hebt nog steeds de snelste tijd!'; t2 = `${f(mine)} · ${(o.t - mine).toFixed(2)} sneller dan ${esc(o.name)} (${f(o.t)})`; }
+        else { t1 = `🌍 Snelste tijd: ${esc(o.name)} · ${f(o.t)}`; t2 = `Jouw tijd: ${f(value)} · +${(value - o.t).toFixed(2)} langzamer`; }
+      } else {
+        const o = this.topScore(game);
+        top = !o || mine > o.v;
+        if (!o) { t1 = '👑 Jij bent de eerste op de ranglijst!'; t2 = `${opts.label || 'Jouw record'}: ${f(mine)}`; }
+        else if (top) { t1 = value >= mine ? '👑 Jij hebt het record van iedereen!' : '👑 Jij hebt nog steeds het record!'; t2 = `${f(mine)} · ${f(mine - o.v)} meer dan ${esc(o.name)} (${f(o.v)})`; }
+        else { t1 = `🌍 Record: ${esc(o.name)} · ${f(o.v)}`; t2 = `${opts.label || 'Jouw score'}: ${f(value)} · nog ${f(o.v - value)} te gaan`; }
+      }
+      if (top && !user) t3 = 'Log in om op de ranglijst te komen!';
+      else if (top && !myName) t3 = 'Kies op de startpagina een spelersnaam voor de ranglijst!';
+      box.className = 'show' + (top ? ' top' : '');
+      box.innerHTML = `<button class="abx" aria-label="Sluiten">✕</button><b>${t1}</b><span>${t2}</span>${t3 ? `<em>${t3}</em>` : ''}`;
+      if (top && value === mine) { try { if (typeof Arcade !== 'undefined' && Arcade.beep) { Arcade.beep(880, 0.12, 'triangle', 0.05); Arcade.beep(1175, 0.25, 'triangle', 0.05, 0, 0.12); } } catch (e) { /* geen geluid */ } }
+    }).catch(() => { if (token === this._tok) this.hideCard(); });
+  },
+  hideCard() { const b = document.getElementById('abCard'); if (b) b.className = ''; this._tok = (this._tok || 0) + 1; },
 };
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+function cardEl() {
+  let b = document.getElementById('abCard');
+  if (b) return b;
+  const st = document.createElement('style');
+  st.textContent = `#abCard{position:fixed;left:50%;top:64px;z-index:9000;transform:translate(-50%,-16px);opacity:0;pointer-events:none;width:min(440px,calc(100% - 24px));padding:12px 40px 12px 16px;border-radius:14px;background:rgba(16,17,21,.94);border:1px solid rgba(255,255,255,.2);box-shadow:0 14px 40px rgba(0,0,0,.5);color:#fff;font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;transition:opacity .25s,transform .25s;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+#abCard.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#abCard.top{border:2px solid rgba(255,210,63,.85);background:linear-gradient(rgba(255,210,63,.14),rgba(255,210,63,.06)),rgba(16,17,21,.95)}
+#abCard b{display:block;font-size:16px;font-weight:900;line-height:1.3}#abCard.top b{color:#ffd23f}
+#abCard span{display:block;margin-top:4px;color:#c9ced6;font-size:13px}#abCard em{display:block;margin-top:4px;color:#6dff9a;font-style:normal;font-weight:800;font-size:12.5px}
+#abCard .abx{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:none;color:#fff;font-size:11px;cursor:pointer}`;
+  document.head.appendChild(st);
+  b = document.createElement('div'); b.id = 'abCard'; document.body.appendChild(b);
+  b.addEventListener('click', (e) => { if (e.target.closest('.abx')) window.ArcadeBoard.hideCard(); });
+  // opnieuw spelen = kaart weg (na even, zodat de toets/tik van het potje zelf hem niet meteen weghaalt)
+  const away = (e) => { if (!b.className || performance.now() - (window.ArcadeBoard._shown || 0) < 1200 || b.contains(e.target)) return; window.ArcadeBoard.hideCard(); };
+  addEventListener('keydown', (e) => { if (['Space', 'Enter', 'KeyR', 'Escape'].includes(e.code)) away(e); });
+  addEventListener('pointerdown', away);
+  return b;
+}
 async function loadBoard() {
   if (!fb) return;
   try {
@@ -382,7 +443,7 @@ function renderBoard() {
 }
 
 // ---------- Profiel ----------
-const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['escape', '🔐', 'Escape Room'], ['dief', '🕵️', 'Nachtdief'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['stack', '🏗️', 'Stack Tower']];
+const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['escape', '🔐', 'Escape Room'], ['dief', '🕵️', 'Nachtdief'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['stack', '🏗️', 'Stack Tower'], ['basket', '🏀', 'Basket Koning'], ['penalty', '⚽', 'Penalty Koning'], ['pool', '🎱', 'Pool']];
 // snelste tijden op één level
 function levelRanking(id, l) {
   return boardPlayers.filter((p) => p.times && p.times[id] && p.times[id][l] != null).map((p) => ({ p, v: p.times[id][l] })).sort((a, b) => a.v - b.v);
@@ -396,7 +457,7 @@ function gameRanking(id) {
   }
   return boardPlayers.filter((p) => p.scores && p.scores[id] > 0).map((p) => ({ p, v: p.scores[id] })).sort((a, b) => b.v - a.v);
 }
-const KL_GAMES = ['race', 'escape', 'dief', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack'];
+const KL_GAMES = ['race', 'escape', 'dief', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack', 'basket', 'penalty', 'pool'];
 function klassement() {
   const pts = new Map();
   for (const id of KL_GAMES) gameRanking(id).slice(0, 3).forEach((r, i) => pts.set(r.p.uid, (pts.get(r.p.uid) || 0) + 3 - i));

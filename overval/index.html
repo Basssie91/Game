@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b2a56428c1">
+<meta name="site-build" content="1087efaf2f">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Robo Overval · Game Arcade</title>
@@ -2499,7 +2499,9 @@ function finish() {
   const score = loot + timeBonus;
   const prev = bests[mi], record = prev == null || score > prev;
   if (record) { bests[mi] = score; Arcade.save('overval_bests', bests); }
-  Arcade.save('best_overval', Object.values(bests).reduce((a, b) => a + b, 0));
+  const tot = Object.values(bests).reduce((a, b) => a + b, 0);
+  Arcade.save('best_overval', tot);
+  if (window.ArcadeBoard) ArcadeBoard.card('overval', tot, { best: tot, label: 'Jouw totaal (alle locaties)' });   // recordkaart
   result = { score, loot, timeBonus, kills, heads, t, record, prev };
   state = 'done'; mouseDown = false;
   if (document.pointerLockElement) document.exitPointerLock();
@@ -3050,6 +3052,6 @@ if (renderer) {
 requestAnimationFrame(loop);
 
   </script>
-  <script type="module" src="../auth.js?v=b2a56428c1"></script>
+  <script type="module" src="../auth.js?v=1087efaf2f"></script>
 </body>
 </html>

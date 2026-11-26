@@ -1,10 +1,13 @@
 {
- "build": "b2a56428c1",
- "note": "Moto Stunt is tijdelijk weg: we bouwen hem later opnieuw.",
+ "build": "1087efaf2f",
+ "note": "Na elk potje zie je nu of jij het record van iedereen hebt!",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "🌍 Recordkaart: na elk potje zie je of jij het record van iedereen hebt (bij 13 games). Basket Koning, Penalty Koning en Pool staan nu ook op de ranglijst"
+    },
     {
      "t": "🏍️ Moto Stunt is tijdelijk weg: we bouwen hem later opnieuw"
     },

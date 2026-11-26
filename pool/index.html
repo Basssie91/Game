@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b2a56428c1">
+<meta name="site-build" content="1087efaf2f">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Pool · Game Arcade</title>
@@ -905,11 +905,12 @@ function finishMatch(winner, why) {
   if (winner === 0) {
     tour.round++;
     newRecord = Arcade.record(GAME, tour.round);
-    if (tour.round >= ROUNDS.length) { overInfo = { title: '🏆 Kampioen!', lines: [why, 'Je hebt alle 8 rondes gewonnen'], done: true }; tour = null; Arcade.save(TOUR_KEY, null); }
+    if (tour.round >= ROUNDS.length) { if (window.ArcadeBoard) ArcadeBoard.card('pool', tour.round, { best: Arcade.best(GAME), label: 'Jouw toernooi', fmt: (v) => v + '/8 rondes' }); overInfo = { title: '🏆 Kampioen!', lines: [why, 'Je hebt alle 8 rondes gewonnen'], done: true }; tour = null; Arcade.save(TOUR_KEY, null); }
     else { saveTour(); overInfo = { title: 'Gewonnen!', lines: [why, `Volgende: ${ROUNDS[tour.round]}`], next: true }; }
     Arcade.beep(523, 0.2, 'square', 0.05); Arcade.beep(784, 0.4, 'square', 0.05, 0, 0.2);
   } else {
     overInfo = { title: 'Verloren', lines: [why, `${round()} van 8 rondes gewonnen`], done: true };
+    if (window.ArcadeBoard) ArcadeBoard.card('pool', round(), { best: Arcade.best(GAME), label: 'Jouw toernooi', fmt: (v) => v + '/8 rondes' });   // recordkaart
     tour = null; Arcade.save(TOUR_KEY, null);
     Arcade.beep(300, 0.5, 'sawtooth', 0.04, -150);
   }
@@ -1379,6 +1380,6 @@ window.__pool = { runShot: () => { for (let k = 0; k < 30000 && moving; k++) { s
   setMode: (m) => { mode = m; }, setTour: (t) => { tour = t; }, picks, startMatch, shoot, botThink, placeCue, usePower, blockPocket, judge, step, endShot, finishMatch, bestShot };
 
   </script>
-  <script type="module" src="../auth.js?v=b2a56428c1"></script>
+  <script type="module" src="../auth.js?v=1087efaf2f"></script>
 </body>
 </html>

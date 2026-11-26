@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b2a56428c1">
+<meta name="site-build" content="1087efaf2f">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Basket Koning · Game Arcade</title>
@@ -888,6 +888,7 @@ function raceUpdate(dt) {
 function endRace() {
   state = 'over';
   const rec = Arcade.record(GAME, racePts); best = Arcade.best(GAME);
+  if (window.ArcadeBoard) ArcadeBoard.card('basket', racePts, { best, label: 'Jouw punten' });   // recordkaart
   overInfo = { title: 'Tijd!', lines: [`${racePts} punten`, `${raceHits} van ${raceShots} raak`, rec ? { t: '🏆 Nieuw record!', color: '#ffd23f' } : `Record: ${best}`], race: true };
   sfx.buzzer();
 }
@@ -1268,6 +1269,6 @@ ArcadeCore.cheat('⏭️ Toernooi: ronde overslaan', () => { if (tour && tour.ro
 window.__bk = { get state() { return state; }, get P() { return P; }, get ball() { return ball; }, get score() { return score; }, startMatch, release, get racePts() { return racePts; }, aimVel, HOOPS, keys, setDrag: (d) => { drag = d; }, raceShoot, finishMatch };
 
   </script>
-  <script type="module" src="../auth.js?v=b2a56428c1"></script>
+  <script type="module" src="../auth.js?v=1087efaf2f"></script>
 </body>
 </html>

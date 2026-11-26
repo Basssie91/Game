@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b2a56428c1">
+<meta name="site-build" content="1087efaf2f">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Escape Room · Game Arcade</title>
@@ -1902,6 +1902,7 @@ function finish() {
   state = 'done'; OV.isOpen && OV.close();
   const t = G.t, prev = bests[G.li], rec = prev == null || t < prev;
   if (rec) { bests[G.li] = Math.round(t * 10) / 10; Arcade.save('escape_bests', bests); }
+  if (window.ArcadeBoard) ArcadeBoard.card('escape', t, { time: true, level: G.li, best: bests[G.li] });   // recordkaart
   const n = Object.keys(bests).length; Arcade.save('best_escape', n);
   prog = null; Arcade.save('escape_prog', null);
   sfx.win();
@@ -2027,6 +2028,6 @@ ArcadeCore.cheat('🔓 Alle kamers ontgrendelen', () => { Arcade.save('escape_un
 ArcadeCore.cheat('⏱️ Tijd van deze kamer op 0', () => { G.t = 0; });
 
   </script>
-  <script type="module" src="../auth.js?v=b2a56428c1"></script>
+  <script type="module" src="../auth.js?v=1087efaf2f"></script>
 </body>
 </html>

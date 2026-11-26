@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b2a56428c1">
+<meta name="site-build" content="1087efaf2f">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Nachtdief · Game Arcade</title>
@@ -1201,6 +1201,7 @@ function win() {
   if (rec) bests[li] = time;
   starsS[li] = Math.max(starsS[li] || 0, st);
   saveProgress();
+  if (window.ArcadeBoard) ArcadeBoard.card('dief', time, { time: true, level: li, best: bests[li] });   // recordkaart
   winInfo = { time, st, rec, prev };
   state = 'win';
   [523, 659, 784, 1047].forEach((f, i) => Arcade.beep(f, 0.16, 'square', 0.05, 0, i * 0.11));
@@ -1673,6 +1674,6 @@ ArcadeCore.cheat('⏱️ Tijd op 0', () => { t = 0; });
 window.__dief = { get P() { return P; }, get state() { return state; }, load, get guards() { return guards; }, get cams() { return cams; }, interact, keys, win, get t() { return t; }, get loot() { return loot; }, LEVELS, setState: (s) => { state = s; }, crackPress, get crack() { return crack; } };
 
   </script>
-  <script type="module" src="../auth.js?v=b2a56428c1"></script>
+  <script type="module" src="../auth.js?v=1087efaf2f"></script>
 </body>
 </html>

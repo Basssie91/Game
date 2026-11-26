@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b2a56428c1">
+<meta name="site-build" content="1087efaf2f">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Meteorenregen 2.0 · Game Arcade</title>
@@ -758,6 +758,7 @@ function hurt() {
     overT = 1;
     newRecord = Arcade.record(GAME, score);
     best = Arcade.best(GAME);
+    if (window.ArcadeBoard) ArcadeBoard.card('meteoren', score, { best });   // recordkaart
     Arcade.beep(260, 0.7, 'sawtooth', 0.06, -200);
   }
 }
@@ -1098,6 +1099,6 @@ ArcadeCore.cheat('💥 Alle meteoren opblazen', () => { if (state === 'play' && 
 ArcadeCore.cheat('👾 Baas bijna verslagen', () => { if (boss) boss.hp = 1; });
 
   </script>
-  <script type="module" src="../auth.js?v=b2a56428c1"></script>
+  <script type="module" src="../auth.js?v=1087efaf2f"></script>
 </body>
 </html>

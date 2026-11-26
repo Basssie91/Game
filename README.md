@@ -30,6 +30,7 @@ Gratis browsergames die je meteen kunt spelen, op pc en op je telefoon.
 
 - **Inloggen:** je records en voortgang worden in je account bewaard, zodat je op elk apparaat verder kunt spelen. Zonder account kun je je records ook overzetten met een code.
 - **Ranglijst:** de beste spelers per game. De Discord-bot leest dezelfde ranglijst.
+- **Recordkaart:** na een potje of level zie je bovenin of jij het record van iedereen hebt, of wie het heeft en hoeveel je nog te gaan hebt.
 - **Favorieten:** zet met de ★ je lievelingsgames bovenaan het startscherm.
 - **Verder spelen:** je laatst gespeelde games staan bovenaan.
 - **Suggestiebord:** iedereen kan de ideeën lezen, ingelogde spelers kunnen er zelf een insturen en met 👍 stemmen op andermans ideeën (sorteren op Nieuwste of Populairste).

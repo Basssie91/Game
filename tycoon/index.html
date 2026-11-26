@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b2a56428c1">
+<meta name="site-build" content="1087efaf2f">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>PC Tycoon · Game Arcade</title>
@@ -1477,7 +1477,7 @@ function onLevelDone() {
   save();
   const next = levelCfg(SV.level + 1);
   modal(`<h2>🏬 Op naar een grotere winkel!</h2><p>Je hebt <b>${LV.naam}</b> helemaal uitgebouwd. Je gaat nu naar <b>Level ${SV.level + 1}: ${next.naam}</b> met ${next.prods.length} producten${next.regs > 1 ? ` en ${next.regs} kassa's` : ''}.</p><p>Je upgrades (hardlopen, sterke armen…) neem je mee. Alles is daar meer waard!</p>`,
-    [{ label: 'Verhuizen! 🚚', pri: true, fn: () => { const keep = { up: SV.up, stats: SV.stats, best: Math.max(SV.best, SV.level + 1), money: 0 }; keep.stats.levels++; SV = freshSave(SV.level + 1, keep); startLevel(); save(); toast(`Welkom in ${LV.naam}!`); } }]);
+    [{ label: 'Verhuizen! 🚚', pri: true, fn: () => { const keep = { up: SV.up, stats: SV.stats, best: Math.max(SV.best, SV.level + 1), money: 0 }; keep.stats.levels++; SV = freshSave(SV.level + 1, keep); startLevel(); save(); toast(`Welkom in ${LV.naam}!`); if (window.ArcadeBoard) ArcadeBoard.card('tycoon', SV.level, { best: SV.best, label: 'Jouw winkel', fmt: (v) => 'Level ' + v }); } }]);
 }
 
 // ----- Start -----
@@ -1535,6 +1535,6 @@ requestAnimationFrame(loop);
 window.__shop = { get SV() { return SV; }, get PL() { return PL; }, E, get LV() { return LV; }, unlock, keys, joy };
 
   </script>
-  <script type="module" src="../auth.js?v=b2a56428c1"></script>
+  <script type="module" src="../auth.js?v=1087efaf2f"></script>
 </body>
 </html>

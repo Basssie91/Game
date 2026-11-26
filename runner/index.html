@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b2a56428c1">
+<meta name="site-build" content="1087efaf2f">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Neon Runner · Game Arcade</title>
@@ -684,6 +684,7 @@ function crash() {
   const sc = score();
   newRecord = Arcade.record(GAME, sc);
   best = Arcade.best(GAME);
+  if (window.ArcadeBoard) ArcadeBoard.card('runner', sc, { best });   // recordkaart
   for (let i = 0; i < 40; i++) parts.push({ x: W / 2 + pl.x * 150, y: 560, vx: rand(-260, 260), vy: rand(-320, 60), life: rand(0.4, 1), color: i % 2 ? '#3fe0ff' : '#ffffff' });
   Arcade.beep(120, 0.6, 'sawtooth', 0.08, -70); Arcade.noise(0.7, 0.16, 2000, 80);
 }
@@ -953,6 +954,6 @@ ArcadeCore.cheat('🧲 Magneet voor de hele run', () => { if (pl) pl.magnet = 99
 ArcadeCore.cheat('➕ 100 munten', () => { if (state === 'play') coinCount += 100; });
 
   </script>
-  <script type="module" src="../auth.js?v=b2a56428c1"></script>
+  <script type="module" src="../auth.js?v=1087efaf2f"></script>
 </body>
 </html>
