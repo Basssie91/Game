@@ -20,7 +20,7 @@ Gratis browsergames die je meteen kunt spelen, op pc en op je telefoon.
 | 🔐 **Escape Room** | `escape/` | 10 moeilijke 3D-kamers vol codes, sloten en puzzels: ontsnap zo snel mogelijk |
 | 🏍️ **Moto Stunt** | `moto/` | 3D-stuntrace over schansen en loopings: elke salto haalt tijd eraf, haal overal 3 sterren |
 | 🖥️ **PC Tycoon** | `tycoon/` | Run je eigen pc-winkel: vul de schappen, reken af en bouw steeds grotere winkels |
-| 🗼 **Robo Defense** | `td/` | Tower defense: torens bouwen en upgraden tegen golven robots op 9 kaarten. Je potje wordt opgeslagen, dus je kunt later verder |
+| 🗼 **Robo Defense** | `td/` | Tower defense: torens bouwen en upgraden tegen golven robots op 9 kaarten, vanaf kaart 4 met Herstellers, Spookrobots, Storers en Titans. Je potje wordt opgeslagen, dus je kunt later verder |
 | ☄️ **Meteorenregen 2.0** | `meteoren/` | Schiet meteoren en vijanden kapot. Je kanon raakt oververhit en elke minuut komt er een baas |
 | 🏃 **Neon Runner** | `runner/` | 3-baans endless runner: springen, bukken en munten pakken in een neonwereld |
 | 🐍 **Snake 2.0** | `snake/` | Snake met gouden appels, power-ups en levels met muren |

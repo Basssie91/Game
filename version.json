@@ -1,10 +1,14 @@
 {
- "build": "10d8d7440c",
- "note": "Turbo Tijdrit: 8 nieuwe, moeilijkere levels!",
+ "build": "7a38f8b22e",
+ "note": "Robo Defense: 4 nieuwe, sterke robots. Kun jij het zonder levens verlies halen?",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "🤖 Robo Defense: nieuwe sterke robots vanaf kaart 4: Hersteller, Spookrobot, Storer en de Titan. Echt moeilijk, maar zonder levensverlies te halen!",
+     "g": "td"
+    },
     {
      "t": "🏁 Turbo Tijdrit: 8 nieuwe, moeilijkere levels met haarspeldbochten, extra smalle stukken en een megaschans. Afsnijden kan nergens meer",
      "g": "race"

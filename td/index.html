@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="10d8d7440c">
+<meta name="site-build" content="7a38f8b22e">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Robo Defense · Game Arcade</title>
@@ -644,6 +644,19 @@ const ENEMIES = {
   sprinter: { hp: 30, sp: 145, reward: 5, r: 8, col: '#ffd23f' },
   schild: { hp: 95, sp: 44, reward: 12, r: 14, col: '#5ab8ff', armor: 12 },
   splitter: { hp: 75, sp: 50, reward: 8, r: 13, col: '#c06bff' },
+  // nieuw, extra sterk (vanaf kaart 4)
+  herstel: { hp: 95, sp: 46, reward: 14, r: 13, col: '#4ddc8a', armor: 4, heal: 0.1, healR: 80 },   // repareert robots om zich heen
+  spook: { hp: 75, sp: 60, reward: 12, r: 11, col: '#c9d4ff', cloak: true },                          // af en toe onzichtbaar
+  storer: { hp: 130, sp: 44, reward: 16, r: 13, col: '#ffb020', armor: 6, emp: 110 },                  // EMP bij ontploffen
+  titan: { hp: 2700, sp: 20, reward: 400, r: 26, col: '#7a2a33', armor: 16, noSlow: true },           // megabaas
+};
+const LEAK = { boss: 5, titan: 10 };
+const HARD = [1, 1, 1, 1.7, 6.5, 2.3, 2.4, 2.8, 1.3];   // extra kracht per kaart (kaart 1-3 blijven zoals ze waren)   // zoveel levens kost het als deze je basis bereikt
+const INTRO = {
+  herstel: ['🩹 Nieuw: Hersteller!', 'Repareert robots om zich heen. Schiet hem als eerste af!'],
+  spook: ['👻 Nieuw: Spookrobot!', 'Wordt af en toe onzichtbaar: zet torens langs het hele pad.'],
+  storer: ['⚡ Nieuw: Storer!', 'Legt torens vlakbij 3 seconden stil als hij ontploft.'],
+  titan: ['🤖 TITAN!', 'Dik pantser, niet te bevriezen, laat schildrobots los. Kost 10 levens!'],
 };
 
 let state = 'menu'; // menu | play | over | win
@@ -651,6 +664,7 @@ let bolts = [];
 let mi = 0, MAP, pathTiles, pathPts, pathLen, towers, enemies, shots, booms, parts;
 let money, lives, wave, waveOn, spawnList, spawnT, speed, selected, placing, hover, score, msg, kills, overT;
 let bests = Arcade.load('td_bests', {});
+let intro = null, seenNew = {};   // uitleg bij een nieuwe robot (één keer per potje)
 let buttons = [];
 
 // ---------- Pad voorbereiden ----------
@@ -705,6 +719,7 @@ function posAt(d) {
 function start(i) {
   setupMap(i);
   towers = []; enemies = []; shots = []; bolts = []; booms = []; parts = [];
+  intro = null; seenNew = {};
   WAVES = MAP.waves || 20; money = MAP.money; lives = 20; wave = 0; waveOn = false; spawnList = []; spawnT = 0; speed = 1; selected = null; placing = null; score = 0; kills = 0; msg = null;
   state = 'play';
   Arcade.save(SAVE_KEY, null);   // nieuw potje: oude opgeslagen spel weg
@@ -766,8 +781,14 @@ function makeWave(n) {
   if (mi >= 3 && n >= 3) add('sprinter', 2 + n, 0.3);
   if (mi >= 4 && n >= 6) add('schild', Math.floor(n / 3), 1.2);
   if (mi >= 5 && n >= 5) add('splitter', Math.floor(n / 4), 1.0);
+  if (mi >= 3 && n >= 4) add('herstel', Math.floor(n / 4) + (mi >= 6 ? 1 : 0), 1.4);
+  if (mi >= 4 && n >= 3) add('spook', Math.floor(n / 3) + (mi >= 7 ? 2 : 0), 0.8);
+  if (mi >= 5 && n >= 5) add('storer', Math.floor(n / 4) + (mi >= 7 ? 1 : 0), 1.6);
+  if (mi === 6 && n === WAVES) add('titan', 1, 4);
+  if (mi === 7 && (n === 15 || n === WAVES)) add('titan', 1, 6);
+  if (mi === 8 && n % 10 === 0) add('titan', n === WAVES ? 2 : 1, 8);
   // Mengen zodat het minder voorspelbaar is
-  return list.sort(() => Math.random() - 0.5).sort((a, b) => (a.type === 'boss') - (b.type === 'boss'));
+  return list.sort(() => Math.random() - 0.5).sort((a, b) => (a.type === 'boss' || a.type === 'titan') - (b.type === 'boss' || b.type === 'titan'));
 }
 function startWave() {
   if (waveOn || state !== 'play' || wave >= WAVES) return;
@@ -780,8 +801,10 @@ function startWave() {
 }
 function spawn(type) {
   const base = ENEMIES[type];
-  const hp = base.hp * Math.pow(1.15, wave - 1) * (MAP.hp || 1);
-  enemies.push({ type, d: 0, hp, maxHp: hp, sp: base.sp, r: base.r, col: base.col, armor: base.armor || 0, reward: base.reward, slow: 0, hit: 0, x: -20, y: 0, a: 0 });
+  // vanaf kaart 4 worden alle robots per golf steeds sterker (getest: met een perfecte strategie zonder levensverlies te halen)
+  const hp = base.hp * Math.pow(1.15, wave - 1) * (MAP.hp || 1) * (1 + ((HARD[mi] || 1) - 1) * Math.min(1, (wave - 1) / 8));
+  enemies.push({ type, d: 0, hp, maxHp: hp, sp: base.sp, r: base.r, col: base.col, armor: base.armor || 0, reward: base.reward, slow: 0, hit: 0, x: -20, y: 0, a: 0, ct: base.cloak ? rand(0, 3.8) : 0, cloak: false });
+  if (INTRO[type] && !seenNew[type]) { seenNew[type] = true; intro = { title: INTRO[type][0], sub: INTRO[type][1], t: 4.5 }; Arcade.beep(330, 0.25, 'square', 0.05, 220); }
 }
 
 // ---------- Torens ----------
@@ -848,6 +871,7 @@ function update(dt) {
   for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
   parts = (parts || []).filter((p) => p.life > 0);
   if (msg) { msg.t -= dt; if (msg.t <= 0) msg = null; }
+  if (intro) { intro.t -= dt; if (intro.t <= 0) intro = null; }
   if (state === 'over' || state === 'win') overT -= dt;
   if (state !== 'play') return;
   for (let s = 0; s < speed; s++) step(dt);
@@ -859,15 +883,24 @@ function step(dt) {
     if (spawnT <= 0) { const e = spawnList.shift(); spawn(e.type); spawnT = e.gap * Math.max(0.55, 1 - wave * 0.02); }
   }
   // Robots lopen
+  for (const t of towers) if (t.stun) t.stun = Math.max(0, t.stun - dt);
   for (const e of enemies) {
+    if (ENEMIES[e.type] && ENEMIES[e.type].noSlow) e.slow = 0;
     e.slow = Math.max(0, e.slow - dt);
     e.hit = Math.max(0, e.hit - dt);
+    if (e.type === 'spook') { e.ct = (e.ct + dt) % 3.8; e.cloak = e.ct > 2.3; }   // 2,3 s zichtbaar, 1,5 s onzichtbaar
+    if (e.type === 'herstel') {
+      e.ht = (e.ht || 0) - dt;
+      for (const o of enemies) if (o !== e && !o.done && o.hp > 0 && o.hp < o.maxHp && Math.hypot(o.x - e.x, o.y - e.y) < ENEMIES.herstel.healR) { o.hp = Math.min(o.maxHp, o.hp + o.maxHp * ENEMIES.herstel.heal * dt); if (e.ht <= 0) { o.healFx = 0.4; } }
+      if (e.ht <= 0) e.ht = 0.6;
+    }
+    if (e.healFx) e.healFx = Math.max(0, e.healFx - dt);
     e.d += e.sp * (e.slow > 0 ? 0.5 : 1) * dt;
     const p = posAt(e.d);
     e.x = p.x; e.y = p.y; e.a = p.a;
     if (e.d >= pathLen) {
       e.done = true;
-      lives -= e.type === 'boss' ? 5 : 1;
+      lives -= LEAK[e.type] || 1;
       Arcade.beep(120, 0.25, 'sawtooth', 0.06, -50);
       if (lives <= 0) { lives = 0; gameOver(false); return; }
     }
@@ -875,7 +908,8 @@ function step(dt) {
   // Torens schieten
   for (const t of towers) {
     const s = stats(t);
-    const inRange = enemies.filter((e) => !e.done && e.hp > 0 && Math.hypot(e.x - t.x, e.y - t.y) <= s.range);
+    if (t.stun > 0) { t.target = null; continue; }
+    const inRange = enemies.filter((e) => !e.done && e.hp > 0 && !e.cloak && Math.hypot(e.x - t.x, e.y - t.y) <= s.range);
     if (t.type === 'laser') {
       const target = inRange.sort((a, b) => b.hp - a.hp)[0];
       t.target = target || null;
@@ -884,7 +918,7 @@ function step(dt) {
     }
     t.cool -= dt; t.flash = Math.max(0, (t.flash || 0) - dt);
     if (!inRange.length) continue;
-    const target = inRange.sort((a, b) => b.d - a.d)[0]; // de voorste
+    const target = inRange.sort((a, b) => (b.type === 'herstel') - (a.type === 'herstel') || b.d - a.d)[0]; // hersteller eerst, dan de voorste
     t.aim = Math.atan2(target.y - t.y, target.x - t.x);
     if (t.cool > 0) continue;
     t.cool = s.rate;
@@ -900,7 +934,7 @@ function step(dt) {
       // bliksem: van robot naar robot, schade gaat door pantser heen
       const hit = [target]; let cur = target;
       while (hit.length < TOWERS.tesla.chain + (t.lvl - 1)) {
-        const nx = enemies.filter((e) => !hit.includes(e) && !e.done && e.hp > 0 && Math.hypot(e.x - cur.x, e.y - cur.y) < 95).sort((a, b) => Math.hypot(a.x - cur.x, a.y - cur.y) - Math.hypot(b.x - cur.x, b.y - cur.y))[0];
+        const nx = enemies.filter((e) => !hit.includes(e) && !e.done && e.hp > 0 && !e.cloak && Math.hypot(e.x - cur.x, e.y - cur.y) < 95).sort((a, b) => Math.hypot(a.x - cur.x, a.y - cur.y) - Math.hypot(b.x - cur.x, b.y - cur.y))[0];
         if (!nx) break; hit.push(nx); cur = nx;
       }
       const pts = [[t.x, t.y], ...hit.map((e) => [e.x, e.y])];
@@ -974,12 +1008,25 @@ function step(dt) {
 function damage(e, amount, continuous) {
   const real = continuous ? amount : Math.max(1, amount - e.armor);
   e.hp -= real;
+  // Titan op de helft: laat 4 schildrobots los (één keer)
+  if (e.type === 'titan' && !e.split && e.hp > 0 && e.hp < e.maxHp / 2) {
+    e.split = true;
+    for (let k = 0; k < 4; k++) { const b = ENEMIES.schild, hp = b.hp * Math.pow(1.15, wave - 1) * (MAP.hp || 1); enemies.push({ type: 'schild', d: Math.max(0, e.d - 10 - k * 16), hp, maxHp: hp, sp: b.sp, r: b.r, col: b.col, armor: b.armor, reward: b.reward, slow: 0, hit: 0, x: e.x, y: e.y, a: e.a, ct: 0, cloak: false }); }
+    Arcade.beep(200, 0.4, 'square', 0.05, -100);
+  }
   if (!continuous) e.hit = 0.06;
   if (e.hp <= 0 && !e.dead) {
     e.dead = true;
     money += e.reward; score += e.reward * 10; kills++;
     for (let k = 0; k < (e.type === 'boss' ? 40 : 10); k++) parts.push({ x: e.x, y: e.y, vx: rand(-160, 160), vy: rand(-160, 160), life: 0.4, col: k % 3 ? '#8a919b' : '#ff4d55' });
     if (e.type === 'boss') Arcade.beep(80, 0.5, 'sawtooth', 0.06, -30);
+    if (e.type === 'storer') {   // EMP: torens vlakbij liggen even stil
+      const R = ENEMIES.storer.emp;
+      for (const t of towers) if (Math.hypot(t.x - e.x, t.y - e.y) <= R) t.stun = 3;
+      booms.push({ x: e.x, y: e.y, r: R, life: 0.6, max: 0.6, col: '255,200,60' });
+      Arcade.beep(900, 0.35, 'sawtooth', 0.05, -800); Arcade.noise(0.3, 0.05, 5000, 2000);
+    }
+    if (e.type === 'titan') { for (let k = 0; k < 60; k++) parts.push({ x: e.x, y: e.y, vx: rand(-240, 240), vy: rand(-240, 240), life: 0.7, col: k % 3 ? '#7a2a33' : '#ffd23f' }); Arcade.beep(60, 0.8, 'sawtooth', 0.07, -20); }
     if (e.type === 'splitter') {
       for (let k = 0; k < 3; k++) { const hp = ENEMIES.scout.hp * Math.pow(1.15, wave - 1) * (MAP.hp || 1) * 0.7; enemies.push({ type: 'scout', d: Math.max(0, e.d - k * 14), hp, maxHp: hp, sp: ENEMIES.scout.sp, r: 7, col: '#d9a6ff', armor: 0, reward: 2, slow: 0, hit: 0, x: e.x, y: e.y, a: e.a }); }
       Arcade.beep(520, 0.1, 'square', 0.04, -200);
@@ -1068,10 +1115,17 @@ function draw() {
       ctx.restore();
     }
     drawTower(t, t.x, t.y);
+    if (t.stun > 0) {   // stilgelegd door een EMP
+      ctx.fillStyle = 'rgba(10,10,14,0.55)'; Arcade.rr(ctx, t.x - 17, t.y - 17, 34, 34, 7); ctx.fill();
+      ctx.strokeStyle = `rgba(255,210,63,${0.5 + 0.5 * Math.sin(performance.now() / 50)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(t.x - 9, t.y - 10); ctx.lineTo(t.x + 2, t.y - 1); ctx.lineTo(t.x - 3, t.y + 1); ctx.lineTo(t.x + 8, t.y + 10); ctx.stroke();
+    }
   }
   for (const e of enemies) {
     const bob = Math.sin(e.d * 0.25) * 1.2;
+    // hersteller: groene ring waarbinnen hij repareert
+    if (e.type === 'herstel') { const pu = 0.5 + 0.5 * Math.sin(performance.now() / 250); ctx.strokeStyle = `rgba(77,220,138,${0.18 + pu * 0.2})`; ctx.lineWidth = 2; ctx.setLineDash([5, 6]); ctx.beginPath(); ctx.arc(e.x, e.y, ENEMIES.herstel.healR, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
     ctx.save(); ctx.translate(e.x, e.y + bob); ctx.rotate(e.a);
+    if (e.type === 'spook') ctx.globalAlpha = e.cloak ? 0.16 + 0.08 * Math.sin(performance.now() / 60) : 0.95;
     ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.ellipse(3, 5 - bob, e.r * 1.05, e.r * 0.85, 0, 0, TAU); ctx.fill();
     // poten/rupsbanden
     ctx.fillStyle = '#15171b'; const st = Math.sin(e.d * 0.25) * e.r * 0.25;
@@ -1087,10 +1141,23 @@ function draw() {
     if (e.type === 'schild') { ctx.strokeStyle = 'rgba(120,200,255,0.75)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, e.r + 5, -1.2, 1.2); ctx.stroke(); }
     if (e.type === 'sprinter') { ctx.fillStyle = 'rgba(255,210,63,0.35)'; ctx.fillRect(-e.r - 14, -2, 10, 4); ctx.fillRect(-e.r - 22, -1, 6, 2); }
     if (e.type === 'splitter') { ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-e.r * 0.2, -e.r); ctx.lineTo(0, 0); ctx.lineTo(-e.r * 0.2, e.r); ctx.stroke(); }
+    if (e.type === 'herstel') { ctx.fillStyle = '#ffffff'; ctx.fillRect(-e.r * 0.55, -2.5, e.r * 0.7, 5); ctx.fillRect(-e.r * 0.2 - 2.5, -e.r * 0.35 - 2, 5, e.r * 0.7 + 4); }
+    if (e.type === 'spook') { ctx.fillStyle = 'rgba(201,212,255,0.6)'; for (let k = 0; k < 3; k++) ctx.fillRect(-e.r - 4 - k * 5, -e.r * 0.6 + k * e.r * 0.5, 4, 2); }
+    if (e.type === 'storer') {
+      ctx.strokeStyle = '#111'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-e.r * 0.6, -e.r); ctx.lineTo(-e.r * 0.9, -e.r - 7); ctx.stroke();
+      ctx.save(); ctx.shadowColor = '#ffd23f'; ctx.shadowBlur = 10; ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(-e.r * 0.9, -e.r - 8, 2.6, 0, TAU); ctx.fill(); ctx.restore();
+      ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(-2, -e.r * 0.4); ctx.lineTo(-e.r * 0.5, 1); ctx.lineTo(-1, 1); ctx.lineTo(-4, e.r * 0.4); ctx.lineTo(e.r * 0.1, -2); ctx.lineTo(-3, -2); ctx.fill();
+    }
+    if (e.type === 'titan') {
+      ctx.fillStyle = '#2a0d12'; for (const sy of [-1, 1]) { ctx.beginPath(); ctx.moveTo(-e.r * 0.5, sy * e.r); ctx.lineTo(-e.r * 0.2, sy * (e.r + 8)); ctx.lineTo(e.r * 0.1, sy * e.r); ctx.fill(); ctx.beginPath(); ctx.moveTo(e.r * 0.2, sy * e.r); ctx.lineTo(e.r * 0.5, sy * (e.r + 7)); ctx.lineTo(e.r * 0.75, sy * e.r); ctx.fill(); }
+      ctx.strokeStyle = 'rgba(255,210,63,0.55)'; ctx.lineWidth = 2; Arcade.rr(ctx, -e.r + 4, -e.r + 4, e.r * 2 - 8, e.r * 2 - 8, e.r * 0.3); ctx.stroke();
+      ctx.save(); ctx.shadowColor = '#ff3b45'; ctx.shadowBlur = 14; ctx.fillStyle = '#ff3b45'; ctx.beginPath(); ctx.arc(e.r * 0.45, -e.r * 0.25, 3.5, 0, TAU); ctx.arc(e.r * 0.45, e.r * 0.25, 3.5, 0, TAU); ctx.fill(); ctx.restore();
+    }
     ctx.restore();
+    if (e.healFx) { ctx.fillStyle = `rgba(77,220,138,${e.healFx * 2})`; ctx.font = '900 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('+', e.x + e.r * 0.8, e.y - e.r - 10 - (0.4 - e.healFx) * 20); }
     if (e.hp < e.maxHp) {
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - e.r, e.y - e.r - 8, e.r * 2, 4);
-      ctx.fillStyle = e.type === 'boss' ? '#ffd23f' : '#ff4d55'; ctx.fillRect(e.x - e.r, e.y - e.r - 8, (e.r * 2 * e.hp) / e.maxHp, 4);
+      ctx.fillStyle = e.type === 'boss' || e.type === 'titan' ? '#ffd23f' : '#ff4d55'; ctx.fillRect(e.x - e.r, e.y - e.r - 8, (e.r * 2 * e.hp) / e.maxHp, 4);
     }
   }
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -1176,6 +1243,15 @@ function draw() {
     Arcade.text(ctx, 'Kies rechts een toren en zet hem naast het pad. Start dan de eerste golf!', PANEL / 2, H - 16, 13, '#ffffff', 'center', '700');
   }
   if (msg) { ctx.globalAlpha = Math.min(1, msg.t * 2); Arcade.text(ctx, msg.text, PANEL / 2, OY + 60, 26, '#ffffff', 'center', '900'); ctx.globalAlpha = 1; }
+  if (intro) {   // uitleg bij een nieuwe robot
+    ctx.globalAlpha = Math.min(1, intro.t * 2, (4.5 - intro.t) * 4);
+    const bw = 560, bx = PANEL / 2 - bw / 2, by = H - 104;
+    ctx.fillStyle = 'rgba(14,15,18,0.92)'; Arcade.rr(ctx, bx, by, bw, 64, 14); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,210,63,0.7)'; ctx.lineWidth = 2; Arcade.rr(ctx, bx, by, bw, 64, 14); ctx.stroke();
+    Arcade.text(ctx, intro.title, PANEL / 2, by + 22, 20, '#ffd23f', 'center', '900');
+    Arcade.text(ctx, intro.sub, PANEL / 2, by + 46, 13, '#e6e9ee', 'center', '700');
+    ctx.globalAlpha = 1;
+  }
 
   if (state === 'over' || state === 'win') {
     Arcade.overlay(ctx, W, H, state === 'win' ? 'GEWONNEN! 🏆' : 'DE BASIS IS GEVALLEN', [
@@ -1218,7 +1294,7 @@ function drawMenu() {
     const tx = mx + COLS * s + 14;
     Arcade.text(ctx, `${i + 1}. ${m.naam}`, tx, y + 28, 16, open ? '#ffffff' : '#4a4f58', 'left', '900');
     Arcade.text(ctx, open ? `€${m.money} · ${m.waves || 20} golven` : `🔒 win eerst kaart ${i}`, tx, y + 52, 12, '#9aa1ab', 'left', '600');
-    if (open && i >= 3) Arcade.text(ctx, ['Nieuw: snelle sprinters', '+ robots met schild', '+ splitsende robots', 'Alles, nog sterker', 'Alles, nog sterker', 'Eindbaas: 30 golven!'][i - 3], tx, y + 74, 11, '#c06bff', 'left', '700');
+    if (open && i >= 3) Arcade.text(ctx, ['+ sprinters · 🩹 Hersteller', '+ schild · 👻 Spookrobot', '+ splitsers · ⚡ Storer', 'Alles · 🤖 Titan als eindbaas', 'Alles · 2 Titans', '30 golven · 4 Titans!'][i - 3], tx, y + 74, 11, '#c06bff', 'left', '700');
     if (won) Arcade.text(ctx, `🏆 ${bests[i]}`, tx, y + 102, 13, '#ffd23f', 'left', '800', true);
     if (open) buttons.push({ x, y, w, h, fn: () => pickMap(i) });
     const sg = savedGame();
@@ -1252,6 +1328,6 @@ ArcadeCore.cheat('⬆️ Alle torens naar max level', () => { if (towers) towers
 ArcadeCore.cheat('🔓 Alle maps ontgrendelen', () => Arcade.save('td_unlockall', true));
 
   </script>
-  <script type="module" src="../auth.js?v=10d8d7440c"></script>
+  <script type="module" src="../auth.js?v=7a38f8b22e"></script>
 </body>
 </html>
