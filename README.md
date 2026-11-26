@@ -11,7 +11,6 @@ Gratis browsergames die je meteen kunt spelen, op pc en op je telefoon.
 | Game | Map | Wat is het? |
 |---|---|---|
 | 🏁 **Turbo Tijdrit** | `race/` | 3D-racegame tegen de klok: 20 levels met loopings, haarspeldbochten, megaschansen en muurritten, medailles en een spookauto |
-| 🔫 **Robo Overval** | `overval/` | 3D-shooter: overval een bank vol robotsoldaten, pak de buit, kraak de kluis en ontsnap |
 | 🏀 **Basket Koning** | `basket/` | Basketbal: tijdrace met de krachtmeter, een toernooi of 1 tegen 1 met dunks, blocks en afpakken (ook tegen een vriend) |
 | ⚽ **Penalty Koning** | `penalty/` | Houd spatie vast, het mikpunt zigzagt over het doel: laat los en schiet. Keep zelf ook en win het toernooi |
 | 🕵️ **Nachtdief** | `dief/` | Sluip door 12 gebouwen, ontwijk bewakers, camera's en lasers, kraak de kluis en ontsnap |

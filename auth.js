@@ -27,9 +27,20 @@ if (!IS_HUB) {
 // ---------- Opslag: verzamelen + slim samenvoegen (ook gebruikt door 'Records overzetten') ----------
 const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
 const KEEP = /^(arcade_|tt2_)/;
-const SKIP = /^tt2_ghost|^arcade_settings$/;          // spookritten zijn te groot; instellingen horen bij het apparaat
+const PURGE = /^arcade_(best_)?overval(_|$)/;          // verwijderde game (Robo Overval): overal opruimen
+const SKIP = /^tt2_ghost|^arcade_settings$|^arcade_(best_)?overval(_|$)/;   // spookritten zijn te groot; instellingen horen bij het apparaat
+// verwijderde games uit deze browser halen (ook uit 'laatst gespeeld', favorieten en wijzigtijden)
+(() => {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && PURGE.test(k)) localStorage.removeItem(k); }
+    const fix = (k, f) => { const v = J(localStorage.getItem(k)); if (v) { const n = f(v); if (JSON.stringify(n) !== JSON.stringify(v)) localStorage.setItem(k, JSON.stringify(n)); } };
+    fix('arcade_recent', (r) => (Array.isArray(r) ? r.filter((x) => x && x.id !== 'overval') : r));
+    fix('arcade_favs', (f) => (Array.isArray(f) ? f.filter((x) => x !== 'overval') : f));
+    fix('arcade_mtimes', (m) => { const o = Object.assign({}, m); for (const k in o) if (PURGE.test(k)) delete o[k]; return o; });
+  } catch (e) { /* geen opslag */ }
+})();
 const LOWER = ['arcade_mijnen_bests', 'arcade_sudoku_bests', 'arcade_memory_bests', 'arcade_moto_bests', 'arcade_moto2_bests', 'arcade_escape_bests', 'arcade_dief_bests'];
-const HIGHER = ['arcade_overval_bests', 'arcade_td_bests', 'arcade_dief_stars'];
+const HIGHER = ['arcade_td_bests', 'arcade_dief_stars'];
 const pickObj = (a, b, better) => { const o = Object.assign({}, a); for (const k in b) if (o[k] == null || better(b[k], o[k])) o[k] = b[k]; return o; };
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -89,7 +100,6 @@ function refreshTexts() {   // tekst-records op de startpagina opnieuw uitrekene
   o = g('memory_bests'); t = top(o); if (t != null) localStorage.setItem('arcade_best_memory', JSON.stringify(`${['Klein', 'Middel', 'Groot'][t]}: ${o[t]} zetten`));
   o = g('patience_stats'); if (o && o.best != null) localStorage.setItem('arcade_best_patience', JSON.stringify(fmt(o.best)));
   o = g('vier_stats'); if (o) localStorage.setItem('arcade_best_vier', JSON.stringify(`${o.w} gewonnen`));
-  o = g('overval_bests'); if (o && Object.keys(o).length) localStorage.setItem('arcade_best_overval', JSON.stringify(Object.values(o).reduce((s, x) => s + x, 0)));
   o = g('tycoon2_save'); if (o && o.best) { const cur = g('best_tycoon'); if (!cur || o.best > cur) localStorage.setItem('arcade_best_tycoon', JSON.stringify(o.best)); }
 }
 // Binnenkomende gegevens in deze browser zetten. Geeft het aantal wijzigingen terug.
@@ -167,14 +177,17 @@ async function push(force) {
     // eerst de nieuwste versie ophalen: zo verwerken we resets van de admin voordat we iets terugzetten
     await pull();
     data = mergeObjs(collect(), remote); s = JSON.stringify(data);
-    await fb.setDoc(ref(), { data, email: user.email, updated: fb.serverTimestamp() }, { merge: true });
+    // gegevens van verwijderde games ook uit je account halen
+    const out = Object.assign({}, data);
+    for (const k in (remote || {})) if (PURGE.test(k)) out[k] = fb.deleteField();   // remote = net opgehaalde stand uit de cloud
+    await fb.setDoc(ref(), { data: out, email: user.email, updated: fb.serverTimestamp() }, { merge: true });
     lastSent = s; remote = data; setStatus('saved');
     await pushBoard(data);
   } catch (e) { if (!killed) setStatus('error', e); }
 }
 
 // ---------- Openbare ranglijst (ook gelezen door de Discord-bot) ----------
-const BOARD = ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack', 'tycoon', 'basket', 'penalty', 'pool', 'klimmer'];
+const BOARD = ['td', 'meteoren', 'runner', 'snake', '2048', 'stack', 'tycoon', 'basket', 'penalty', 'pool', 'klimmer'];
 function scoresOf(d) {
   const o = {};
   for (const g of BOARD) { const v = J(d['arcade_best_' + g]); if (typeof v === 'number' && v > 0) o[g] = Math.round(v); }
@@ -468,7 +481,7 @@ function renderBoard() {
 }
 
 // ---------- Profiel ----------
-const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['escape', '🔐', 'Escape Room'], ['dief', '🕵️', 'Nachtdief'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['stack', '🏗️', 'Stack Tower'], ['basket', '🏀', 'Basket Koning'], ['penalty', '⚽', 'Penalty Koning'], ['pool', '🎱', 'Pool'], ['klimmer', '🧗', 'Toren Klimmer']];
+const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['escape', '🔐', 'Escape Room'], ['dief', '🕵️', 'Nachtdief'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['stack', '🏗️', 'Stack Tower'], ['basket', '🏀', 'Basket Koning'], ['penalty', '⚽', 'Penalty Koning'], ['pool', '🎱', 'Pool'], ['klimmer', '🧗', 'Toren Klimmer']];
 // snelste tijden op één level
 function levelRanking(id, l) {
   return boardPlayers.filter((p) => p.times && p.times[id] && p.times[id][l] != null).map((p) => ({ p, v: p.times[id][l] })).sort((a, b) => a.v - b.v);
@@ -482,7 +495,7 @@ function gameRanking(id) {
   }
   return boardPlayers.filter((p) => p.scores && p.scores[id] > 0).map((p) => ({ p, v: p.scores[id] })).sort((a, b) => b.v - a.v);
 }
-const KL_GAMES = ['race', 'escape', 'dief', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack', 'basket', 'penalty', 'pool', 'klimmer'];
+const KL_GAMES = ['race', 'escape', 'dief', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack', 'basket', 'penalty', 'pool', 'klimmer'];
 function klassement() {
   const pts = new Map();
   for (const id of KL_GAMES) gameRanking(id).slice(0, 3).forEach((r, i) => pts.set(r.p.uid, (pts.get(r.p.uid) || 0) + 3 - i));

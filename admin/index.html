@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="30dece6e67">
+<meta name="site-build" content="a61cb39bdf">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
@@ -101,10 +101,10 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
       <h3>📢 Mededeling op de site</h3>
       <div class="box annbox">
         <div class="annprev" id="annPrev"><span>📢</span><span id="annPrevText">Typ hieronder je mededeling…</span></div>
-        <textarea id="annIn" maxlength="160" placeholder="Bijv. 🎉 Nieuwe game: Robo Overval! Wie haalt de hoogste score?"></textarea>
+        <textarea id="annIn" maxlength="160" placeholder="Bijv. 🎉 Nieuwe game: Toren Klimmer! Wie klimt het hoogst?"></textarea>
         <div class="annrow">
           <select id="annColor"><option value="red">🔴 Rood (opvallend)</option><option value="grey">⚪ Neutraal</option><option value="green">🟢 Groen</option></select>
-          <input id="annLinkIn" placeholder="Link (optioneel), bijv. overval/">
+          <input id="annLinkIn" placeholder="Link (optioneel), bijv. klimmer/">
         </div>
         <div class="annrow">
           <label class="chk"><input type="checkbox" id="annOn"> Tonen op de startpagina</label>
@@ -191,7 +191,7 @@ const firebaseConfig = {
 };
 const ADMIN_EMAIL = 'basjonker2009@gmail.com';
 const ADMIN_HASH = '3caffc05c7f0e2906e518b7c96b1a3bab9ae1ed894b83d31ca651e93a0b19a15';
-const GAMES = [["race", "Turbo Tijdrit"], ["overval", "Robo Overval"], ["basket", "Basket Koning"], ["penalty", "Penalty Koning"], ["dief", "Nachtdief"], ["pool", "Pool"], ["voetbal", "Puck Voetbal"], ["escape", "Escape Room"], ["tycoon", "PC Tycoon"], ["td", "Robo Defense"], ["meteoren", "Meteorenregen 2.0"], ["runner", "Neon Runner"], ["snake", "Snake 2.0"], ["2048", "2048"], ["stack", "Stack Tower"], ["klimmer", "Toren Klimmer"]];   // [id, naam]
+const GAMES = [["race", "Turbo Tijdrit"], ["basket", "Basket Koning"], ["penalty", "Penalty Koning"], ["dief", "Nachtdief"], ["pool", "Pool"], ["voetbal", "Puck Voetbal"], ["escape", "Escape Room"], ["tycoon", "PC Tycoon"], ["td", "Robo Defense"], ["meteoren", "Meteorenregen 2.0"], ["runner", "Neon Runner"], ["snake", "Snake 2.0"], ["2048", "2048"], ["stack", "Stack Tower"], ["klimmer", "Toren Klimmer"]];   // [id, naam]
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (id) => document.getElementById(id);
 const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
