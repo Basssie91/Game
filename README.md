@@ -25,6 +25,7 @@ Gratis browsergames die je meteen kunt spelen, op pc en op je telefoon.
 | 🐍 **Snake 2.0** | `snake/` | Snake met gouden appels, power-ups en levels met muren |
 | 🔢 **2048** | `2048/` | Schuif tegels en combineer tot 2048 (met terug-knop) |
 | 🧱 **Stack Tower** | `stack/` | Stapel blokken precies op elkaar |
+| 🧗 **Toren Klimmer** | `klimmer/` | Platformer: klim zo hoog mogelijk terwijl de lava stijgt. Dubbele sprong, muursprong, bewegende en brokkelende platforms, veren en lasers. Elke dag een nieuwe dagtoren |
 
 ## Wat zit er nog meer in?
 

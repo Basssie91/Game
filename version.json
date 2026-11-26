@@ -1,10 +1,15 @@
 {
- "build": "1087efaf2f",
- "note": "Na elk potje zie je nu of jij het record van iedereen hebt!",
+ "build": "b38347766b",
+ "note": "Nieuwe game: Toren Klimmer! Klim zo hoog als je kunt terwijl de lava stijgt.",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "🧗 Nieuwe game: Toren Klimmer! Klim zo hoog als je kunt terwijl de lava stijgt, met elke dag een nieuwe dagtoren",
+     "g": "klimmer",
+     "new": true
+    },
     {
      "t": "🌍 Recordkaart: na elk potje zie je of jij het record van iedereen hebt (bij 13 games). Basket Koning, Penalty Koning en Pool staan nu ook op de ranglijst"
     },
