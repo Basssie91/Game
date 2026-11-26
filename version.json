@@ -1,10 +1,14 @@
 {
- "build": "0155f9a08a",
- "note": "Robo Defense slaat je potje op: stop wanneer je wilt en speel later verder!",
+ "build": "39b3a5ee70",
+ "note": "Turbo Tijdrit: hekjes bij de loopings, overslaan kan niet meer!",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
+    {
+     "t": "🏁 Turbo Tijdrit: hekjes bij de loopings, overslaan kan niet meer",
+     "g": "race"
+    },
     {
      "t": "💾 Robo Defense slaat je potje op: stop wanneer je wilt en speel later verder, ook op een ander apparaat",
      "g": "td"

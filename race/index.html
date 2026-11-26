@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="0155f9a08a">
+<meta name="site-build" content="39b3a5ee70">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Turbo Tijdrit</title>
@@ -567,7 +567,17 @@ function buildTrack(code) {
     minZ = Math.min(minZ, s.p[2]); maxZ = Math.max(maxZ, s.p[2]);
     if (s.flag !== 'gap') minY = Math.min(minY, s.p[1]);
   }
-  return { samples, cps, finishIdx, startIdx: 6, startGate: 14, bounds: { minX, maxX, minZ, maxZ, minY } };
+  // Loopings: begin, eind en hoogste punt. Rond elke looping staat een hek (ook een stuk ervoor en erna),
+  // zodat je hem niet schuin kunt overslaan.
+  const loops = [], FENCE = 18;
+  for (let i = 0; i < n; i++) {
+    if (samples[i].flag !== 'loop' || (i > 0 && samples[i - 1].flag === 'loop')) continue;
+    let j = i; while (j + 1 < n && samples[j + 1].flag === 'loop') j++;
+    let top = i; for (let k = i; k <= j; k++) if (samples[k].p[1] > samples[top].p[1]) top = k;
+    loops.push({ a: i, b: j, top });
+    for (let k = Math.max(0, i - FENCE); k <= Math.min(n - 1, j + FENCE); k++) if (samples[k].flag !== 'gap') samples[k].fence = true;
+  }
+  return { samples, cps, finishIdx, startIdx: 6, startGate: 14, loops, bounds: { minX, maxX, minZ, maxZ, minY } };
 }
 
 // Weg-assenstelsel op een (gebroken) positie langs de baan
@@ -612,7 +622,7 @@ function nearestRoad(track, pos) {
 function newCar(track, idx = track.startIdx) {
   const fr = frameAt(track, idx);
   return {
-    ground: true, fi: idx, u: 0, psi: 0, vf: 0, vl: 0,
+    ground: true, fi: idx, gfi: idx, u: 0, psi: 0, vf: 0, vl: 0,
     pos: fr.P.slice(), vel: [0, 0, 0], F: fr.T.slice(), U: fr.N.slice(),
     boost: 0, airT: 0, idx, steer: 0, braking: false, landing: 0, kmh: 0,
     shadow: null,
@@ -677,6 +687,18 @@ function stepCar(c, track, inp, dt) {
     const outOfTrack = c.fi < 0 || c.fi > ss.length - 1.01;
     c.fi = clamp(c.fi, 0, ss.length - 1.01);
     fr = frameAt(track, c.fi);
+    // Hek bij een looping: je botst ertegen in plaats van van de weg af te rijden
+    const lim = fr.w - 0.7;
+    if ((fr.s0.fence || fr.s1.fence) && Math.abs(c.u) > lim) {
+      const side = Math.sign(c.u);
+      c.u = side * lim;
+      if (Math.sign(Math.sin(c.psi)) === side) c.psi = -c.psi * 0.35;   // terugkaatsen
+      if (Math.sign(c.vl) === -side || c.vl === 0) c.vl = -c.vl * 0.3; else c.vl *= 0.3;
+      c.vf *= 1 - Math.min(0.5, 1.6 * dt);
+      c.fenceHit = 0.25;
+    }
+    c.fenceHit = Math.max(0, (c.fenceHit || 0) - dt);
+    c.gfi = c.fi;
     cp = Math.cos(c.psi); sp = Math.sin(c.psi);
     F = V.add(V.mul(fr.T, cp), V.mul(fr.R, sp));
     Rc = V.sub(V.mul(fr.R, cp), V.mul(fr.T, sp));
@@ -712,7 +734,8 @@ function stepCar(c, track, inp, dt) {
     c.u_rel = rd.u;
     c.shadow = (!rd.fr.gap && Math.abs(rd.u) <= rd.fr.w && rd.h > -0.5 && rd.h < 30) ? { P: V.ma(rd.fr.P, rd.fr.R, rd.u), fr: rd.fr } : null;
     const vN = V.dot(c.vel, rd.fr.N);
-    if (!rd.fr.gap && Math.abs(rd.u) <= rd.fr.w && rd.h <= 0.1 && rd.h > -2.5 && vN <= 0.5 && rd.fr.N[1] > -0.2) {
+    const skipsLoop = (track.loops || []).some((L) => (c.gfi == null ? c.fi : c.gfi) < L.top && rd.fi > L.top);
+    if (!skipsLoop && !rd.fr.gap && Math.abs(rd.u) <= rd.fr.w && rd.h <= 0.1 && rd.h > -2.5 && vN <= 0.5 && rd.fr.N[1] > -0.2) {
       // Landen
       const fr = rd.fr;
       c.ground = true;
@@ -1026,6 +1049,26 @@ function buildTrackMesh(track) {
         return [q[0] + s0.T[0] * along, q[1] + s0.T[1] * along, q[2] + s0.T[2] * along];
       };
       mb.tri(f(1.6, 0), f(-1.2, 3), f(-1.2, -3), C.arrow);
+    }
+  }
+  // Hekken langs de loopings: rood-witte vangrail met paaltjes
+  const railR = hex('#e8282f'), railW = hex('#f4f4f4'), postC = hex('#9aa1ab');
+  for (let i = 0; i < ss.length - 1; i++) {
+    const s0 = ss[i], s1 = ss[i + 1];
+    if (!s0.fence || !s1.fence) continue;
+    const col = Math.floor(i / 2) % 2 ? railR : railW;
+    for (const side of [-1, 1]) {
+      const o0 = side * (s0.w + 0.15), o1 = side * (s1.w + 0.15);
+      mb.quad(P3(s0, o0, 0.85), P3(s1, o1, 0.85), P3(s1, o1, 1.45), P3(s0, o0, 1.45), col, 0.02);   // bovenste balk
+      mb.quad(P3(s0, o0, 0.3), P3(s1, o1, 0.3), P3(s1, o1, 0.55), P3(s0, o0, 0.55), postC, 0.02);   // onderste balk
+      mb.quad(P3(s0, o0 + side * 0.25, 1.45), P3(s1, o1 + side * 0.25, 1.45), P3(s1, o1, 1.45), P3(s0, o0, 1.45), col, 0.02);   // bovenkant
+      if (i % 3 === 0) {
+        const q = [];
+        for (const yy of [0.12, 1.5]) for (const [aa, oo] of [[-0.18, -0.18], [0.18, -0.18], [0.18, 0.18], [-0.18, 0.18]]) {
+          const b = P3(s0, o0 + side * 0.15 + oo, yy); q.push([b[0] + s0.T[0] * aa, b[1] + s0.T[1] * aa, b[2] + s0.T[2] * aa]);
+        }
+        mb.hexa(q, postC, 0.02);
+      }
     }
   }
   // Pilaren (alleen onder vlakke weg, en niet als er een andere weg onder ligt)
@@ -1554,6 +1597,8 @@ function update(dt) {
   }
   if (car.landing && car.landing < -10) { shake = Math.min(8, -car.landing / 4); beep(80, 0.18, 'sawtooth', 0.05, -30); }
   car.landing = 0;
+  car._fenceCd = Math.max(0, (car._fenceCd || 0) - dt);
+  if (car.fenceHit > 0.2 && !car._fenceCd && Math.abs(car.vf) > 4) { shake = Math.max(shake, 2.5); beep(150, 0.09, 'square', 0.04, -50); car._fenceCd = 0.35; }
   if (car.boost > 0.95 && !car._boostSnd) { beep(320, 0.35, 'sawtooth', 0.04, 500); car._boostSnd = true; }
   if (car.boost <= 0) car._boostSnd = false;
   updateCamera(dt);
@@ -1935,6 +1980,6 @@ ArcadeCore.toggle('🚀 Turbo (veel sneller)', () => turbo, (v) => {
 });
 
   </script>
-  <script type="module" src="../auth.js?v=0155f9a08a"></script>
+  <script type="module" src="../auth.js?v=39b3a5ee70"></script>
 </body>
 </html>
