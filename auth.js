@@ -174,7 +174,7 @@ async function push(force) {
 }
 
 // ---------- Openbare ranglijst (ook gelezen door de Discord-bot) ----------
-const BOARD = ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack', 'tycoon', 'moto'];
+const BOARD = ['overval', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack', 'tycoon'];
 function scoresOf(d) {
   const o = {};
   for (const g of BOARD) { const v = J(d['arcade_best_' + g]); if (typeof v === 'number' && v > 0) o[g] = Math.round(v); }
@@ -183,13 +183,13 @@ function scoresOf(d) {
   return o;
 }
 // racegames: beste tijd per level (seconden)
-const TIMED = { race: 20, moto: 12, escape: 10, dief: 12 };
+const TIMED = { race: 20, escape: 10, dief: 12 };
 function timesOf(d) {
   const o = {};
   const r = J(d.tt2_bests2);
   if (r && typeof r === 'object') { o.race = {}; for (const k in r) { const t = r[k] && typeof r[k] === 'object' ? r[k].t : r[k]; if (typeof t === 'number' && t > 0) o.race[k] = Math.round(t * 100) / 100; } }
-  for (const g of ['moto', 'escape', 'dief']) {
-    const m = J(d['arcade_' + (g === 'moto' ? 'moto2' : g) + '_bests']);   // Moto Stunt 2: nieuwe levels, nieuwe tijden
+  for (const g of ['escape', 'dief']) {
+    const m = J(d['arcade_' + g + '_bests']);
     if (m && typeof m === 'object') { o[g] = {}; for (const k in m) if (typeof m[k] === 'number' && m[k] > 0) o[g][k] = Math.round(m[k] * 100) / 100; }
   }
   return o;
@@ -318,7 +318,7 @@ function hubUI() {
 }
 
 // ---------- Ranglijst op de startpagina ----------
-const SHOW = { race: (v) => v + '/20', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins', moto: (v) => v + '/36 ★' };
+const SHOW = { race: (v) => v + '/20', tycoon: (v) => 'Lvl ' + v, vier: (v) => v + ' wins' };
 let boardPlayers = null;
 const boardLvl = {};
 // ---------- Ranglijst ook in de games: wie heeft de snelste tijd? ----------
@@ -382,7 +382,7 @@ function renderBoard() {
 }
 
 // ---------- Profiel ----------
-const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['moto', '🏍️', 'Moto Stunt'], ['escape', '🔐', 'Escape Room'], ['dief', '🕵️', 'Nachtdief'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['stack', '🏗️', 'Stack Tower']];
+const PGAMES = [['race', '🏎️', 'Turbo Tijdrit'], ['escape', '🔐', 'Escape Room'], ['dief', '🕵️', 'Nachtdief'], ['overval', '🤖', 'Robo Overval'], ['tycoon', '💻', 'PC Tycoon'], ['td', '🛡️', 'Robo Defense'], ['meteoren', '☄️', 'Meteorenregen'], ['runner', '🏃', 'Neon Runner'], ['snake', '🐍', 'Snake 2.0'], ['2048', '🔢', '2048'], ['stack', '🏗️', 'Stack Tower']];
 // snelste tijden op één level
 function levelRanking(id, l) {
   return boardPlayers.filter((p) => p.times && p.times[id] && p.times[id][l] != null).map((p) => ({ p, v: p.times[id][l] })).sort((a, b) => a.v - b.v);
@@ -396,7 +396,7 @@ function gameRanking(id) {
   }
   return boardPlayers.filter((p) => p.scores && p.scores[id] > 0).map((p) => ({ p, v: p.scores[id] })).sort((a, b) => b.v - a.v);
 }
-const KL_GAMES = ['race', 'moto', 'escape', 'dief', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack'];
+const KL_GAMES = ['race', 'escape', 'dief', 'overval', 'tycoon', 'td', 'meteoren', 'runner', 'snake', '2048', 'stack'];
 function klassement() {
   const pts = new Map();
   for (const id of KL_GAMES) gameRanking(id).slice(0, 3).forEach((r, i) => pts.set(r.p.uid, (pts.get(r.p.uid) || 0) + 3 - i));

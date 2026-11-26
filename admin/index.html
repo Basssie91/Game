@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="013a26797f">
+<meta name="site-build" content="b2a56428c1">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
@@ -191,7 +191,7 @@ const firebaseConfig = {
 };
 const ADMIN_EMAIL = 'basjonker2009@gmail.com';
 const ADMIN_HASH = '3caffc05c7f0e2906e518b7c96b1a3bab9ae1ed894b83d31ca651e93a0b19a15';
-const GAMES = [["race", "Turbo Tijdrit"], ["overval", "Robo Overval"], ["basket", "Basket Koning"], ["penalty", "Penalty Koning"], ["dief", "Nachtdief"], ["pool", "Pool"], ["voetbal", "Puck Voetbal"], ["escape", "Escape Room"], ["moto", "Moto Stunt"], ["tycoon", "PC Tycoon"], ["td", "Robo Defense"], ["meteoren", "Meteorenregen 2.0"], ["runner", "Neon Runner"], ["snake", "Snake 2.0"], ["2048", "2048"], ["stack", "Stack Tower"]];   // [id, naam]
+const GAMES = [["race", "Turbo Tijdrit"], ["overval", "Robo Overval"], ["basket", "Basket Koning"], ["penalty", "Penalty Koning"], ["dief", "Nachtdief"], ["pool", "Pool"], ["voetbal", "Puck Voetbal"], ["escape", "Escape Room"], ["tycoon", "PC Tycoon"], ["td", "Robo Defense"], ["meteoren", "Meteorenregen 2.0"], ["runner", "Neon Runner"], ["snake", "Snake 2.0"], ["2048", "2048"], ["stack", "Stack Tower"]];   // [id, naam]
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const $ = (id) => document.getElementById(id);
 const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
@@ -233,7 +233,7 @@ function recordsOf(d) {   // [[id, naam, waarde]]
   for (const [id, naam] of GAMES) {
     let v = null;
     if (id === 'race') { const r = J(d.tt2_bests2); v = r && Object.keys(r).length ? Object.keys(r).length + '/20 levels' : null; }
-    else { v = J(d['arcade_best_' + id]); if (id === 'tycoon' && v) v = 'Level ' + v; if (id === 'moto' && v) v = v + '/36 ★'; if (id === 'escape' && v) v = v + '/10 kamers'; if (id === 'dief' && v) v = v + '/12 levels'; }
+    else { v = J(d['arcade_best_' + id]); if (id === 'tycoon' && v) v = 'Level ' + v; if (id === 'escape' && v) v = v + '/10 kamers'; if (id === 'dief' && v) v = v + '/12 levels'; }
     out.push([id, naam, v]);
   }
   return out;
@@ -274,7 +274,7 @@ function render() {
       const v = id === 'race' ? (J(u.data.tt2_bests2) ? Object.keys(J(u.data.tt2_bests2)).length : null) : J(u.data['arcade_best_' + id]);
       if (typeof v === 'number' && v > 0 && (!best || v > best.v)) best = { v, email: u.email, name: u.raw.name };
     }
-    const show = best ? (id === 'race' ? best.v + '/20 levels' : id === 'tycoon' ? 'Level ' + best.v : id === 'moto' ? best.v + '/36 ★' : best.v.toLocaleString('nl-NL')) : '–';
+    const show = best ? (id === 'race' ? best.v + '/20 levels' : id === 'tycoon' ? 'Level ' + best.v : best.v.toLocaleString('nl-NL')) : '–';
     return `<tr><td>${esc(naam)}</td><td class="num">${show}</td><td>${best ? (best.name ? '<b>' + esc(best.name) + '</b> · ' : '') + '<span class="dim" style="font-style:normal">' + esc(best.email) + '</span>' : '–'}</td><td><div class="acts"><button class="red" data-wg="${id}" title="Records van deze game bij alle spelers wissen">🗑️ Wis voor iedereen</button></div></td></tr>`;
   }).join('');
 }

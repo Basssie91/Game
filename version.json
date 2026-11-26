@@ -1,18 +1,18 @@
 {
- "build": "013a26797f",
- "note": "Moto Stunt is helemaal vernieuwd: 12 nieuwe levels, mooie 3D-wereld en veel eerlijker!",
+ "build": "b2a56428c1",
+ "note": "Moto Stunt is tijdelijk weg: we bouwen hem later opnieuw.",
  "log": [
   {
    "d": "2026-11-26",
    "items": [
     {
-     "t": "🏍️ Moto Stunt helemaal vernieuwd: 12 nieuwe levels, open kurkentrekker-loopings, een zonnige 3D-wereld en veel eerlijkere besturing",
-     "g": "moto",
-     "new": true
+     "t": "🏍️ Moto Stunt is tijdelijk weg: we bouwen hem later opnieuw"
     },
     {
-     "t": "🏍️ Moto Stunt: bij de finish zie je wie de snelste tijd van iedereen heeft, of dat jij het bent!",
-     "g": "moto"
+     "t": "🏍️ Moto Stunt helemaal vernieuwd: 12 nieuwe levels, open kurkentrekker-loopings, een zonnige 3D-wereld en veel eerlijkere besturing"
+    },
+    {
+     "t": "🏍️ Moto Stunt: bij de finish zie je wie de snelste tijd van iedereen heeft, of dat jij het bent!"
     },
     {
      "t": "🏁 Turbo Tijdrit: bij de finish zie je wie de snelste tijd van iedereen heeft, of dat jij het bent!",
@@ -118,9 +118,7 @@
      "new": true
     },
     {
-     "t": "Moto Stunt: 3D-stuntrace met loopings, salto's en sterren",
-     "g": "moto",
-     "new": true
+     "t": "Moto Stunt: 3D-stuntrace met loopings, salto's en sterren"
     },
     {
      "t": "Admin: accounts verwijderen en herstellen"
