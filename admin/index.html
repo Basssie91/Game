@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b38347766b">
+<meta name="site-build" content="b4b2d030a3">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
@@ -314,7 +314,7 @@ $('mRows').addEventListener('click', async (e) => {
     // ook van de openbare ranglijst halen
     const lb = fb.doc(fb.db, 'leaderboard', open.uid);
     const ls = await fb.getDoc(lb).catch(() => null);
-    if (ls && ls.exists()) { const x = ls.data(); const sc = Object.assign({}, x.scores || {}), ex = Object.assign({}, x.extra || {}), tm = Object.assign({}, x.times || {}); delete sc[id]; delete ex[id]; delete tm[id]; await fb.setDoc(lb, Object.assign({}, x, { scores: sc, extra: ex, times: tm })); }
+    if (ls && ls.exists()) { const x = ls.data(); const sc = Object.assign({}, x.scores || {}), ex = Object.assign({}, x.extra || {}), tm = Object.assign({}, x.times || {}), dy = Object.assign({}, x.days || {}); delete sc[id]; delete ex[id]; delete tm[id]; delete dy[id]; await fb.setDoc(lb, Object.assign({}, x, { scores: sc, extra: ex, times: tm, days: dy })); }
     open.data = data; open.raw = Object.assign({}, raw, { data, resets });
     $('mMsg').className = 'msg ok'; $('mMsg').textContent = `${naam} is gereset. Ook op hun apparaten verdwijnt dit record zodra ze de site openen.`;
     showRows(); render();
@@ -357,10 +357,10 @@ $('gmGo').addEventListener('click', async () => {
     m.textContent = 'Ranglijst bijwerken…';
     const lb = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
     for (const d of lb.docs) {
-      const x = d.data(), sc = Object.assign({}, x.scores || {}), ex = Object.assign({}, x.extra || {}), tm = Object.assign({}, x.times || {});
-      if (!(id in sc) && !(id in ex) && !(id in tm)) continue;
-      delete sc[id]; delete ex[id]; delete tm[id];
-      await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, x, { scores: sc, extra: ex, times: tm }));
+      const x = d.data(), sc = Object.assign({}, x.scores || {}), ex = Object.assign({}, x.extra || {}), tm = Object.assign({}, x.times || {}), dy = Object.assign({}, x.days || {});
+      if (!(id in sc) && !(id in ex) && !(id in tm) && !(id in dy)) continue;
+      delete sc[id]; delete ex[id]; delete tm[id]; delete dy[id];
+      await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, x, { scores: sc, extra: ex, times: tm, days: dy }));
     }
     m.className = 'msg ok'; m.textContent = `Klaar! ${naam} is gewist bij ${n} accounts. Op ieders apparaat verdwijnt het zodra ze de site openen.`;
     b.textContent = '✔ Gewist';
@@ -412,7 +412,7 @@ $('allGo').addEventListener('click', async () => {
       n++; m.textContent = `Bezig… ${n}/${us.docs.length} accounts`;
     }
     const lb = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
-    for (const d of lb.docs) await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, d.data(), { scores: {}, extra: {} }));
+    for (const d of lb.docs) await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, d.data(), { scores: {}, extra: {}, times: {}, days: {} }));
     m.className = 'msg ok'; m.textContent = `Klaar! ${n} accounts gereset. Op ieders apparaat verdwijnen de records zodra ze de site openen.`;
     load();
   } catch (e) { m.className = 'msg err'; m.textContent = `Gestopt na ${n} accounts: ` + (e.code || e.message); }
@@ -451,7 +451,7 @@ $('mWipe').addEventListener('click', async () => {
     await fb.setDoc(fb.doc(fb.db, 'users', open.uid), Object.assign({}, raw, { data: {}, resets: {}, email: open.email, updated: fb.serverTimestamp(), resetAt: fb.serverTimestamp() }));
     const lb = fb.doc(fb.db, 'leaderboard', open.uid);
     const ls = await fb.getDoc(lb).catch(() => null);
-    if (ls && ls.exists()) await fb.setDoc(lb, Object.assign({}, ls.data(), { scores: {}, extra: {} }));
+    if (ls && ls.exists()) await fb.setDoc(lb, Object.assign({}, ls.data(), { scores: {}, extra: {}, times: {}, days: {} }));
     $('mMsg').className = 'msg ok'; $('mMsg').textContent = 'Gewist. Ook op hun apparaten verdwijnen de records zodra ze de site openen.';
     b.textContent = '✔ Gewist';
     load();

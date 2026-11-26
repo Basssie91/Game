@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="b38347766b">
+<meta name="site-build" content="b4b2d030a3">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Toren Klimmer · Game Arcade</title>
@@ -693,6 +693,7 @@ let state = 'menu';          // menu | play | pause | over
 let mode = 'dag';            // dag | vrij
 let P, camY = -H, lavaY = 400, lavaV = 0, score = 0, coinsGot = 0, maxH = 0, t = 0, overT = 0, shake = 0, flash = 0, parts = [], pops = [], newRecord = false, lastFlag = 0, deadWhy = '', seedUsed = 0;
 let topOther = null;         // record van een ander (voor de lijn in de toren)
+let menuTop = null, menuTopBusy = false;   // top 3 van vandaag in het menu
 const keys = {};
 function resetPlayer() {
   P = { x: W / 2 - PW / 2, y: -PHT, vx: 0, vy: 0, ground: true, onPlat: null, coyote: 0, buffer: 0, jumps: 1, wall: 0, wallT: 0, face: 1, squash: 0, hold: false, runT: 0, dead: false };
@@ -706,7 +707,11 @@ function startGame(m) {
   score = 0; coinsGot = 0; maxH = 0; t = 0; overT = 0; shake = 0; flash = 0; parts = []; pops = []; newRecord = false; lastFlag = 0; deadWhy = '';
   state = 'play';
   if (window.ArcadeBoard && ArcadeBoard.hideCard) ArcadeBoard.hideCard();
-  if (window.ArcadeBoard) ArcadeBoard.load().then(() => { topOther = ArcadeBoard.topScore ? ArcadeBoard.topScore(GAME) : null; }).catch(() => {});
+  topOther = null;
+  if (window.ArcadeBoard) ArcadeBoard.load().then(() => {
+    if (mode === 'dag') { const o = ArcadeBoard.dayList(GAME, false)[0]; topOther = o ? { name: o.name, v: o.v, day: true } : null; }
+    else topOther = ArcadeBoard.topScore(GAME);
+  }).catch(() => {});
   Arcade.beep(440, 0.12, 'triangle', 0.05, 300);
 }
 const meters = () => Math.max(0, Math.floor(maxH / PX_M));
@@ -867,8 +872,13 @@ function die(why) {
   burst(P.x + PW / 2, P.y + PHT / 2, 34, why === 'lava' ? ['#ff6a00', '#ffd23f', '#ff2a2a'] : ['#ff3b45', '#ffffff', '#7df9ff'], 380, 0.9, 5);
   Arcade.beep(why === 'lava' ? 120 : 200, 0.6, 'sawtooth', 0.07, -80); Arcade.noise(0.5, 0.12, 1500, 80);
   newRecord = score > 0 && Arcade.record(GAME, score); best = Arcade.best(GAME);
-  if (mode === 'dag' && score > dayRec.v) { dayRec = { d: today(), v: score }; Arcade.save('klimmer_day', dayRec); }
-  if (window.ArcadeBoard && score > 0) ArcadeBoard.card(GAME, score, { best, label: 'Jouw score' });   // recordkaart
+  if (mode === 'dag') {
+    if (dayRec.d !== today()) dayRec = { d: today(), v: 0 };
+    if (score > dayRec.v) { dayRec = { d: today(), v: score }; Arcade.save('klimmer_day', dayRec); if (window.ArcadeBoard) ArcadeBoard.push(); }
+  }
+  // recordkaart: bij de dagtoren de ranglijst van vandaag, anders je beste ooit
+  if (window.ArcadeBoard && score > 0) ArcadeBoard.card(GAME, score, mode === 'dag' ? { day: true, best: dayRec.v, label: 'Jouw beste vandaag' } : { best, label: 'Jouw score' });
+  menuTop = null;
 }
 
 // ---------- tekenen ----------
@@ -1005,7 +1015,7 @@ function drawMarkers() {
   // lijn op jouw record en op het record van iedereen
   const line = (m, label, col) => { const y = -m * PX_M - camY; if (y < 0 || y > H) return; ctx.setLineDash([8, 8]); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(WALL, y); ctx.lineTo(W - WALL, y); ctx.stroke(); ctx.setLineDash([]); Arcade.text(ctx, label, W - WALL - 8, y - 10, 12, col, 'right', '900'); };
   if (flagBest > 0) line(flagBest, `🚩 jouw beste vlag · ${flagBest} m`, 'rgba(125,249,255,0.6)');
-  if (topOther && topOther.v > 0) line(topOther.v - 0, `🌍 record ${topOther.name}`, 'rgba(255,210,63,0.75)');
+  if (topOther && topOther.v > 0) line(topOther.v - 0, topOther.day ? `📅 beste vandaag: ${topOther.name}` : `🌍 record ${topOther.name}`, 'rgba(255,210,63,0.75)');
 }
 function drawHud() {
   ctx.fillStyle = 'rgba(10,12,20,0.6)'; Arcade.rr(ctx, 16, 14, 210, 70, 14); ctx.fill();
@@ -1051,7 +1061,12 @@ function drawMenu() {
   title(170);
   Arcade.text(ctx, 'Klim zo hoog als je kunt. De lava stijgt mee!', W / 2, 290, 16, '#c9d2e4', 'center', '700');
   button(70, 340, W - 140, 74, '📅  Dagtoren', () => startGame('dag'), true);
-  Arcade.text(ctx, 'Elke dag een nieuwe toren, voor iedereen hetzelfde', W / 2, 432, 13, '#9aa3b5', 'center', '700');
+  // top 3 van vandaag (dagranglijst)
+  if (menuTop === null && window.ArcadeBoard && !menuTopBusy) { menuTopBusy = true; ArcadeBoard.load(true).then(() => { menuTop = ArcadeBoard.dayList(GAME, true).slice(0, 3); menuTopBusy = false; }).catch(() => { menuTop = []; menuTopBusy = false; }); }
+  if (menuTop && menuTop.length) {
+    const txt = menuTop.map((r, i) => `${i + 1}. ${r.me ? 'Jij' : r.name} ${r.v}`).join('  ·  ');
+    Arcade.text(ctx, `📅 Vandaag: ${txt}`, W / 2, 432, 13, '#ffd23f', 'center', '800');
+  } else Arcade.text(ctx, menuTop ? '📅 Nog niemand heeft vandaag geklommen. Wees de eerste!' : 'Elke dag een nieuwe toren, voor iedereen hetzelfde', W / 2, 432, 13, menuTop ? '#ffd23f' : '#9aa3b5', 'center', '700');
   button(70, 462, W - 140, 64, '♾️  Vrij klimmen', () => startGame('vrij'));
   Arcade.text(ctx, 'Elke keer een andere toren', W / 2, 544, 13, '#9aa3b5', 'center', '700');
   ctx.fillStyle = 'rgba(10,12,20,0.6)'; Arcade.rr(ctx, 70, 590, W - 140, 110, 16); ctx.fill();
@@ -1136,6 +1151,6 @@ window.__klim = { get t() { return t; }, get P() { return P; }, get deadWhy() { 
 ArcadeCore.cheat('🧯 Lava 100 m terug', () => { if (state === 'play') lavaY += 1000; });
 ArcadeCore.cheat('🚀 50 m omhoog', () => { if (state === 'play') { P.y -= 500; P.vy = -400; } });
   </script>
-  <script type="module" src="../auth.js?v=b38347766b"></script>
+  <script type="module" src="../auth.js?v=b4b2d030a3"></script>
 </body>
 </html>

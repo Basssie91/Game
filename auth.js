@@ -201,15 +201,23 @@ function extraOf(d) {
   for (const g of ['sudoku', 'mijnen', 'memory', 'patience']) { const v = J(d['arcade_best_' + g]); if (typeof v === 'string' && v) o[g] = v; }
   return o;
 }
+// dagscores (dagranglijst): alleen de score van vandaag telt, met de datum erbij
+const todayNum = () => { const d = new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); };
+const DAILY = ['klimmer'];
+function daysOf(d) {
+  const o = {};
+  for (const g of DAILY) { const v = J(d['arcade_' + g + '_day']); if (v && typeof v.v === 'number' && v.v > 0 && typeof v.d === 'number') o[g] = { d: v.d, v: Math.round(v.v) }; }
+  return o;
+}
 async function pushBoard(data, force) {
   if (!user || !myName || killed) return;
   const d = data || mergeObjs(collect(), remote);
-  const scores = scoresOf(d), extra = extraOf(d), times = timesOf(d);
+  const scores = scoresOf(d), extra = extraOf(d), times = timesOf(d), days = daysOf(d);
   const since = (user.metadata && user.metadata.creationTime) || '';
-  const s = JSON.stringify([myName, scores, extra, times]);
+  const s = JSON.stringify([myName, scores, extra, times, days]);
   if (!force && s === lastBoard) return;
   try {
-    await fb.setDoc(fb.doc(fb.db, 'leaderboard', user.uid), { name: myName, scores, extra, times, since, updated: fb.serverTimestamp() });
+    await fb.setDoc(fb.doc(fb.db, 'leaderboard', user.uid), { name: myName, scores, extra, times, days, since, updated: fb.serverTimestamp() });
     lastBoard = s;
   } catch (e) { console.warn('Ranglijst bijwerken mislukt:', e); }
 }
@@ -343,6 +351,13 @@ window.ArcadeBoard = {
   },
   loggedIn: () => !!user,
   hasName: () => !!myName,
+  // dagranglijst: scores van vandaag (hoogste eerst), met of zonder jezelf
+  dayList(game, withMe = true) {
+    const me = user && user.uid, td = todayNum();
+    return (this.players || []).filter((p) => (withMe || p.uid !== me) && p.days && p.days[game] && p.days[game].d === td && p.days[game].v > 0)
+      .map((p) => ({ name: p.name, v: p.days[game].v, me: p.uid === me })).sort((a, b) => b.v - a.v);
+  },
+  push() { return pushBoard(null, true); },
   // hoogste score van een ANDER
   topScore(game) {
     const me = user && user.uid;
@@ -369,6 +384,12 @@ window.ArcadeBoard = {
         if (!o) { t1 = '👑 Jij bent de eerste die dit haalt!'; t2 = `Snelste tijd: ${f(mine)}`; }
         else if (top) { t1 = value <= mine + 0.005 ? '👑 Jij hebt de snelste tijd van iedereen!' : '👑 Jij hebt nog steeds de snelste tijd!'; t2 = `${f(mine)} · ${(o.t - mine).toFixed(2)} sneller dan ${esc(o.name)} (${f(o.t)})`; }
         else { t1 = `🌍 Snelste tijd: ${esc(o.name)} · ${f(o.t)}`; t2 = `Jouw tijd: ${f(value)} · +${(value - o.t).toFixed(2)} langzamer`; }
+      } else if (opts.day) {
+        const o = this.dayList(game, false)[0];
+        top = !o || mine > o.v;
+        if (!o) { t1 = '👑 Jij bent vandaag de eerste klimmer!'; t2 = `📅 Jouw beste vandaag: ${f(mine)}`; }
+        else if (top) { t1 = '👑 Jij bent vandaag de beste!'; t2 = `${f(mine)} · ${f(mine - o.v)} meer dan ${esc(o.name)} (${f(o.v)})`; }
+        else { t1 = `📅 Vandaag: ${esc(o.name)} · ${f(o.v)}`; t2 = `Jouw beste vandaag: ${f(mine)} · nog ${f(o.v - mine)} te gaan`; }
       } else {
         const o = this.topScore(game);
         top = !o || mine > o.v;
@@ -425,6 +446,10 @@ function renderBoard() {
     rows = levelRanking(g, cur).map((r) => ({ p: r.p, v: r.v, s: fmtT(r.v) }));
   } else lvBox.hidden = true;
   if (TIMED[g]) { /* al gedaan */ }
+  else if (g.endsWith(':dag')) {   // dagranglijst: alleen scores van vandaag
+    const id = g.slice(0, -4), td = todayNum();
+    rows = boardPlayers.filter((p) => p.days && p.days[id] && p.days[id].d === td && p.days[id].v > 0).map((p) => ({ p, v: p.days[id].v, s: p.days[id].v.toLocaleString('nl-NL') })).sort((a, b) => b.v - a.v);
+  }
   else if (!g) {   // klassement: 🥇 3, 🥈 2, 🥉 1 punt per game
     rows = klassement().map(([uid, v]) => ({ p: boardPlayers.find((x) => x.uid === uid), v, s: v + ' pt' }));
   } else {
