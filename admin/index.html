@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="868adb07fa">
+<meta name="site-build" content="a5723829b8">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
@@ -198,6 +198,18 @@ const ADMIN_UID = '31VKCKOiG2aeKpngX2R75Cv7YkY2';   // de beheerder (account-ID,
 const ADMIN_HASH = '3caffc05c7f0e2906e518b7c96b1a3bab9ae1ed894b83d31ca651e93a0b19a15';
 const GAMES = [["race", "Turbo Tijdrit"], ["basket", "Basket Koning"], ["penalty", "Penalty Koning"], ["dief", "Nachtdief"], ["pool", "Pool"], ["voetbal", "Puck Voetbal"], ["escape", "Escape Room"], ["tycoon", "PC Tycoon"], ["td", "Robo Defense"], ["meteoren", "Meteorenregen 2.0"], ["runner", "Neon Runner"], ["snake", "Snake 2.0"], ["2048", "2048"], ["stack", "Stack Tower"], ["klimmer", "Toren Klimmer"]];   // [id, naam]
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
+// namenfilter (zelfde als op de site): foute namen in het rood tonen
+const BAD_WORDS = /kanker|kanke|kankr|kenker|kanka|kkr|tyfus|tyfes|tiefus|tyfu|t[iy]?ering|pest|klere|kolere|cholera|pokke|aids|tbc|kut|lul|hoer|fuck|fuk|kech|jonker|jonkr|jonke/;
+function nameBad(n) {
+  const leet = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b', '@': 'a', $: 's', '!': 'i', '|': 'i', '€': 'e' };
+  const low = String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const mapped = low.replace(/[0134578@$!|€]/g, (c) => leet[c]);
+  const letters = mapped.replace(/[^a-z]/g, '');                 // spaties, puntjes, streepjes weg
+  const single = letters.replace(/(.)\1+/g, '$1');               // dubbele letters samen
+  const iy = (t) => t.replace(/ij/g, 'y').replace(/ie/g, 'y');   // tijfus, tiefus -> tyfus
+  return [letters, single, iy(letters), iy(single)].some((t) => BAD_WORDS.test(t));
+}
+
 const $ = (id) => document.getElementById(id);
 const J = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -267,7 +279,7 @@ function render() {
   $('tRec').textContent = total;
   $('rows').innerHTML = rows.filter(({ u }) => u.email.toLowerCase().includes(q) && (!qn || (u.raw.name || '').toLowerCase().includes(qn))).map(({ u, n }) => {
     const ty = J(u.data.arcade_best_tycoon);
-    return `<tr><td>${esc(u.email)}${me && u.uid === me.uid ? '<span class="me">JIJ</span>' : ''}</td><td>${u.raw.name ? '<b>' + esc(u.raw.name) + '</b>' : '<span class="dim">geen naam</span>'}</td><td>${ago(u.t)}</td><td class="num hide-sm">${n}/${GAMES.length}</td><td class="num hide-sm">${ty ? 'Level ' + ty : '–'}</td>
+    return `<tr><td>${esc(u.email)}${me && u.uid === me.uid ? '<span class="me">JIJ</span>' : ''}</td><td>${u.raw.name ? (nameBad(u.raw.name) ? '<b style="color:#ff5a5a" title="Niet toegestane naam: pas hem aan">⚠️ ' + esc(u.raw.name) + '</b>' : '<b>' + esc(u.raw.name) + '</b>') : '<span class="dim">geen naam</span>'}</td><td>${ago(u.t)}</td><td class="num hide-sm">${n}/${GAMES.length}</td><td class="num hide-sm">${ty ? 'Level ' + ty : '–'}</td>
       <td><div class="acts"><button data-v="${u.uid}">Bekijk</button></div></td></tr>`;
   }).join('') || '<tr><td colspan="6">Geen accounts gevonden.</td></tr>';
   $('delWrap').style.display = deleted.length ? '' : 'none';

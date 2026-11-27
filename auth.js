@@ -238,9 +238,23 @@ async function pushBoard(data, force) {
   } catch (e) { console.warn('Ranglijst bijwerken mislukt:', e); }
 }
 const NAME_OK = /^[\p{L}\p{N} _.-]{2,16}$/u;
+// ---------- Namenfilter: scheldwoorden (ook ziektes) en 'jonker' zijn niet toegestaan, ook niet verstopt ----------
+const BAD_WORDS = /kanker|kanke|kankr|kenker|kanka|kkr|tyfus|tyfes|tiefus|tyfu|t[iy]?ering|pest|klere|kolere|cholera|pokke|aids|tbc|kut|lul|hoer|fuck|fuk|kech|jonker|jonkr|jonke/;
+function nameBad(n) {
+  const leet = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b', '@': 'a', $: 's', '!': 'i', '|': 'i', '€': 'e' };
+  const low = String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const mapped = low.replace(/[0134578@$!|€]/g, (c) => leet[c]);
+  const letters = mapped.replace(/[^a-z]/g, '');                 // spaties, puntjes, streepjes weg
+  const single = letters.replace(/(.)\1+/g, '$1');               // dubbele letters samen
+  const iy = (t) => t.replace(/ij/g, 'y').replace(/ie/g, 'y');   // tijfus, tiefus -> tyfus
+  return [letters, single, iy(letters), iy(single)].some((t) => BAD_WORDS.test(t));
+}
+const cleanName = (n) => (n && nameBad(n) ? 'Speler' : n);
+window.ArcadeNameBad = nameBad;
 async function setName(n) {
   n = (n || '').trim().replace(/\s+/g, ' ');
   if (!NAME_OK.test(n)) throw new Error('Gebruik 2 tot 16 letters of cijfers.');
+  if (nameBad(n)) throw new Error('Deze naam is niet toegestaan. Kies een andere naam.');
   await fb.setDoc(ref(), { name: n }, { merge: true });
   myName = n; acctUI();
   await pushBoard(null, true);
@@ -301,6 +315,7 @@ function hubUI() {
     if (mode === 'signup') {
       const n = $('aName').value.trim();
       if (!NAME_OK.test(n)) return say('Kies een spelersnaam van 2 tot 16 letters of cijfers.');
+      if (nameBad(n)) return say('Deze naam is niet toegestaan. Kies een andere naam.');
       pendingName = n;
     }
     $('aGo').disabled = true; say('Even geduld…', true);
@@ -354,7 +369,7 @@ window.ArcadeBoard = {
     if (!force && this.players && Date.now() - this.at < 30000) return this.players;
     try {
       const snap = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
-      this.players = snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => p.name);
+      this.players = snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => p.name).map((p) => ({ ...p, name: cleanName(p.name) }));
       this.at = Date.now();
     } catch (e) { console.warn('Ranglijst laden mislukt:', e); }
     return this.players;
@@ -446,7 +461,7 @@ async function loadBoard() {
   if (!fb) return;
   try {
     const snap = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
-    boardPlayers = snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => p.name);
+    boardPlayers = snap.docs.map((d) => ({ uid: d.id, ...d.data() })).filter((p) => p.name).map((p) => ({ ...p, name: cleanName(p.name) }));
   } catch (e) { console.warn('Ranglijst laden mislukt:', e); if (!boardPlayers) boardPlayers = []; }
   renderBoard();
 }
@@ -663,7 +678,7 @@ async function loadSug() {
   if (!fb || !document.getElementById('sugList')) return;
   try {
     const snap = await fb.getDocs(fb.collection(fb.db, 'suggestions'));
-    sugAll = snap.docs.map((d) => ({ id: d.id, ...d.data() })).map((x) => ({ ...x, t: x.created && x.created.toMillis ? x.created.toMillis() : (+x.created || 0) }));
+    sugAll = snap.docs.map((d) => ({ id: d.id, ...d.data() })).map((x) => ({ ...x, name: cleanName(x.name), t: x.created && x.created.toMillis ? x.created.toMillis() : (+x.created || 0) }));
     sugAll.sort((p, q) => q.t - p.t);
   } catch (e) { sugAll = null; }
   if (user && ready && sugAll) sugNotify();
