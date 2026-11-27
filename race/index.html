@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="e50c6b264a">
+<meta name="site-build" content="cb2b66f370">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Turbo Tijdrit</title>
@@ -605,6 +605,7 @@ function placeObstacles(track, lvIdx, seed) {
     if (i < 40 || i > track.finishIdx - 12 || i > n - 20) return false;
     for (let k = i - 6; k <= i + 6; k++) if (bad(ss[k])) return false;
     for (let k = i - 8; k <= i + 8; k++) if (Math.abs(ss[k].kg || 0) > 0.03) return false;   // nooit in een scherpe bocht (wel er net uit)
+    for (let k = i; k <= Math.min(n - 1, i + 22); k++) if (ss[k].flag === 'ramp') return false;   // vrije aanloop voor een schans
     for (let k = i - 12; k < i; k++) if (ss[k].flag === 'gap') return false;      // niet vlak na een landing
     if (ss[i].N[1] < 0.85) return false;                                          // niet op een steile helling
     return !track.obs.some((o) => Math.abs(o.i - i) < 30);
@@ -620,6 +621,40 @@ function placeObstacles(track, lvIdx, seed) {
   track.obs.sort((a, b) => a.i - b.i);
   return track.obs;
 }
+
+// ---------- Gaten in de weg: rijd je erin, dan val je erdoor (terug naar je checkpoint) ----------
+// Geen waarschuwing: je moet ze zelf zien. Altijd minstens 4,5 m vrij om erlangs te gaan.
+function placeHoles(track, lvIdx, seed) {
+  track.holes = [];
+  if (!lvIdx) return track.holes;
+  const ss = track.samples, n = ss.length, R = rng(seed * 53 + 11);
+  const want = Math.round(2 + (Math.min(lvIdx, 19) / 19) * 4);
+  const bad = (s) => s.flag === 'gap' || s.flag === 'ramp' || s.flag === 'loop' || s.flag === 'wall' || s.flag === 'bank' || s.fence || s.w < HALF_W - 0.01;
+  const ok = (i, len) => {
+    if (i < 40 || i + len > track.finishIdx - 12 || i + len > n - 20) return false;
+    for (let k = i - 8; k <= i + len + 6; k++) if (bad(ss[k])) return false;
+    for (let k = i; k <= Math.min(n - 1, i + len + 22); k++) if (ss[k].flag === 'ramp') return false;   // vrije aanloop voor een schans
+    for (let k = Math.max(0, i - 44); k < i; k++) if (ss[k].flag === 'gap' || ss[k].flag === 'ramp') return false;   // niet in de landingszone van een sprong
+    for (let k = Math.max(0, i - 30); k < i; k++) if ((ss[k].kn || 0) < -0.025) return false;                          // niet na een bult waar je overheen vliegt
+    for (let k = i - 8; k <= i + len + 8; k++) if (Math.abs(ss[k].kg || 0) > 0.03) return false;
+    if (ss[i].N[1] < 0.85) return false;
+    if ((track.obs || []).some((o) => o.i > i - 22 && o.i < i + len + 22)) return false;   // nooit vlak bij een obstakel
+    if (track.cps.some((c) => c > i - 4 && c < i + len + 4)) return false;                // niet onder een checkpointpoort
+    return !track.holes.some((h) => h.i1 > i - 30 && h.i0 < i + len + 30);
+  };
+  for (let tries = 0; tries < 4000 && track.holes.length < want; tries++) {
+    const len = 3 + Math.floor(R() * 3);                 // 4,5 tot 7,5 m lang
+    const i = 40 + Math.floor(R() * (n - 70));
+    if (!ok(i, len)) continue;
+    const wd = 4 + R() * 2, iw = HALF_W - 0.9, e = R() * 0.6;
+    const left = R() < 0.5;
+    const u0 = left ? -iw + e : iw - e - wd, u1 = u0 + wd;   // aan één kant blijft altijd ≥ 4,5 m over
+    track.holes.push({ i0: i, i1: i + len, u0, u1 });
+  }
+  track.holes.sort((a, b) => a.i0 - b.i0);
+  return track.holes;
+}
+const inHole = (track, fi, u) => !!track.holes && track.holes.some((h) => fi >= h.i0 && fi <= h.i1 && u >= h.u0 && u <= h.u1);
 
 // Weg-assenstelsel op een (gebroken) positie langs de baan
 function frameAt(track, fi) {
@@ -768,7 +803,9 @@ function stepCar(c, track, inp, dt) {
     c.u_rel = c.u;
     c.shadow = { P: c.pos, fr };
 
-    if (outOfTrack || fr.gap || Math.abs(c.u) > fr.w || Nf < -1) {
+    const hole = inHole(track, c.fi, c.u);
+    if (hole) c.holeFall = true;                          // in een gat: je valt echt door (geen landing meer)
+    if (outOfTrack || fr.gap || hole || Math.abs(c.u) > fr.w || Nf < -1) {
       c.ground = false; c.airDist = 0;
       c.airT = 0;
       if (Nf < -1) c.vel = V.ma(c.vel, fr.N, 0.5);
@@ -791,14 +828,14 @@ function stepCar(c, track, inp, dt) {
     const rd = nearestRoad(track, c.pos);
     c.idx = rd.idx;
     c.u_rel = rd.u;
-    c.shadow = (!rd.fr.gap && Math.abs(rd.u) <= rd.fr.w && rd.h > -0.5 && rd.h < 30) ? { P: V.ma(rd.fr.P, rd.fr.R, rd.u), fr: rd.fr } : null;
+    c.shadow = (!c.holeFall && !rd.fr.gap && !inHole(track, rd.fi, rd.u) && Math.abs(rd.u) <= rd.fr.w && rd.h > -0.5 && rd.h < 30) ? { P: V.ma(rd.fr.P, rd.fr.R, rd.u), fr: rd.fr } : null;
     const vN = V.dot(c.vel, rd.fr.N);
     // Afsnijden tegengaan: je mag niet verder op de baan landen dan je door de lucht bent gevlogen
     // (een sprong over een gat mag wel, een stuk weg overslaan via een bocht, looping of lager gelegen weg niet)
     const gfi = c.gfi == null ? c.fi : c.gfi;
     const skipsLoop = (track.loops || []).some((L) => gfi < L.top && rd.fi > L.top);
     const cuts = (rd.fi - gfi) * STEP > (c.airDist || 0) * 1.2 + 10;
-    if (!skipsLoop && !cuts && !rd.fr.gap && Math.abs(rd.u) <= rd.fr.w && rd.h <= 0.1 && rd.h > -2.5 && vN <= 0.5 && rd.fr.N[1] > -0.2) {
+    if (!c.holeFall && !skipsLoop && !cuts && !inHole(track, rd.fi, rd.u) && !rd.fr.gap && Math.abs(rd.u) <= rd.fr.w && rd.h <= 0.1 && rd.h > -2.5 && vN <= 0.5 && rd.fr.N[1] > -0.2) {
       // Landen
       const fr = rd.fr;
       c.ground = true;
@@ -1099,6 +1136,17 @@ function buildTrackMesh(track) {
     if (s1.flag === 'boost') top = C.boost;
     if (s1.flag === 'ramp') top = Math.floor(i / 2) % 2 ? C.rampA : C.rampB;
     const iw0 = s0.w - 0.9, iw1 = s1.w - 0.9;
+    const hole = (track.holes || []).find((h) => i >= h.i0 && i < h.i1);
+    if (hole) {
+      // gat: wegdek alleen links en rechts ervan, en de randen van het gat (zelfde kleur als de onderkant)
+      const { u0, u1 } = hole;
+      if (u0 > -iw0) mb.quad(P3(s0, -iw0), P3(s1, -iw1), P3(s1, u0), P3(s0, u0), top, 0.02);
+      if (u1 < iw0) mb.quad(P3(s0, u1), P3(s1, u1), P3(s1, iw1), P3(s0, iw0), top, 0.02);
+      mb.quad(P3(s0, u0, 0), P3(s1, u0, 0), P3(s1, u0, -TH), P3(s0, u0, -TH), C.side, 0.02);
+      mb.quad(P3(s0, u1, 0), P3(s1, u1, 0), P3(s1, u1, -TH), P3(s0, u1, -TH), C.side, 0.02);
+      if (i === hole.i0) mb.quad(P3(s0, u0, 0), P3(s0, u1, 0), P3(s0, u1, -TH), P3(s0, u0, -TH), C.side, 0.02);
+      if (i === hole.i1 - 1) mb.quad(P3(s1, u0, 0), P3(s1, u1, 0), P3(s1, u1, -TH), P3(s1, u0, -TH), C.side, 0.02);
+    } else
     mb.quad(P3(s0, -iw0), P3(s1, -iw1), P3(s1, iw1), P3(s0, iw0), top, 0.02);
     const curb = Math.floor(i / 2) % 2 ? C.curbA : C.curbB;
     for (const side of [-1, 1]) {
@@ -1107,6 +1155,10 @@ function buildTrackMesh(track) {
       mb.quad(P3(s0, a0, 0), P3(s1, a1, 0), P3(s1, a1, 0.12), P3(s0, a0, 0.12), curb, 0.02);
       mb.quad(P3(s0, b0, 0.12), P3(s1, b1, 0.12), P3(s1, b1, -TH), P3(s0, b0, -TH), C.side, 0.02);
     }
+    if (hole) {
+      mb.quad(P3(s0, -s0.w, -TH), P3(s1, -s1.w, -TH), P3(s1, hole.u0, -TH), P3(s0, hole.u0, -TH), C.under, 0.02);
+      mb.quad(P3(s0, hole.u1, -TH), P3(s1, hole.u1, -TH), P3(s1, s1.w, -TH), P3(s0, s0.w, -TH), C.under, 0.02);
+    } else
     mb.quad(P3(s0, -s0.w, -TH), P3(s1, -s1.w, -TH), P3(s1, s1.w, -TH), P3(s0, s0.w, -TH), C.under, 0.02);
     if (s1.flag === 'boost' && i % 6 === 0) {
       const f = (along, off) => {
@@ -1422,25 +1474,25 @@ function drawMesh(mesh, model, opts = {}) {
 const LEVELS = [
   { naam: 'Eerste Rit', code: 'S S R S C S L S S U S D S C S R S S L S F', medals: [19.7, 22.6, 26.8], seed: 11 },
   { naam: 'Springplank', code: 'S S J S S R S C S S J S L S S S C B S K S S F', medals: [20.4, 23.4, 27.7], seed: 22 },
-  { naam: 'Looping', code: 'S S S O S S R S C S S O S L S C S S S O S S F', medals: [22.4, 25.6, 30.4], seed: 33 },
-  { naam: 'Schuine Bochten', code: 'S S Y S S Z S C S Y S S Z S C S S F', medals: [18.5, 21.2, 25.2], seed: 44 },
-  { naam: 'Bultenweg', code: 'S H S H S R S H S H S H S C S L S H S J S C S H H S F', medals: [21.7, 24.9, 29.5], seed: 55 },
-  { naam: 'Boostbaan', code: 'S B S J S S S R B S K S S C L S S U S D B J S S C r r S B K S S F', medals: [25.6, 29.3, 34.9], seed: 66 },
-  { naam: 'Muurrit', code: 'S S S W S S S C S S M S S S C B S W S S F', medals: [16.8, 19.3, 22.8], seed: 77 },
-  { naam: 'Smalle Paden', code: 'S N S R N S C S L N S J S C r N l S F', medals: [19.6, 22.4, 26.7], seed: 88 },
-  { naam: 'Achtbaan', code: 'S S O S S U S D S C S R S O S S H H S C S L S S O S F', medals: [26.3, 30.1, 35.7], seed: 99 },
-  { naam: 'Slingerweg', code: 'S l r r l S C R S l l S r r S C L L S S R S C S l r S r l S F', medals: [28.9, 33.2, 39.3], seed: 111 },
-  { naam: 'Wolkenkrabber', code: 'S S U U U S W S S S C S M S S D D D S C S O S J S S F', medals: [26.2, 30.1, 35.7], seed: 122 },
-  { naam: 'Meesterwerk', code: 'S S U U U L S S L S S L S S S S S D D D C S R S J S S L S C B S K S S O S Y S S C S N S W S S S H H S C S O S B K S F', medals: [53.3, 61.0, 72.5], seed: 133 },
+  { naam: 'Looping', code: 'S S S O S S R S C S S O S L S C S S S O S S F', medals: [22.3, 25.5, 30.3], seed: 33 },
+  { naam: 'Schuine Bochten', code: 'S S Y S S Z S C S Y S S Z S C S S F', medals: [18.6, 21.3, 25.3], seed: 44 },
+  { naam: 'Bultenweg', code: 'S H S H S R S H S H S H S C S L S H S J S C S H H S F', medals: [21.6, 24.7, 29.3], seed: 55 },
+  { naam: 'Boostbaan', code: 'S B S J S S S R B S K S S C L S S U S D B J S S C r r S B K S S F', medals: [25.5, 29.2, 34.7], seed: 66 },
+  { naam: 'Muurrit', code: 'S S S W S S S C S S M S S S C B S W S S F', medals: [16.9, 19.4, 22.9], seed: 77 },
+  { naam: 'Smalle Paden', code: 'S N S R N S C S L N S J S C r N l S F', medals: [19.5, 22.3, 26.6], seed: 88 },
+  { naam: 'Achtbaan', code: 'S S O S S U S D S C S R S O S S H H S C S L S S O S F', medals: [26.5, 30.3, 36.0], seed: 99 },
+  { naam: 'Slingerweg', code: 'S l r r l S C R S l l S r r S C L L S S R S C S l r S r l S F', medals: [29.3, 33.5, 39.7], seed: 111 },
+  { naam: 'Wolkenkrabber', code: 'S S U U U S W S S S C S M S S D D D S C S O S J S S F', medals: [26.3, 30.2, 35.8], seed: 122 },
+  { naam: 'Meesterwerk', code: 'S S U U U L S S L S S L S S S S S D D D C S R S J S S L S C B S K S S O S Y S S C S N S W S S S H H S C S O S B K S F', medals: [53.2, 60.9, 72.3], seed: 133 },
   // nieuwe, moeilijkere levels (13-20): haarspeldbochten, extra smal, megaschans
-  { naam: 'Haarspeld', code: 'S S P S S C S Q S S B S S S S P S C S S Q S S F', medals: [21.3, 24.3, 28.8], seed: 144 },
-  { naam: 'Dubbele Looping', code: 'S S S O O S S C S R S S O O S C S B S J S S O S S F', medals: [25.5, 29.1, 34.4], seed: 155 },
+  { naam: 'Haarspeld', code: 'S S P S S C S Q S S B S S S S P S C S S Q S S F', medals: [22.1, 25.2, 29.8], seed: 144 },
+  { naam: 'Dubbele Looping', code: 'S S S O O S S C S R S S O O S C S B S J S S O S S F', medals: [25.5, 29.1, 34.5], seed: 155 },
   { naam: 'Koorddanser', code: 'S S n S C S N S J S n S C S l n r S S n S F', medals: [20.4, 23.3, 27.6], seed: 166 },
-  { naam: 'Megaschans', code: 'S B S E S S C S R S B S E S S C S L B S K S S B S E S S F', medals: [22.3, 25.4, 30.0], seed: 177 },
+  { naam: 'Megaschans', code: 'S B S E S S C S R S B S E S S C S L B S K S S B S E S S F', medals: [22.1, 25.2, 29.8], seed: 177 },
   { naam: 'Muurrenner', code: 'S S W S M S C S Y S Z S W S C S M S W S S F', medals: [23.0, 26.2, 31.0], seed: 188 },
-  { naam: 'Bergpas', code: 'S U U S P S U S H S C S Q S D S H H S P S C S D D S Q S S F', medals: [29.7, 33.9, 40.1], seed: 199 },
-  { naam: 'Chaos', code: 'S B S J S O S n S B W S C S Q S S B S K S S B M S C S N S O S Y S B S E S S C S R n S O S F', medals: [39.9, 45.6, 53.9], seed: 210 },
-  { naam: 'Eindbaas', code: 'S S U U L S S n S C S O O S B S E S S R S C S S W S S M S S P S C S H H S B S K S S S Q S n S C S Y S Z S O S B S E S S C S N S J S O O S S F', medals: [66.3, 75.6, 89.5], seed: 221 },
+  { naam: 'Bergpas', code: 'S U U S P S U S H S C S Q S D S H H S P S C S D D S Q S S F', medals: [30.3, 34.5, 40.8], seed: 199 },
+  { naam: 'Chaos', code: 'S B S J S O S n S B W S C S Q S S B S K S S B M S C S N S O S Y S B S E S S C S R n S O S F', medals: [39.8, 45.4, 53.8], seed: 210 },
+  { naam: 'Eindbaas', code: 'S S U U L S S n S C S O O S B S E S S R S C S S W S S M S S P S C S H H S B S K S S S Q S n S C S Y S Z S O S B S E S S C S N S J S O O S S F', medals: [69.0, 78.7, 93.2], seed: 221 },
 ];
 const MEDAL_NAMES = ['GOUD', 'ZILVER', 'BRONS'];
 const MEDAL_COLORS = ['#ffd23f', '#d9dee8', '#d98a4a'];
@@ -1591,6 +1643,7 @@ function loadLevel(i) {
   const lv = LEVELS[i];
   track = buildTrack(lv.code);
   placeObstacles(track, i, lv.seed);
+  placeHoles(track, i, lv.seed);
   trackMesh = gl ? buildTrackMesh(track) : null;
   sceneryMesh = gl ? buildSceneryMesh(track, lv.seed) : null;
   restart();
@@ -2134,6 +2187,6 @@ ArcadeCore.toggle('🚀 Turbo (veel sneller)', () => turbo, (v) => {
 });
 
   </script>
-  <script type="module" src="../auth.js?v=e50c6b264a"></script>
+  <script type="module" src="../auth.js?v=cb2b66f370"></script>
 </body>
 </html>

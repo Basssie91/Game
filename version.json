@@ -1,10 +1,14 @@
 {
- "build": "e50c6b264a",
- "note": "Turbo Tijdrit: bandenstapels en dranghekken op de weg!",
+ "build": "cb2b66f370",
+ "note": "Turbo Tijdrit: pas op voor gaten in de weg!",
  "log": [
   {
    "d": "2026-11-27",
    "items": [
+    {
+     "t": "🕳️ Turbo Tijdrit: gaten in de weg! Zonder waarschuwing, dus goed opletten. Rij je erin, dan val je terug naar je checkpoint",
+     "g": "race"
+    },
     {
      "t": "🏁 Turbo Tijdrit: obstakels! Bandenstapels en dranghekken op de weg, soms net achter een heuveltop of bocht",
      "g": "race"
