@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="cb2b66f370">
+<meta name="site-build" content="152c3b7303">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
@@ -45,6 +45,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
 .scroll { overflow-x: auto; }
 .cmodal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.85); backdrop-filter: blur(4px); z-index: 11; }
 .cmodal.open { display: flex; } .cmodal .box { width: min(440px, 100%); } .cmodal h2 { margin: 0 0 10px; font-size: 20px; } .cmodal p { color: #c5cad2; line-height: 1.5; font-size: 14px; margin: 0 0 10px; }
+.cmodal .reason { margin-top: 8px; text-align: left; letter-spacing: 0; font-size: 14px; font-weight: 600; }
 .cmodal code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 6px; color: #fff; } .cmodal button:disabled { opacity: 0.45; cursor: not-allowed; }
 #modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.8); backdrop-filter: blur(4px); z-index: 10; }
 #modal.open { display: flex; }
@@ -166,6 +167,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
     <p>Hiermee worden <b>alle records van alle spelers</b> gewist, ook de PC Tycoon-winkels. De ranglijst begint weer leeg. Accounts en spelersnamen blijven bestaan.</p>
     <p><b>Dit kun je niet ongedaan maken.</b> Typ <code>RESET</code> om te bevestigen.</p>
     <input id="allIn" autocomplete="off" placeholder="RESET">
+    <input id="allReason" class="reason" maxlength="140" placeholder="Reden voor de spelers (optioneel)">
     <div class="mbtns"><button class="red" id="allGo" disabled>Alles van iedereen wissen</button><button class="ghost" id="allClose">Annuleren</button></div>
     <div class="msg" id="allMsg"></div>
   </div></div>
@@ -176,6 +178,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
     <p>Alle records, tijden en sterren van deze game worden bij <b>iedereen</b> gewist, en de game gaat van de ranglijst (ook in de Discord-bot). Andere games blijven staan.</p>
     <p><b>Dit kun je niet ongedaan maken.</b> Typ <code>WISSEN</code> om te bevestigen.</p>
     <input id="gmIn" autocomplete="off" placeholder="WISSEN">
+    <input id="gmReason" class="reason" maxlength="140" placeholder="Reden voor de spelers (optioneel), bijv. Er zijn nu obstakels!">
     <div class="mbtns"><button class="red" id="gmGo" disabled>Wissen voor iedereen</button><button class="ghost" id="gmClose">Annuleren</button></div>
     <div class="msg" id="gmMsg"></div>
   </div></div>
@@ -320,6 +323,18 @@ $('mRows').addEventListener('click', async (e) => {
     showRows(); render();
   } catch (err) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (err.code || err.message); b.disabled = false; }
 });
+// ---------- Melding voor alle spelers na het wissen (site/resets, max. 14 dagen bewaard) ----------
+async function sendResetNote(game, naam, reason) {
+  try {
+    const ref = fb.doc(fb.db, 'site', 'resets');
+    const snap = await fb.getDoc(ref);
+    const now = Date.now();
+    const list = ((snap.exists() && snap.data().list) || []).filter((x) => x && now - x.t < 14 * 864e5).slice(-19);
+    list.push({ id: now.toString(36) + Math.random().toString(36).slice(2, 6), game, naam, reason: String(reason || '').trim().slice(0, 140), t: now });
+    await fb.setDoc(ref, { list, updated: fb.serverTimestamp() });
+  } catch (e) { console.warn('Melding versturen mislukt:', e); }
+}
+
 // ---------- Eén game wissen voor iedereen ----------
 const gmM = $('gameModal');
 let gmId = null;
@@ -330,7 +345,7 @@ $('bests').addEventListener('click', (e) => {
   const n = users.filter((u) => gameKeys(gmId, u.data).length).length;
   $('gmTitle').textContent = `⚠️ ${naam} wissen voor iedereen?`;
   $('gmInfo').innerHTML = n ? `<b>${n} ${n === 1 ? 'speler heeft' : 'spelers hebben'}</b> records of voortgang in ${esc(naam)}.` : `Nog niemand heeft records in ${esc(naam)} in zijn account. Records die alleen nog op apparaten staan worden ook gewist.`;
-  $('gmIn').value = ''; $('gmGo').disabled = true; $('gmGo').textContent = 'Wissen voor iedereen'; $('gmClose').disabled = false; $('gmClose').textContent = 'Annuleren'; $('gmMsg').textContent = ''; $('gmMsg').className = 'msg';
+  $('gmIn').value = ''; $('gmReason').value = ''; $('gmGo').disabled = true; $('gmGo').textContent = 'Wissen voor iedereen'; $('gmClose').disabled = false; $('gmClose').textContent = 'Annuleren'; $('gmMsg').textContent = ''; $('gmMsg').className = 'msg';
   gmM.classList.add('open'); setTimeout(() => $('gmIn').focus(), 50);
 });
 $('gmClose').addEventListener('click', () => gmM.classList.remove('open'));
@@ -362,7 +377,8 @@ $('gmGo').addEventListener('click', async () => {
       delete sc[id]; delete ex[id]; delete tm[id]; delete dy[id];
       await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, x, { scores: sc, extra: ex, times: tm, days: dy }));
     }
-    m.className = 'msg ok'; m.textContent = `Klaar! ${naam} is gewist bij ${n} accounts. Op ieders apparaat verdwijnt het zodra ze de site openen.`;
+    await sendResetNote(id, naam, $('gmReason').value);
+    m.className = 'msg ok'; m.textContent = `Klaar! ${naam} is gewist bij ${n} accounts. Alle spelers krijgen een melding, ook wie nu aan het spelen is.`;
     b.textContent = '✔ Gewist';
     load();
   } catch (e) { m.className = 'msg err'; m.textContent = `Gestopt na ${n}/${total} accounts: ` + (e.code || e.message); b.disabled = false; }
@@ -395,7 +411,7 @@ $('annSave').addEventListener('click', async () => {
 
 // ---------- Reset iedereen ----------
 const allM = $('allModal');
-$('resetAll').addEventListener('click', () => { $('allIn').value = ''; $('allGo').disabled = true; $('allMsg').textContent = ''; allM.classList.add('open'); setTimeout(() => $('allIn').focus(), 50); });
+$('resetAll').addEventListener('click', () => { $('allIn').value = ''; $('allReason').value = ''; $('allGo').disabled = true; $('allMsg').textContent = ''; allM.classList.add('open'); setTimeout(() => $('allIn').focus(), 50); });
 $('allClose').addEventListener('click', () => allM.classList.remove('open'));
 allM.addEventListener('click', (e) => { if (e.target === allM) allM.classList.remove('open'); });
 $('allIn').addEventListener('input', () => { $('allGo').disabled = $('allIn').value.trim().toUpperCase() !== 'RESET'; });
@@ -413,7 +429,8 @@ $('allGo').addEventListener('click', async () => {
     }
     const lb = await fb.getDocs(fb.collection(fb.db, 'leaderboard'));
     for (const d of lb.docs) await fb.setDoc(d.ref || fb.doc(fb.db, 'leaderboard', d.id), Object.assign({}, d.data(), { scores: {}, extra: {}, times: {}, days: {} }));
-    m.className = 'msg ok'; m.textContent = `Klaar! ${n} accounts gereset. Op ieders apparaat verdwijnen de records zodra ze de site openen.`;
+    await sendResetNote('*', 'alle games', $('allReason').value);
+    m.className = 'msg ok'; m.textContent = `Klaar! ${n} accounts gereset. Alle spelers krijgen een melding, ook wie nu aan het spelen is.`;
     load();
   } catch (e) { m.className = 'msg err'; m.textContent = `Gestopt na ${n} accounts: ` + (e.code || e.message); }
   $('allClose').disabled = false; $('allClose').textContent = 'Sluiten';

@@ -880,3 +880,85 @@ function initSug() {
   setTimeout(check, 4000);
   setInterval(check, 60000);
 })();
+
+// ---------- Melding als de admin records van een game voor iedereen wist ----------
+// Elke minuut (en als je terugkomt naar het tabblad) kijken of er een nieuwe reset is.
+// Speel je die game nu: groot scherm en de game laadt opnieuw (zodat oude records nooit terugkomen).
+// Anders: een kaartje met 'Spelen'. Ook zonder inloggen; maar één keer per melding.
+(() => {
+  const SEEN = 'ga_resetnotes_seen';
+  const here = IS_HUB ? '' : location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '').split('/').pop();
+  const escN = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const keysOf = (game) => {
+    const out = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i); if (!k) continue;
+      if (game === '*') { if (/^(arcade_|tt2_)/.test(k) && !/^arcade_(settings|mtimes|recent|favs|news_seen|sugnotes)$/.test(k)) out.push(k); }
+      else if (game === 'race') { if (k.startsWith('tt2_bests') || k === 'tt2_unlockall' || k.startsWith('tt2_ghost')) out.push(k); }
+      else if (new RegExp(`^arcade_(best_)?${game}(_|2_|$)`).test(k)) out.push(k);
+    }
+    return out;
+  };
+  // alleen gegevens van vóór de reset wissen (wat je daarna hebt gehaald, blijft staan)
+  function wipeBefore(game, t) {
+    let mt = {}; try { mt = JSON.parse(localStorage.getItem('arcade_mtimes')) || {}; } catch (e) { mt = {}; }
+    let n = 0;
+    for (const k of keysOf(game)) if (!(mt[k] > t)) { localStorage.removeItem(k); n++; }
+    return n;
+  }
+  function css() {
+    if (document.getElementById('rnCss')) return;
+    const st = document.createElement('style'); st.id = 'rnCss';
+    st.textContent = `#rnBox{position:fixed;right:16px;bottom:16px;z-index:9500;display:flex;flex-direction:column;gap:10px;width:min(360px,calc(100% - 32px));font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff}
+.rnCard{position:relative;padding:14px 16px 14px 18px;border-radius:16px;background:#141414;border:1px solid rgba(255,90,90,.55);box-shadow:0 18px 50px rgba(0,0,0,.6);overflow:hidden;animation:rnIn .45s cubic-bezier(.2,.9,.3,1.2) both}
+.rnCard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:#ff5a5a}
+.rnCard b{display:block;font-size:15px;font-weight:900;padding-right:26px;line-height:1.3}.rnCard q{display:block;margin-top:5px;color:#e6e6e6;font-size:13.5px;line-height:1.45;font-style:italic}
+.rnCard a{display:inline-block;margin-top:9px;padding:7px 14px;border-radius:10px;background:#fff;color:#111;font-weight:800;text-decoration:none}
+.rnCard .rnx{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:none;color:#fff;font-size:11px;cursor:pointer}
+@keyframes rnIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
+#rnModal{position:fixed;inset:0;z-index:100001;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,5,5,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff}
+#rnModal .ub{width:min(520px,100%);text-align:center;background:#121212;border:1px solid rgba(255,90,90,.45);border-radius:26px;padding:40px 30px 30px;box-shadow:0 40px 120px rgba(0,0,0,.7)}
+#rnModal .ic{font-size:56px;margin-bottom:8px}#rnModal h2{margin:0 0 10px;font-size:clamp(26px,6vw,40px);font-weight:900;letter-spacing:-1px;line-height:1.1}
+#rnModal p{margin:0 auto 22px;max-width:420px;color:#bdbdbd;font-size:16px;line-height:1.5}#rnModal p i{display:block;margin-top:10px;color:#fff}
+#rnModal button{width:100%;height:58px;border:0;border-radius:16px;background:#fff;color:#0a0a0a;font:900 20px system-ui,sans-serif;cursor:pointer}#rnModal small{display:block;margin-top:12px;color:#8c8c8c;font-size:14px}`;
+    document.head.appendChild(st);
+  }
+  function card(n) {
+    css();
+    let box = document.getElementById('rnBox');
+    if (!box) { box = document.createElement('div'); box.id = 'rnBox'; document.body.appendChild(box); box.addEventListener('click', (e) => { const x = e.target.closest('.rnx'); if (x) x.closest('.rnCard').remove(); }); }
+    const all = n.game === '*';
+    const link = all ? '' : `<a href="${new URL(n.game + '/', import.meta.url).href}">Spelen</a>`;
+    box.insertAdjacentHTML('beforeend', `<div class="rnCard"><button class="rnx" aria-label="Sluiten">✕</button><b>🗑️ Records gewist: ${escN(n.naam)}</b>${n.reason ? `<q>${escN(n.reason)}</q>` : `<q>${all ? 'Alle records zijn gewist. Iedereen begint opnieuw!' : 'Iedereen begint opnieuw. Wie haalt als eerste het nieuwe record?'}</q>`}${link}</div>`);
+  }
+  let modalOn = false;
+  function modal(n) {
+    if (modalOn) return; modalOn = true; css();
+    const m = document.createElement('div'); m.id = 'rnModal';
+    m.innerHTML = `<div class="ub"><div class="ic">🗑️</div><h2>Records gewist!</h2><p>De records van <b>${escN(n.naam)}</b> zijn net gewist. Iedereen begint opnieuw.${n.reason ? `<i>"${escN(n.reason)}"</i>` : ''}</p><button id="rnGo">Opnieuw beginnen</button><small id="rnAuto"></small></div>`;
+    document.body.appendChild(m); document.body.style.overflow = 'hidden';
+    const go = () => { const u = new URL(location.href); u.searchParams.set('r', Date.now().toString(36)); location.replace(u.toString()); };
+    m.querySelector('#rnGo').onclick = go;
+    let left = 10; const tick = () => { m.querySelector('#rnAuto').textContent = `De game start opnieuw over ${left} seconden`; if (left-- <= 0) go(); };
+    tick(); setInterval(tick, 1000);
+  }
+  async function check() {
+    if (!(await fbReady)) return;
+    let list = [];
+    try { const s = await fb.getDoc(fb.doc(fb.db, 'site', 'resets')); list = (s.exists() && s.data().list) || []; } catch (e) { return; }
+    let seen; try { seen = JSON.parse(localStorage.getItem(SEEN)) || []; } catch (e) { seen = []; }
+    const now = Date.now(); let changed = false, wiped = false;
+    for (const n of list) {
+      if (!n || !n.id || seen.includes(n.id) || now - n.t > 14 * 864e5) continue;
+      seen.push(n.id); changed = true;
+      if (wipeBefore(n.game, n.t)) wiped = true;
+      if (!IS_HUB && (n.game === '*' || n.game === here)) modal(n);   // je speelt deze game nu: opnieuw laden
+      else card(n);
+    }
+    if (changed) try { localStorage.setItem(SEEN, JSON.stringify(seen.slice(-60))); } catch (e) { /* vol */ }
+    if (wiped && IS_HUB && window.renderRecords) window.renderRecords();
+  }
+  setTimeout(check, 2500);
+  setInterval(check, 60000);
+  addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+})();
