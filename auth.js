@@ -152,6 +152,16 @@ async function pull() {
   remote = d.data || {};
   myNotes = Array.isArray(d.notes) ? d.notes : [];   // persoonlijke meldingen van de admin
   myName = d.name || '';
+  // foute naam (namenfilter): automatisch weghalen en de speler vragen een nieuwe te kiezen
+  if (myName && nameBad(myName)) {
+    myName = '';
+    try {
+      await fb.setDoc(ref(), { name: null }, { merge: true });
+      await fb.setDoc(fb.doc(fb.db, 'leaderboard', user.uid), { name: null }, { merge: true });
+    } catch (e) { console.warn('Naam weghalen mislukt:', e); }
+    lastBoard = '';
+    setTimeout(badNameNotice, 600);
+  }
   // heeft de admin de records van dit account gewist? Dan ook hier wissen (één keer)
   const ra = d.resetAt && d.resetAt.toMillis ? d.resetAt.toMillis() : 0;
   if (ra && ra > (+localStorage.getItem('ga_reset_seen') || 0)) { wipeLocal(); localStorage.setItem('ga_reset_seen', ra); lastSent = ''; }
@@ -250,6 +260,18 @@ function nameBad(n) {
   return [letters, single, iy(letters), iy(single)].some((t) => BAD_WORDS.test(t));
 }
 const cleanName = (n) => (n && nameBad(n) ? 'Speler' : n);
+let badNameShown = false;
+function badNameNotice() {
+  if (badNameShown) return; badNameShown = true;
+  const txt = 'Je spelersnaam is niet toegestaan en is weggehaald. Kies een nieuwe naam om weer op de ranglijst te komen. Je records blijven gewoon bewaard.';
+  if (IS_HUB) {
+    acctUI();
+    const m = $('acctMenu'); if (m) m.classList.add('open');
+    const msg = $('nameMsg'); if (msg) { msg.textContent = '⚠️ ' + txt; msg.className = 'err'; }
+    setTimeout(() => { const i = $('nameIn'); if (i) i.focus(); }, 100);
+  }
+  RN.notice('⚠️ Kies een nieuwe spelersnaam', txt, IS_HUB ? null : new URL('./', import.meta.url).href, 'Naam kiezen');
+}
 window.ArcadeNameBad = nameBad;
 async function setName(n) {
   n = (n || '').trim().replace(/\s+/g, ' ');
@@ -301,7 +323,7 @@ function acctUI() {
   $('nameBox').style.display = user ? '' : 'none';
   $('acctProfile').style.display = user && myName ? '' : 'none';
   if (user && document.activeElement !== $('nameIn')) $('nameIn').value = myName;
-  $('nameMsg').textContent = user && !myName ? 'Kies een naam om op de ranglijst te komen.' : ''; $('nameMsg').className = '';
+  $('nameMsg').textContent = user && !myName ? (badNameShown ? '⚠️ Je vorige naam was niet toegestaan. Kies een nieuwe naam om weer op de ranglijst te komen.' : 'Kies een naam om op de ranglijst te komen.') : ''; $('nameMsg').className = user && !myName && badNameShown ? 'err' : '';
   if (user) { b.textContent = '👤 ' + (myName || user.email || 'Account'); $('acctOut').textContent = 'Uitloggen'; p.textContent = 'Je records en je PC Tycoon-winkel worden automatisch in je account opgeslagen.'; }
   else { b.textContent = '🔑 Inloggen'; setStatus(''); $('acctOut').textContent = 'Inloggen'; p.textContent = 'Je speelt als gast: je records staan alleen in deze browser. Log in om ze overal te bewaren.'; }
 }
@@ -998,5 +1020,12 @@ const RN = (() => {
   setTimeout(check, 2500);
   setInterval(check, 60000);
   addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
-  return { personal };
+  // losse melding (bijv. 'kies een nieuwe naam')
+  function notice(title, text, href, label) {
+    css();
+    let box = document.getElementById('rnBox');
+    if (!box) { box = document.createElement('div'); box.id = 'rnBox'; document.body.appendChild(box); box.addEventListener('click', (e) => { const x = e.target.closest('.rnx'); if (x) x.closest('.rnCard').remove(); }); }
+    box.insertAdjacentHTML('beforeend', `<div class="rnCard"><button class="rnx" aria-label="Sluiten">✕</button><b>${escN(title)}</b><q>${escN(text)}</q>${href ? `<a href="${escN(href)}">${escN(label || 'Openen')}</a>` : ''}</div>`);
+  }
+  return { personal, notice };
 })();
