@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="152c3b7303">
+<meta name="site-build" content="5137b1ccce">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
@@ -45,6 +45,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
 .scroll { overflow-x: auto; }
 .cmodal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.85); backdrop-filter: blur(4px); z-index: 11; }
 .cmodal.open { display: flex; } .cmodal .box { width: min(440px, 100%); } .cmodal h2 { margin: 0 0 10px; font-size: 20px; } .cmodal p { color: #c5cad2; line-height: 1.5; font-size: 14px; margin: 0 0 10px; }
+#modal .reason { width: 100%; margin-top: 12px; padding: 10px 12px; text-align: left; letter-spacing: 0; font-size: 14px; font-weight: 600; }
 .cmodal .reason { margin-top: 8px; text-align: left; letter-spacing: 0; font-size: 14px; font-weight: 600; }
 .cmodal code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 6px; color: #fff; } .cmodal button:disabled { opacity: 0.45; cursor: not-allowed; }
 #modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.8); backdrop-filter: blur(4px); z-index: 10; }
@@ -154,6 +155,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
     <div class="sub" id="mSub"></div>
     <div class="rename"><input id="mName" maxlength="16" placeholder="Spelersnaam"><button class="ghost" id="mNameSave">Naam opslaan</button></div>
     <div class="rows" id="mRows"></div>
+    <input id="mReason" class="reason" maxlength="140" placeholder="Reden voor de speler bij wissen (optioneel)">
     <div class="mbtns">
       <button class="red" id="mWipe">🗑️ Alles wissen</button>
       <button class="red" id="mDel" style="background:#7a1418">❌ Account verwijderen</button>
@@ -293,6 +295,7 @@ $('rows').addEventListener('click', (e) => {
   $('mName').value = open.raw.name || '';
   $('mSub').textContent = 'Laatst actief: ' + ago(open.t);
   showRows();
+  $('mReason').value = '';
   $('mWipe').textContent = '🗑️ Alles wissen'; $('mWipe').dataset.sure = ''; $('mWipe').disabled = false; $('mMsg').textContent = '';
   $('mDel').textContent = '❌ Account verwijderen'; $('mDel').dataset.sure = ''; $('mDel').disabled = !!(me && open.uid === me.uid); $('mDel').title = me && open.uid === me.uid ? 'Je eigen account kun je niet verwijderen' : '';
   $('modal').classList.add('open');
@@ -312,17 +315,25 @@ $('mRows').addEventListener('click', async (e) => {
     const data = Object.assign({}, open.data);
     gameKeys(id, data).forEach((k) => delete data[k]);
     const resets = Object.assign({}, raw.resets || {}, { [id]: fb.serverTimestamp() });
-    const docData = Object.assign({}, raw, { data, resets, email: open.email, updated: fb.serverTimestamp() });
+    const notes = noteFor(raw, id, naam);   // persoonlijke melding voor deze speler
+    const docData = Object.assign({}, raw, { data, resets, notes, email: open.email, updated: fb.serverTimestamp() });
     await fb.setDoc(fb.doc(fb.db, 'users', open.uid), docData);
     // ook van de openbare ranglijst halen
     const lb = fb.doc(fb.db, 'leaderboard', open.uid);
     const ls = await fb.getDoc(lb).catch(() => null);
     if (ls && ls.exists()) { const x = ls.data(); const sc = Object.assign({}, x.scores || {}), ex = Object.assign({}, x.extra || {}), tm = Object.assign({}, x.times || {}), dy = Object.assign({}, x.days || {}); delete sc[id]; delete ex[id]; delete tm[id]; delete dy[id]; await fb.setDoc(lb, Object.assign({}, x, { scores: sc, extra: ex, times: tm, days: dy })); }
-    open.data = data; open.raw = Object.assign({}, raw, { data, resets });
-    $('mMsg').className = 'msg ok'; $('mMsg').textContent = `${naam} is gereset. Ook op hun apparaten verdwijnt dit record zodra ze de site openen.`;
+    open.data = data; open.raw = Object.assign({}, raw, { data, resets, notes });
+    $('mMsg').className = 'msg ok'; $('mMsg').textContent = `${naam} is gereset. De speler krijgt een melding (ook als hij nu aan het spelen is).`;
     showRows(); render();
   } catch (err) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (err.code || err.message); b.disabled = false; }
 });
+// persoonlijke melding (in het account van één speler), max. 10 en 14 dagen
+function noteFor(raw, game, naam) {
+  const now = Date.now();
+  const list = (Array.isArray(raw.notes) ? raw.notes : []).filter((x) => x && now - x.t < 14 * 864e5).slice(-9);
+  list.push({ id: 'p' + now.toString(36) + Math.random().toString(36).slice(2, 6), game, naam, reason: String($('mReason').value || '').trim().slice(0, 140), t: now });
+  return list;
+}
 // ---------- Melding voor alle spelers na het wissen (site/resets, max. 14 dagen bewaard) ----------
 async function sendResetNote(game, naam, reason) {
   try {
@@ -465,11 +476,11 @@ $('mWipe').addEventListener('click', async () => {
   b.disabled = true;
   try {
     const raw = open.raw || {};
-    await fb.setDoc(fb.doc(fb.db, 'users', open.uid), Object.assign({}, raw, { data: {}, resets: {}, email: open.email, updated: fb.serverTimestamp(), resetAt: fb.serverTimestamp() }));
+    await fb.setDoc(fb.doc(fb.db, 'users', open.uid), Object.assign({}, raw, { data: {}, resets: {}, notes: noteFor(raw, '*', 'alle games'), email: open.email, updated: fb.serverTimestamp(), resetAt: fb.serverTimestamp() }));
     const lb = fb.doc(fb.db, 'leaderboard', open.uid);
     const ls = await fb.getDoc(lb).catch(() => null);
     if (ls && ls.exists()) await fb.setDoc(lb, Object.assign({}, ls.data(), { scores: {}, extra: {}, times: {}, days: {} }));
-    $('mMsg').className = 'msg ok'; $('mMsg').textContent = 'Gewist. Ook op hun apparaten verdwijnen de records zodra ze de site openen.';
+    $('mMsg').className = 'msg ok'; $('mMsg').textContent = 'Gewist. De speler krijgt een melding (ook als hij nu aan het spelen is).';
     b.textContent = '✔ Gewist';
     load();
   } catch (e) { $('mMsg').className = 'msg err'; $('mMsg').textContent = 'Lukt niet: ' + (e.code || e.message); b.disabled = false; }

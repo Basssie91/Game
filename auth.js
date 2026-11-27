@@ -123,6 +123,7 @@ function applyIn(imp) {
 window.ArcadeStore = { collect, merge: applyIn };
 
 // ---------- Firebase ----------
+let myNotes = [];
 let fb = null, user = null, remote = {}, lastSent = '', ready = false, myName = '', pendingName = '', lastBoard = '';
 async function loadFb() {
   const [app, auth, fs] = await Promise.all([import(FB + 'firebase-app.js'), import(FB + 'firebase-auth.js'), import(FB + 'firebase-firestore.js')]);
@@ -149,6 +150,7 @@ async function pull() {
   if (d.deleted) { await accountGone(); throw Object.assign(new Error('Account verwijderd'), { code: 'account-deleted' }); }
   killed = false;
   remote = d.data || {};
+  myNotes = Array.isArray(d.notes) ? d.notes : [];   // persoonlijke meldingen van de admin
   myName = d.name || '';
   // heeft de admin de records van dit account gewist? Dan ook hier wissen (één keer)
   const ra = d.resetAt && d.resetAt.toMillis ? d.resetAt.toMillis() : 0;
@@ -176,6 +178,7 @@ async function push(force) {
   try {
     // eerst de nieuwste versie ophalen: zo verwerken we resets van de admin voordat we iets terugzetten
     await pull();
+    RN.personal(myNotes);
     data = mergeObjs(collect(), remote); s = JSON.stringify(data);
     // gegevens van verwijderde games ook uit je account halen
     const out = Object.assign({}, data);
@@ -630,6 +633,7 @@ function adminTools() {
         if (Date.now() - lastR > 60000) { try { sessionStorage.setItem('ga_sync_reload', Date.now()); } catch (e) { /* ok */ } location.reload(); return; }
       }
       ready = true;
+      RN.personal(myNotes);              // persoonlijke melding van de admin (na het eventueel herladen)
       if (pendingName && !myName) { try { await setName(pendingName); } catch (e) { /* later in het menu */ } }
       pendingName = '';
       if (IS_HUB) acctUI();
@@ -885,7 +889,8 @@ function initSug() {
 // Elke minuut (en als je terugkomt naar het tabblad) kijken of er een nieuwe reset is.
 // Speel je die game nu: groot scherm en de game laadt opnieuw (zodat oude records nooit terugkomen).
 // Anders: een kaartje met 'Spelen'. Ook zonder inloggen; maar één keer per melding.
-(() => {
+// Ook persoonlijke meldingen (de admin wiste alleen jouw records): die staan in je account.
+const RN = (() => {
   const SEEN = 'ga_resetnotes_seen';
   const here = IS_HUB ? '' : location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '').split('/').pop();
   const escN = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -923,19 +928,19 @@ function initSug() {
 #rnModal button{width:100%;height:58px;border:0;border-radius:16px;background:#fff;color:#0a0a0a;font:900 20px system-ui,sans-serif;cursor:pointer}#rnModal small{display:block;margin-top:12px;color:#8c8c8c;font-size:14px}`;
     document.head.appendChild(st);
   }
-  function card(n) {
+  function card(n, mine) {
     css();
     let box = document.getElementById('rnBox');
     if (!box) { box = document.createElement('div'); box.id = 'rnBox'; document.body.appendChild(box); box.addEventListener('click', (e) => { const x = e.target.closest('.rnx'); if (x) x.closest('.rnCard').remove(); }); }
     const all = n.game === '*';
     const link = all ? '' : `<a href="${new URL(n.game + '/', import.meta.url).href}">Spelen</a>`;
-    box.insertAdjacentHTML('beforeend', `<div class="rnCard"><button class="rnx" aria-label="Sluiten">✕</button><b>🗑️ Records gewist: ${escN(n.naam)}</b>${n.reason ? `<q>${escN(n.reason)}</q>` : `<q>${all ? 'Alle records zijn gewist. Iedereen begint opnieuw!' : 'Iedereen begint opnieuw. Wie haalt als eerste het nieuwe record?'}</q>`}${link}</div>`);
+    box.insertAdjacentHTML('beforeend', `<div class="rnCard"><button class="rnx" aria-label="Sluiten">✕</button><b>🗑️ ${mine ? (all ? 'Al je records zijn gewist' : 'Je records zijn gewist: ' + escN(n.naam)) : 'Records gewist: ' + escN(n.naam)}</b>${n.reason ? `<q>${escN(n.reason)}</q>` : `<q>${mine ? 'De beheerder heeft je records gewist.' : all ? 'Alle records zijn gewist. Iedereen begint opnieuw!' : 'Iedereen begint opnieuw. Wie haalt als eerste het nieuwe record?'}</q>`}${link}</div>`);
   }
   let modalOn = false;
-  function modal(n) {
+  function modal(n, mine) {
     if (modalOn) return; modalOn = true; css();
     const m = document.createElement('div'); m.id = 'rnModal';
-    m.innerHTML = `<div class="ub"><div class="ic">🗑️</div><h2>Records gewist!</h2><p>De records van <b>${escN(n.naam)}</b> zijn net gewist. Iedereen begint opnieuw.${n.reason ? `<i>"${escN(n.reason)}"</i>` : ''}</p><button id="rnGo">Opnieuw beginnen</button><small id="rnAuto"></small></div>`;
+    m.innerHTML = `<div class="ub"><div class="ic">🗑️</div><h2>${mine ? 'Je records zijn gewist' : 'Records gewist!'}</h2><p>${mine ? (n.game === '*' ? 'Al je records zijn net gewist door de beheerder.' : `Je records van <b>${escN(n.naam)}</b> zijn net gewist door de beheerder.`) : `De records van <b>${escN(n.naam)}</b> zijn net gewist. Iedereen begint opnieuw.`}${n.reason ? `<i>"${escN(n.reason)}"</i>` : ''}</p><button id="rnGo">Opnieuw beginnen</button><small id="rnAuto"></small></div>`;
     document.body.appendChild(m); document.body.style.overflow = 'hidden';
     const go = () => { const u = new URL(location.href); u.searchParams.set('r', Date.now().toString(36)); location.replace(u.toString()); };
     m.querySelector('#rnGo').onclick = go;
@@ -957,8 +962,26 @@ function initSug() {
     }
     if (changed) try { localStorage.setItem(SEEN, JSON.stringify(seen.slice(-60))); } catch (e) { /* vol */ }
     if (wiped && IS_HUB && window.renderRecords) window.renderRecords();
+    // ingelogd: ook je eigen account nakijken op persoonlijke meldingen
+    if (user && ready && !killed) { try { await pull(); personal(myNotes); } catch (e) { /* later opnieuw */ } }
+  }
+  // persoonlijk: maar één keer per speler, ook op andere apparaten (onthouden in je account)
+  function personal(notes) {
+    if (!notes || !notes.length) return;
+    const PK = 'arcade_pnotes_seen';
+    let seen; try { seen = JSON.parse(localStorage.getItem(PK)) || []; } catch (e) { seen = []; }
+    try { const r = JSON.parse(remote[PK] || '[]'); if (Array.isArray(r)) for (const x of r) if (!seen.includes(x)) seen.push(x); } catch (e) { /* */ }
+    const now = Date.now(); let changed = false;
+    for (const n of notes) {
+      if (!n || !n.id || seen.includes(n.id) || now - n.t > 14 * 864e5) continue;
+      seen.push(n.id); changed = true;
+      if (!IS_HUB && (n.game === '*' || n.game === here)) modal(n, true); else card(n, true);
+    }
+    if (changed) try { localStorage.setItem(PK, JSON.stringify(seen.slice(-40))); } catch (e) { /* vol */ }
+    if (changed && IS_HUB && window.renderRecords) window.renderRecords();
   }
   setTimeout(check, 2500);
   setInterval(check, 60000);
   addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  return { personal };
 })();
