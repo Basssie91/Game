@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="5137b1ccce">
+<meta name="site-build" content="868adb07fa">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
@@ -194,7 +194,7 @@ const firebaseConfig = {
   messagingSenderId: '780565589564',
   appId: '1:780565589564:web:1046aab17911e304e5dd39',
 };
-const ADMIN_EMAIL = 'basjonker2009@gmail.com';
+const ADMIN_UID = '31VKCKOiG2aeKpngX2R75Cv7YkY2';   // de beheerder (account-ID, geen e-mailadres)
 const ADMIN_HASH = '3caffc05c7f0e2906e518b7c96b1a3bab9ae1ed894b83d31ca651e93a0b19a15';
 const GAMES = [["race", "Turbo Tijdrit"], ["basket", "Basket Koning"], ["penalty", "Penalty Koning"], ["dief", "Nachtdief"], ["pool", "Pool"], ["voetbal", "Puck Voetbal"], ["escape", "Escape Room"], ["tycoon", "PC Tycoon"], ["td", "Robo Defense"], ["meteoren", "Meteorenregen 2.0"], ["runner", "Neon Runner"], ["snake", "Snake 2.0"], ["2048", "2048"], ["stack", "Stack Tower"], ["klimmer", "Toren Klimmer"]];   // [id, naam]
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
@@ -214,7 +214,7 @@ try {
 fb.onAuthStateChanged(fb.auth, (u) => {
   me = u;
   if (!u) return gate('Niet ingelogd', 'Log eerst in op de startpagina met je admin-account.');
-  if ((u.email || '').toLowerCase() !== ADMIN_EMAIL) return gate('Geen toegang', 'Deze pagina is alleen voor de beheerder.');
+  if (u.uid !== ADMIN_UID) return gate('Geen toegang', 'Deze pagina is alleen voor de beheerder.');
   $('gate').classList.add('hidden'); $('panel').classList.remove('hidden');
   load(); loadAnn();
 });

@@ -12,7 +12,7 @@ const firebaseConfig = {
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const IS_HUB = !!document.getElementById('authGate');
 const GUEST_KEY = 'ga_guest';
-const ADMIN_EMAIL = 'basjonker2009@gmail.com';
+const ADMIN_UID = '31VKCKOiG2aeKpngX2R75Cv7YkY2';   // de beheerder (account-ID, geen e-mailadres)
 
 // ---------- Laatst gespeeld (alleen in games) ----------
 if (!IS_HUB) {
@@ -283,7 +283,7 @@ function setMode(m) {
 function acctUI() {
   const b = $('acctBtn'); if (!b) return;
   const p = $('acctMenu').querySelector('p');
-  $('acctAdmin').style.display = user && (user.email || '').toLowerCase() === ADMIN_EMAIL ? '' : 'none';
+  $('acctAdmin').style.display = user && user.uid === ADMIN_UID ? '' : 'none';
   $('nameBox').style.display = user ? '' : 'none';
   $('acctProfile').style.display = user && myName ? '' : 'none';
   if (user && document.activeElement !== $('nameIn')) $('nameIn').value = myName;
@@ -621,7 +621,7 @@ function adminTools() {
     if (IS_HUB) renderSug();
     if (!u) { if (IS_HUB) renderBoard(); if (IS_HUB && localStorage.getItem(GUEST_KEY) !== '1') gate(true); return; }
     localStorage.removeItem(GUEST_KEY);
-    if ((u.email || '').toLowerCase() === ADMIN_EMAIL) adminTools();
+    if (u.uid === ADMIN_UID) adminTools();
     if (IS_HUB) { gate(false); setStatus('busy'); }
     try {
       await pull();
@@ -658,7 +658,7 @@ const ago = (t) => { const s = Math.max(0, (Date.now() - t) / 1000); if (s < 60)
 const SUG_ST = { open: '💡 Nieuw', gepland: '🛠️ Gepland', toegevoegd: '✅ Toegevoegd', gesloten: 'Gesloten' };
 let sugAll = [], sugTab = 'open', sugMail = {};
 const escS = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-const isAdmin = () => !!user && (user.email || '').toLowerCase() === ADMIN_EMAIL;
+const isAdmin = () => !!user && user.uid === ADMIN_UID;
 async function loadSug() {
   if (!fb || !document.getElementById('sugList')) return;
   try {
