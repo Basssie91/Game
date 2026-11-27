@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="89408d8e36">
+<meta name="site-build" content="a30a7a3b73">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
@@ -46,6 +46,7 @@ td .acts { display: flex; gap: 6px; justify-content: flex-end; } td button { pad
 .cmodal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.85); backdrop-filter: blur(4px); z-index: 11; }
 .cmodal.open { display: flex; } .cmodal .box { width: min(440px, 100%); } .cmodal h2 { margin: 0 0 10px; font-size: 20px; } .cmodal p { color: #c5cad2; line-height: 1.5; font-size: 14px; margin: 0 0 10px; }
 #modal .reason { width: 100%; margin-top: 12px; padding: 10px 12px; text-align: left; letter-spacing: 0; font-size: 14px; font-weight: 600; }
+.flag { cursor: help; }
 .cmodal .reason { margin-top: 8px; text-align: left; letter-spacing: 0; font-size: 14px; font-weight: 600; }
 .cmodal code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 6px; color: #fff; } .cmodal button:disabled { opacity: 0.45; cursor: not-allowed; }
 #modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(5,6,8,0.8); backdrop-filter: blur(4px); z-index: 10; }
@@ -269,7 +270,32 @@ async function load() {
     $('rows').innerHTML = `<tr><td colspan="6" class="err">${e.code === 'permission-denied' ? 'Geen toestemming: zet de nieuwe Firestore-regels erin (zie uitleg).' : 'Fout: ' + esc(e.message)}</td></tr>`;
   }
 }
+// ---------- 🚩 Verdachte records ----------
+// Score: meer dan 2x zo hoog als de nummer 2 (bij minstens 3 spelers). Tijd: meer dan 30% sneller dan de nummer 2.
+const TIME_GAMES = { race: (d) => { const r = J(d.tt2_bests2) || {}; const o = {}; for (const k in r) { const t = r[k] && typeof r[k] === 'object' ? r[k].t : r[k]; if (typeof t === 'number') o[k] = t; } return o; }, escape: (d) => J(d.arcade_escape_bests) || {}, dief: (d) => J(d.arcade_dief_bests) || {} };
+function suspects() {
+  const flags = new Map();   // uid -> [redenen]
+  const add = (u, why) => { if (!flags.has(u.uid)) flags.set(u.uid, []); flags.get(u.uid).push(why); };
+  const best = {};           // game -> reden (voor de tabel 'Beste per game')
+  for (const [id, naam] of GAMES) {
+    if (TIME_GAMES[id]) {
+      const levels = {};
+      for (const u of users) { const o = TIME_GAMES[id](u.data); for (const k in o) if (o[k] > 0) (levels[k] = levels[k] || []).push({ u, v: o[k] }); }
+      for (const k in levels) {
+        const l = levels[k].sort((a, b) => a.v - b.v);
+        if (l.length >= 3 && l[0].v < l[1].v * 0.7) { const why = `${naam} level ${+k + 1}: ${l[0].v.toFixed(2)} s, veel sneller dan de nummer 2 (${l[1].v.toFixed(2)} s)`; add(l[0].u, why); best[id] = best[id] || why; }
+      }
+    } else {
+      const l = users.map((u) => ({ u, v: J(u.data['arcade_best_' + id]) })).filter((x) => typeof x.v === 'number' && x.v > 0).sort((a, b) => b.v - a.v);
+      if (l.length >= 3 && l[0].v > l[1].v * 2) { const why = `${naam}: ${l[0].v.toLocaleString('nl-NL')}, meer dan 2x zo hoog als de nummer 2 (${l[1].v.toLocaleString('nl-NL')})`; add(l[0].u, why); best[id] = why; }
+    }
+  }
+  return { flags, best };
+}
+const flagHtml = (why) => `<span class="flag" title="${esc(why)}">🚩</span>`;
+
 function render() {
+  const sus = suspects();
   const now = Date.now(), q = $('search').value.trim().toLowerCase(), qn = $('searchName').value.trim().toLowerCase();
   let total = 0;
   const rows = users.map((u) => { const r = recordsOf(u.data).filter((x) => x[2] != null); total += r.length; return { u, n: r.length }; });
@@ -279,7 +305,8 @@ function render() {
   $('tRec').textContent = total;
   $('rows').innerHTML = rows.filter(({ u }) => u.email.toLowerCase().includes(q) && (!qn || (u.raw.name || '').toLowerCase().includes(qn))).map(({ u, n }) => {
     const ty = J(u.data.arcade_best_tycoon);
-    return `<tr><td>${esc(u.email)}${me && u.uid === me.uid ? '<span class="me">JIJ</span>' : ''}</td><td>${u.raw.name ? (nameBad(u.raw.name) ? '<b style="color:#ff5a5a" title="Niet toegestane naam: pas hem aan">⚠️ ' + esc(u.raw.name) + '</b>' : '<b>' + esc(u.raw.name) + '</b>') : '<span class="dim">geen naam</span>'}</td><td>${ago(u.t)}</td><td class="num hide-sm">${n}/${GAMES.length}</td><td class="num hide-sm">${ty ? 'Level ' + ty : '–'}</td>
+    const fl = sus.flags.get(u.uid);
+    return `<tr><td>${fl ? flagHtml('Verdacht record: ' + fl.join(' · ')) + ' ' : ''}${esc(u.email)}${me && u.uid === me.uid ? '<span class="me">JIJ</span>' : ''}</td><td>${u.raw.name ? (nameBad(u.raw.name) ? '<b style="color:#ff5a5a" title="Niet toegestane naam: pas hem aan">⚠️ ' + esc(u.raw.name) + '</b>' : '<b>' + esc(u.raw.name) + '</b>') : '<span class="dim">geen naam</span>'}</td><td>${ago(u.t)}</td><td class="num hide-sm">${n}/${GAMES.length}</td><td class="num hide-sm">${ty ? 'Level ' + ty : '–'}</td>
       <td><div class="acts"><button data-v="${u.uid}">Bekijk</button></div></td></tr>`;
   }).join('') || '<tr><td colspan="6">Geen accounts gevonden.</td></tr>';
   $('delWrap').style.display = deleted.length ? '' : 'none';
@@ -292,7 +319,7 @@ function render() {
       if (typeof v === 'number' && v > 0 && (!best || v > best.v)) best = { v, email: u.email, name: u.raw.name };
     }
     const show = best ? (id === 'race' ? best.v + '/20 levels' : id === 'tycoon' ? 'Level ' + best.v : best.v.toLocaleString('nl-NL')) : '–';
-    return `<tr><td>${esc(naam)}</td><td class="num">${show}</td><td>${best ? (best.name ? '<b>' + esc(best.name) + '</b> · ' : '') + '<span class="dim" style="font-style:normal">' + esc(best.email) + '</span>' : '–'}</td><td><div class="acts"><button class="red" data-wg="${id}" title="Records van deze game bij alle spelers wissen">🗑️ Wis voor iedereen</button></div></td></tr>`;
+    return `<tr><td>${esc(naam)}</td><td class="num">${sus.best[id] ? flagHtml('Verdacht: ' + sus.best[id]) + ' ' : ''}${show}</td><td>${best ? (best.name ? '<b>' + esc(best.name) + '</b> · ' : '') + '<span class="dim" style="font-style:normal">' + esc(best.email) + '</span>' : '–'}</td><td><div class="acts"><button class="red" data-wg="${id}" title="Records van deze game bij alle spelers wissen">🗑️ Wis voor iedereen</button></div></td></tr>`;
   }).join('');
 }
 $('search').addEventListener('input', render);
