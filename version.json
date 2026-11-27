@@ -1,7 +1,16 @@
 {
- "build": "a61cb39bdf",
- "note": "Robo Overval is van de site gehaald.",
+ "build": "e50c6b264a",
+ "note": "Turbo Tijdrit: bandenstapels en dranghekken op de weg!",
  "log": [
+  {
+   "d": "2026-11-27",
+   "items": [
+    {
+     "t": "🏁 Turbo Tijdrit: obstakels! Bandenstapels en dranghekken op de weg, soms net achter een heuveltop of bocht",
+     "g": "race"
+    }
+   ]
+  },
   {
    "d": "2026-11-26",
    "items": [

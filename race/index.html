@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="a61cb39bdf">
+<meta name="site-build" content="e50c6b264a">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Turbo Tijdrit</title>
@@ -592,6 +592,35 @@ function buildTrack(code) {
   return { samples, cps, finishIdx, startIdx: 6, startGate: 14, loops, bounds: { minX, maxX, minZ, maxZ, minY } };
 }
 
+// ---------- Obstakels: bandenstapels en dranghekken op de weg ----------
+// Altijd minstens 4,5 m vrij om erlangs te gaan. Nooit in loopings, op muren, schansen of boven gaten.
+const OBST = { tire: { hw: 0.8, hd: 0.8 }, fence: { hw: 1.5, hd: 0.3 } };
+function placeObstacles(track, lvIdx, seed) {
+  track.obs = [];
+  if (!lvIdx) return track.obs;                     // level 1: lekker rustig
+  const ss = track.samples, n = ss.length, R = rng(seed * 31 + 7);
+  const want = Math.round(3 + (Math.min(lvIdx, 19) / 19) * 7);
+  const bad = (s) => s.flag === 'gap' || s.flag === 'ramp' || s.flag === 'loop' || s.flag === 'wall' || s.flag === 'bank' || s.fence || s.w < HALF_W - 0.01;
+  const ok = (i) => {
+    if (i < 40 || i > track.finishIdx - 12 || i > n - 20) return false;
+    for (let k = i - 6; k <= i + 6; k++) if (bad(ss[k])) return false;
+    for (let k = i - 8; k <= i + 8; k++) if (Math.abs(ss[k].kg || 0) > 0.03) return false;   // nooit in een scherpe bocht (wel er net uit)
+    for (let k = i - 12; k < i; k++) if (ss[k].flag === 'gap') return false;      // niet vlak na een landing
+    if (ss[i].N[1] < 0.85) return false;                                          // niet op een steile helling
+    return !track.obs.some((o) => Math.abs(o.i - i) < 30);
+  };
+  for (let tries = 0; tries < 4000 && track.obs.length < want; tries++) {
+    const i = 40 + Math.floor(R() * (n - 60));
+    if (!ok(i)) continue;
+    const type = R() < 0.5 ? 'tire' : 'fence', d = OBST[type];
+    const lim = HALF_W - d.hw - 0.3;
+    const u = Math.max(-lim, Math.min(lim, (R() * 2 - 1) * 3.2));               // vaak in het midden van je lijn
+    track.obs.push({ i, u, type, hw: d.hw, hd: d.hd, hit: 0 });
+  }
+  track.obs.sort((a, b) => a.i - b.i);
+  return track.obs;
+}
+
 // Weg-assenstelsel op een (gebroken) positie langs de baan
 function frameAt(track, fi) {
   const ss = track.samples;
@@ -710,6 +739,23 @@ function stepCar(c, track, inp, dt) {
       c.fenceHit = 0.25;
     }
     c.fenceHit = Math.max(0, (c.fenceHit || 0) - dt);
+    // obstakel geraakt: een stukje terug, en meteen weer door
+    if (track.obs) for (const o of track.obs) {
+      const d = (c.fi - o.i) * STEP;
+      if (Math.abs(d) > o.hd + 2.4 || Math.abs(c.u - o.u) > o.hw + 1.0) continue;
+      const back = d < 0 ? -1 : 1;                         // van welke kant raak je hem
+      if (back * c.vf > 0 && Math.abs(c.vf) > 0.5) break;  // je rijdt er al vanaf
+      c.fi = o.i + back * (o.hd + 2.45) / STEP;
+      c.vf = back * Math.max(4, Math.abs(c.vf) * 0.28);   // weg van het obstakel
+      c.vl *= 0.3; c.psi *= 0.5;
+      // klein duwtje opzij (weg van het midden van het obstakel), zodat je er meteen langs kunt
+      const side = c.u >= o.u ? 1 : -1, lim = fr.w - 1.2;
+      c.u = Math.max(-lim, Math.min(lim, c.u + side * 0.6));
+      if (!(o.hit > 0.3)) c.bumped = true;
+      o.hit = 0.5;
+      fr = frameAt(track, c.fi);
+      break;
+    }
     c.gfi = c.fi;
     cp = Math.cos(c.psi); sp = Math.sin(c.psi);
     F = V.add(V.mul(fr.T, cp), V.mul(fr.R, sp));
@@ -799,6 +845,7 @@ function stepRace(r, c, track, inp, dt) {
   }
   r.t += dt;
   const res = stepCar(c, track, inp, dt);
+  if (c.bumped) { c.bumped = false; ev.push('bump'); }
   while (r.recT <= r.t) {
     const q = (v, k) => Math.round(v * k) / k;
     r.ghost.push(q(c.pos[0], 100), q(c.pos[1], 100), q(c.pos[2], 100), q(c.F[0], 1000), q(c.F[1], 1000), q(c.F[2], 1000), q(c.U[0], 1000), q(c.U[1], 1000), q(c.U[2], 1000));
@@ -1214,6 +1261,32 @@ function buildSceneryMesh(track, seed) {
 }
 
 // ----- Auto -----
+// Obstakels (x = opzij, y = omhoog, z = vooruit)
+function buildTireMesh() {
+  const mb = new MeshBuilder(), black = hex('#1a1b20'), red = hex('#e8282f'), white = hex('#f4f4f4');
+  const ring = (y0, y1, r, col) => {
+    const N = 12;
+    for (let k = 0; k < N; k++) {
+      const a0 = (k / N) * Math.PI * 2, a1 = ((k + 1) / N) * Math.PI * 2;
+      const p = (a, y, rr) => [Math.cos(a) * rr, y, Math.sin(a) * rr];
+      mb.quad(p(a0, y0, r), p(a1, y0, r), p(a1, y1, r), p(a0, y1, r), col, 0.03);   // buitenkant
+      mb.quad(p(a0, y1, r), p(a1, y1, r), p(a1, y1, r * 0.45), p(a0, y1, r * 0.45), col, 0.03);   // bovenkant
+    }
+  };
+  ring(0, 0.34, 0.78, black); ring(0.34, 0.38, 0.79, red); ring(0.38, 0.72, 0.78, black); ring(0.72, 0.76, 0.79, white); ring(0.76, 1.1, 0.78, black);
+  return mb.build();
+}
+function buildFenceMesh() {
+  const mb = new MeshBuilder(), red = hex('#e8282f'), white = hex('#f4f4f4'), grey = hex('#7d838d'), dark = hex('#2a2d33');
+  // poten
+  for (const x of [-1.45, 1.45]) { mb.box(x - 0.06, x + 0.06, 0, 1.05, -0.06, 0.06, grey); mb.box(x - 0.08, x + 0.08, 0, 0.06, -0.45, 0.45, dark); }
+  // rood-witte panelen
+  for (let k = 0; k < 6; k++) { const x0 = -1.4 + k * (2.8 / 6), x1 = x0 + 2.8 / 6; mb.box(x0, x1, 0.45, 1.0, -0.05, 0.05, k % 2 ? white : red); }
+  mb.box(-1.5, 1.5, 1.0, 1.08, -0.06, 0.06, grey);
+  mb.box(-1.5, 1.5, 0.38, 0.45, -0.06, 0.06, grey);
+  return mb.build();
+}
+
 function buildCarMesh(color) {
   const mb = new MeshBuilder();
   const body = hex(color);
@@ -1349,25 +1422,25 @@ function drawMesh(mesh, model, opts = {}) {
 const LEVELS = [
   { naam: 'Eerste Rit', code: 'S S R S C S L S S U S D S C S R S S L S F', medals: [19.7, 22.6, 26.8], seed: 11 },
   { naam: 'Springplank', code: 'S S J S S R S C S S J S L S S S C B S K S S F', medals: [20.4, 23.4, 27.7], seed: 22 },
-  { naam: 'Looping', code: 'S S S O S S R S C S S O S L S C S S S O S S F', medals: [22.3, 25.5, 30.3], seed: 33 },
+  { naam: 'Looping', code: 'S S S O S S R S C S S O S L S C S S S O S S F', medals: [22.4, 25.6, 30.4], seed: 33 },
   { naam: 'Schuine Bochten', code: 'S S Y S S Z S C S Y S S Z S C S S F', medals: [18.5, 21.2, 25.2], seed: 44 },
-  { naam: 'Bultenweg', code: 'S H S H S R S H S H S H S C S L S H S J S C S H H S F', medals: [21.5, 24.6, 29.2], seed: 55 },
-  { naam: 'Boostbaan', code: 'S B S J S S S R B S K S S C L S S U S D B J S S C r r S B K S S F', medals: [25.4, 29.1, 34.6], seed: 66 },
+  { naam: 'Bultenweg', code: 'S H S H S R S H S H S H S C S L S H S J S C S H H S F', medals: [21.7, 24.9, 29.5], seed: 55 },
+  { naam: 'Boostbaan', code: 'S B S J S S S R B S K S S C L S S U S D B J S S C r r S B K S S F', medals: [25.6, 29.3, 34.9], seed: 66 },
   { naam: 'Muurrit', code: 'S S S W S S S C S S M S S S C B S W S S F', medals: [16.8, 19.3, 22.8], seed: 77 },
-  { naam: 'Smalle Paden', code: 'S N S R N S C S L N S J S C r N l S F', medals: [19.3, 22.1, 26.3], seed: 88 },
+  { naam: 'Smalle Paden', code: 'S N S R N S C S L N S J S C r N l S F', medals: [19.6, 22.4, 26.7], seed: 88 },
   { naam: 'Achtbaan', code: 'S S O S S U S D S C S R S O S S H H S C S L S S O S F', medals: [26.3, 30.1, 35.7], seed: 99 },
-  { naam: 'Slingerweg', code: 'S l r r l S C R S l l S r r S C L L S S R S C S l r S r l S F', medals: [28.8, 33.0, 39.1], seed: 111 },
+  { naam: 'Slingerweg', code: 'S l r r l S C R S l l S r r S C L L S S R S C S l r S r l S F', medals: [28.9, 33.2, 39.3], seed: 111 },
   { naam: 'Wolkenkrabber', code: 'S S U U U S W S S S C S M S S D D D S C S O S J S S F', medals: [26.2, 30.1, 35.7], seed: 122 },
-  { naam: 'Meesterwerk', code: 'S S U U U L S S L S S L S S S S S D D D C S R S J S S L S C B S K S S O S Y S S C S N S W S S S H H S C S O S B K S F', medals: [53.2, 60.9, 72.3], seed: 133 },
+  { naam: 'Meesterwerk', code: 'S S U U U L S S L S S L S S S S S D D D C S R S J S S L S C B S K S S O S Y S S C S N S W S S S H H S C S O S B K S F', medals: [53.3, 61.0, 72.5], seed: 133 },
   // nieuwe, moeilijkere levels (13-20): haarspeldbochten, extra smal, megaschans
   { naam: 'Haarspeld', code: 'S S P S S C S Q S S B S S S S P S C S S Q S S F', medals: [21.3, 24.3, 28.8], seed: 144 },
   { naam: 'Dubbele Looping', code: 'S S S O O S S C S R S S O O S C S B S J S S O S S F', medals: [25.5, 29.1, 34.4], seed: 155 },
-  { naam: 'Koorddanser', code: 'S S n S C S N S J S n S C S l n r S S n S F', medals: [20.4, 23.3, 27.5], seed: 166 },
-  { naam: 'Megaschans', code: 'S B S E S S C S R S B S E S S C S L B S K S S B S E S S F', medals: [21.8, 24.9, 29.4], seed: 177 },
-  { naam: 'Muurrenner', code: 'S S W S M S C S Y S Z S W S C S M S W S S F', medals: [22.9, 26.1, 30.9], seed: 188 },
+  { naam: 'Koorddanser', code: 'S S n S C S N S J S n S C S l n r S S n S F', medals: [20.4, 23.3, 27.6], seed: 166 },
+  { naam: 'Megaschans', code: 'S B S E S S C S R S B S E S S C S L B S K S S B S E S S F', medals: [22.3, 25.4, 30.0], seed: 177 },
+  { naam: 'Muurrenner', code: 'S S W S M S C S Y S Z S W S C S M S W S S F', medals: [23.0, 26.2, 31.0], seed: 188 },
   { naam: 'Bergpas', code: 'S U U S P S U S H S C S Q S D S H H S P S C S D D S Q S S F', medals: [29.7, 33.9, 40.1], seed: 199 },
-  { naam: 'Chaos', code: 'S B S J S O S n S B W S C S Q S S B S K S S B M S C S N S O S Y S B S E S S C S R n S O S F', medals: [39.7, 45.3, 53.6], seed: 210 },
-  { naam: 'Eindbaas', code: 'S S U U L S S n S C S O O S B S E S S R S C S S W S S M S S P S C S H H S B S K S S S Q S n S C S Y S Z S O S B S E S S C S N S J S O O S S F', medals: [66.0, 75.2, 89.1], seed: 221 },
+  { naam: 'Chaos', code: 'S B S J S O S n S B W S C S Q S S B S K S S B M S C S N S O S Y S B S E S S C S R n S O S F', medals: [39.9, 45.6, 53.9], seed: 210 },
+  { naam: 'Eindbaas', code: 'S S U U L S S n S C S O O S B S E S S R S C S S W S S M S S P S C S H H S B S K S S S Q S n S C S Y S Z S O S B S E S S C S N S J S O O S S F', medals: [66.3, 75.6, 89.5], seed: 221 },
 ];
 const MEDAL_NAMES = ['GOUD', 'ZILVER', 'BRONS'];
 const MEDAL_COLORS = ['#ffd23f', '#d9dee8', '#d98a4a'];
@@ -1509,6 +1582,7 @@ let menuTime = 0;
 shadowMesh = gl ? buildShadowMesh() : null;
 carMesh = gl ? buildCarMesh(carColor) : null;
 ghostMesh = gl ? buildCarMesh('#bfe9ff') : null;
+const tireMesh = gl ? buildTireMesh() : null, fenceMesh = gl ? buildFenceMesh() : null;
 
 ArcadeCore.onChange(() => { if (track && gl) sceneryMesh = buildSceneryMesh(track, LEVELS[levelIdx].seed); });
 
@@ -1516,6 +1590,7 @@ function loadLevel(i) {
   levelIdx = i;
   const lv = LEVELS[i];
   track = buildTrack(lv.code);
+  placeObstacles(track, i, lv.seed);
   trackMesh = gl ? buildTrackMesh(track) : null;
   sceneryMesh = gl ? buildSceneryMesh(track, lv.seed) : null;
   restart();
@@ -1607,6 +1682,7 @@ function finishRace() {
 // ----- Update -----
 function update(dt) {
   shake = Math.max(0, shake - dt * 25);
+  if (track && track.obs) for (const o of track.obs) if (o.hit > 0) o.hit = Math.max(0, o.hit - dt);
   if (toast) { toast.t -= dt; if (toast.t <= 0) toast = null; }
 
   if (state === 'menu') {
@@ -1626,6 +1702,10 @@ function update(dt) {
       toast = { title: `Checkpoint ${k + 1}/${track.cps.length}`, time: race.t, delta: ref == null ? null : race.t - ref, t: 2 };
       beep(990, 0.12, 'triangle', 0.06);
       beep(1320, 0.18, 'triangle', 0.05, 0, 0.1);
+    }
+    if (e === 'bump') {
+      beep(110, 0.18, 'square', 0.07, -40); beep(70, 0.25, 'sawtooth', 0.05, -20);
+      shake = Math.max(shake, 4);
     }
     if (e === 'fall') {
       toast = { title: 'Eraf gevallen!', sub: 'Terug naar het laatste checkpoint', t: 1.8 };
@@ -1690,6 +1770,13 @@ function render() {
   beginScene();
   drawMesh(sceneryMesh);
   drawMesh(trackMesh);
+  // obstakels (wiebelen even als je ertegenaan rijdt)
+  if (track && track.obs) for (const o of track.obs) {
+    const fr = frameAt(track, o.i);
+    const wob = o.hit > 0 ? Math.sin(o.hit * 40) * o.hit * 0.25 : 0;
+    const pos = V.ma(V.ma(fr.P, fr.R, o.u), fr.T, wob);
+    drawMesh(o.type === 'tire' ? tireMesh : fenceMesh, M4.basis(pos, fr.T, fr.N));
+  }
   if (state !== 'menu') {
     // Schaduw op de weg
     if (car.shadow) {
@@ -2047,6 +2134,6 @@ ArcadeCore.toggle('🚀 Turbo (veel sneller)', () => turbo, (v) => {
 });
 
   </script>
-  <script type="module" src="../auth.js?v=a61cb39bdf"></script>
+  <script type="module" src="../auth.js?v=e50c6b264a"></script>
 </body>
 </html>
