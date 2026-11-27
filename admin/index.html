@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<meta name="site-build" content="dc9ecbaa4f">
+<meta name="site-build" content="89408d8e36">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
@@ -199,7 +199,7 @@ const ADMIN_HASH = '3caffc05c7f0e2906e518b7c96b1a3bab9ae1ed894b83d31ca651e93a0b1
 const GAMES = [["race", "Turbo Tijdrit"], ["basket", "Basket Koning"], ["penalty", "Penalty Koning"], ["dief", "Nachtdief"], ["pool", "Pool"], ["voetbal", "Puck Voetbal"], ["escape", "Escape Room"], ["tycoon", "PC Tycoon"], ["td", "Robo Defense"], ["meteoren", "Meteorenregen 2.0"], ["runner", "Neon Runner"], ["snake", "Snake 2.0"], ["2048", "2048"], ["stack", "Stack Tower"], ["klimmer", "Toren Klimmer"]];   // [id, naam]
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 // namenfilter (zelfde als op de site): foute namen in het rood tonen
-const BAD_WORDS = /kanker|kanke|kankr|kenker|kanka|kkr|tyfus|tyfes|tiefus|tyfu|t[iy]?ering|pest|klere|kolere|cholera|pokke|aids|tbc|kut|lul|hoer|fuck|fuk|kech|jonker|jonkr|jonke/;
+const BAD_WORDS = /kanker|kanke|kankr|kenker|kanka|kkr|tyfus|tyfes|tiefus|tyfu|t[iy]?ering|pest|klere|kolere|cholera|pokke|aids|tbc|kut|lul|hoer|fuck|fuk|kech|jonker|jonkr|jonke|neger|negr|nigger|niger|nigga|niga|nigr|niggr|negro|nikker|nikkr|roetmop|hitler|nazi(?!r)/;
 function nameBad(n) {
   const leet = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b', '@': 'a', $: 's', '!': 'i', '|': 'i', '€': 'e' };
   const low = String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');

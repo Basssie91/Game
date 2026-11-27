@@ -249,7 +249,7 @@ async function pushBoard(data, force) {
 }
 const NAME_OK = /^[\p{L}\p{N} _.-]{2,16}$/u;
 // ---------- Namenfilter: scheldwoorden (ook ziektes) en 'jonker' zijn niet toegestaan, ook niet verstopt ----------
-const BAD_WORDS = /kanker|kanke|kankr|kenker|kanka|kkr|tyfus|tyfes|tiefus|tyfu|t[iy]?ering|pest|klere|kolere|cholera|pokke|aids|tbc|kut|lul|hoer|fuck|fuk|kech|jonker|jonkr|jonke/;
+const BAD_WORDS = /kanker|kanke|kankr|kenker|kanka|kkr|tyfus|tyfes|tiefus|tyfu|t[iy]?ering|pest|klere|kolere|cholera|pokke|aids|tbc|kut|lul|hoer|fuck|fuk|kech|jonker|jonkr|jonke|neger|negr|nigger|niger|nigga|niga|nigr|niggr|negro|nikker|nikkr|roetmop|hitler|nazi(?!r)/;
 function nameBad(n) {
   const leet = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b', '@': 'a', $: 's', '!': 'i', '|': 'i', '€': 'e' };
   const low = String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
